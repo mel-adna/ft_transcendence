@@ -1,108 +1,99 @@
-# 📊 Team-Pulse Dashboard (ft_transcendence DevOps & Analytics)
-### 🐳 Secure Multi-Container Microservice Platform with SSL Reverse Proxy
+# 🎮 ft_transcendence — Team Pulse Workspace
+### 🐳 Secure Multi-Container Multiplayer Pong Game, Real-Time Chat & Analytics Platform
+
+Welcome to the **Team Pulse** workspace, a complete, modern single-page web application built for the **`ft_transcendence`** project. 
+
+This platform orchestrates a secure multi-container microservice system running a live multiplayer Pong game, user match histories, interactive chat rooms, and real-time sprint analytics.
 
 ---
 
-## 📖 Introduction
-This repository houses the complete DevOps foundation and **Member 5 (Analytics & Data Science)** services for the **Team-Pulse Workspace** (`ft_transcendence` project). 
+## 🗺️ Project Scope & Core Modules
 
-To ensure complete modular independence and prevent code-level conflicts during team collaboration, all other member subsystems (Auth, Chat, Pong Game backend) have been intentionally purged. This clean state provides our teammates with a hardened, pre-configured DevOps environment that they can easily plug their own services into.
+The system is designed as a secure, distributed microservice architecture. It is divided into 5 specialized developer roles:
+
+| Module Area | Developer | Technical Stack | Status |
+| :--- | :--- | :--- | :--- |
+| **🌐 DevOps & Reverse Proxy** | **Member 5** *(You)* | Nginx, Docker, OpenSSL, TLS 1.3 | **✔️ Hardened & Core SSL Terminal Active** |
+| **📊 Analytics & Data Science** | **Member 5** *(You)* | Node.js, Express, Recharts, REST APIs | **✔️ Fully Implemented & Responsive** |
+| **🔑 Auth & User Profiles** | **Member 1 & 2** | *To be integrated* (e.g., JWT, OAuth 2.0) | 🔌 Pending Integration |
+| **💬 Live Chat & Channels** | **Member 3** | *To be integrated* (e.g., WebSockets, Redis) | 🔌 Pending Integration |
+| **🎮 Multiplayer Pong Game** | **Member 4** | *To be integrated* (e.g., Canvas, WebSockets) | 🔌 Pending Integration |
 
 ---
 
-## 🧱 Key Architectural Highlights
-* **Nginx SSL Termination Gateway**: Routes secure external HTTPS traffic (`Port 443`) internally as unencrypted HTTP to containers, using local RSA self-signed certificates.
-* **Cyber-Hardening Protection**: Applies HSTS session security, X-Frame-Options against Clickjacking, nosniff headers against MIME-sniffing, XSS browser shields, and restricted Content Security Policies (CSP) globally.
-* **Express Trust-Proxy Rates & Auth**: Implements IP-based request rate limiting (60 requests per 15 minutes) and header-based API key authentication (`x-api-key`), correctly tracking external user IPs through proxy headers.
-* **Dual-Responsive Adaptive UI**: Renders a dynamic, glassmorphic layout switching between a Left Sidebar navigation (on desktop) and a Bottom Navigation tab bar (on mobile), with responsive completion charts and activity trackers.
+## 🏗️ System Architecture
 
----
+Our platform leverages **Docker Compose** to coordinate distinct containerized services communicating inside an isolated, private virtual network called `teampulse_net`. External clients communicate strictly via secure HTTPS through **Nginx** as the single gateway.
 
-## 📂 Project Structure Map
-
-```text
-├── .env.example              # Environment parameter templates
-├── .gitignore                # Industry-standard git untracked files block
-├── COLLABORATION.md          # Team integration guide (How other members plug in)
-├── EVALUATION_PREP.md        # Comprehensive 1337 defense Q&A guide
-├── README.md                 # Project landing documentation
-├── docker-compose.yml        # Multi-container service orchestrator
-├── generate_certs.sh         # Automated local SSL certificate creator
-│
-├── nginx/
-│   ├── nginx.conf            # Proxy paths, SSL protocols & Security headers
-│   └── certs/                # Local development SSL credential directory (git-ignored)
-│
-├── backend/
-│   ├── Dockerfile            # Alpine-based Node 22 API container
-│   ├── package.json          # Express, Cors, and Rate-limiting libraries
-│   └── src/
-│       ├── app.js            # CORS, proxy trusts, and security middleware
-│       ├── routes/           # REST endpoint paths
-│       └── controllers/      # KPI metrics calculations & CSV dynamic builders
-│
-└── frontend/
-    ├── Dockerfile            # Alpine-based React Vite client container
-    ├── package.json          # Tailwind CSS v4, Lucide Icons, and Recharts SVG libraries
-    ├── vite.config.js        # Build bindings and proxy configurations
-    └── src/
-        ├── App.jsx           # Main responsive viewport toggle layout
-        └── features/
-            └── dashboard/    # Recharts metrics, bar/area trends & feeds
+```
+                           [ CLIENT BROWSER ]
+                                   │
+                         ( Secure HTTPS - 443 )
+                                   │
+                                   ▼
+                       ┌──────────────────────┐
+                       │  team_pulse_nginx    │
+                       └──────────┬───────────┘
+                                  │
+         ┌────────────────────────┼────────────────────────┐
+         │ (Internal HTTP)        │ (Internal HTTP)        │ (Internal WebSockets)
+         ▼                        ▼                        ▼
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│  team_pulse_     │    │  team_pulse_     │    │   Future Team    │
+│  frontend        │    │  backend         │    │   Microservices  │
+│  (React/Vite SPA)│    │  (Member 5 API)  │    │ (Auth, Chat, Game)│
+└──────────────────┘    └──────────────────┘    └──────────────────┘
 ```
 
+### Key Shared Architecture Highlights:
+* **Global SSL/TLS termination**: Handled dynamically at the Nginx gateway, ensuring all internal microservices communicate in a safe, standard production environment.
+* **Unified Domain & Origin**: By routing all paths (`/` for UI, `/api` for stats, and future services) through Nginx on Port 443, the entire system runs on the same host address, eliminating cross-origin browser issues (CORS).
+* **Cyber-Hardening Policies**: Built-in HTTP response headers protect all services globally against **Clickjacking** (`X-Frame-Options`), **MIME-Sniffing** (`X-Content-Type-Options`), **Reflected Script Injections** (`X-XSS-Protection`), and **Session Hijacking** (HSTS).
+
 ---
 
-## 🚀 1. Quick Start Guide (Run Locally in Seconds)
+## 🚀 Getting Started
 
-Follow these two simple commands to build and run the entire secure stack:
+Follow these steps to generate cryptographic keys and run the entire unified platform locally in seconds:
+
+### Prerequisite: Install Docker & OpenSSL
+Ensure you have Docker Desktop and OpenSSL installed on your host system.
 
 ### Step 1: Generate Local SSL Certificates
-Run the automated SSL script in your terminal to create your self-signed key pair locally:
+Run the automated secure SSL helper script at the root of the project to create your local TLS credential key pair:
 ```bash
 ./generate_certs.sh
 ```
 
-### Step 2: Boot the Containers
+### Step 2: Spin Up the Containers
 Launch the multi-container environment via Docker Compose:
 ```bash
 docker-compose up --build
 ```
-Docker will pull the optimized Alpine packages, compile your custom Node.js v22 images, spin up the private virtual bridge network, and activate the secure proxy.
 
----
-
-## 🎯 2. Workspace Access Points
-Once the containers are active:
-* **💻 Secure Web Frontend UI**: Access `https://localhost/` inside your browser. 
-  *(Note: Since we use self-signed certificates for local development, accept the browser warning to enter the dashboard).*
-* **🔌 Secure Public API (Member 5)**: Access the API endpoints routed through Nginx:
-  * Health Endpoint: `https://localhost/api/health`
-  * Dashboard Stats: `https://localhost/api/stats/summary` *(Requires API Key)*
+### Step 3: Access the Platform
+* **💻 Web Application Gateway**: Open `https://localhost/` in your browser.
+  *(Note: Since this is local development utilizing self-signed certificates, accept the browser warning to proceed to the main dashboard).*
+* **🔌 Secure Public API (Analytics)**:
+  * Health check: `https://localhost/api/health`
+  * Dashboard JSON Metrics: `https://localhost/api/stats/summary` *(Requires API Key)*
   * CSV Task Exporter: `https://localhost/api/stats/export/tasks?apiKey=team_pulse_public_api_secret_token`
 
 ---
 
-## 📈 3. Developer Verification Tools
+## 📈 Member 5 (Analytics & DevOps) Features
 
-To inspect response packets and check that cybersecurity headers are active, run the following curl check in your terminal:
-```bash
-curl -i -k https://localhost/api/health
-```
-
-### Expected Output Headers:
-```http
-HTTP/1.1 200 OK
-Server: nginx/1.26.2
-Connection: keep-alive
-X-Frame-Options: SAMEORIGIN
-X-Content-Type-Options: nosniff
-X-XSS-Protection: 1; mode=block
-Strict-Transport-Security: max-age=31536000; includeSubDomains
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' ...
-```
+Your workspace comes fully pre-packaged with our initial **Analytics Dashboard** UI and API endpoints matching the approved mockups:
+* **Dynamic Visualizations (Recharts)**: High-fidelityAreaCharts mapping long-term tasks completions on desktop, transitioning into custom Friday-highlighted BarCharts on mobile viewports.
+* **Dual-Viewport Layouts**: Fully responsive structural toggle switching between a lock left sidebar navigation on desktop and a floating pinned navigation tray on mobile viewports.
+* **Safe CSV Streams**: Server-side in-memory compiler compiling database assets into clean downloadable spreadsheets via HTTP attachments.
+* **API Security Layers**: Built-in authorization headers (`x-api-key`) and robust IP-based Rate-Limiting middleware (`express-rate-limit`) preventing brute force scraping and DoS.
 
 ---
 
-## 🤝 4. Team Contributions
-For other members of our team, please read **[COLLABORATION.md](file:///Users/macbookair/Desktop/ft_transcendence/COLLABORATION.md)** for a detailed, step-by-step technical guide on how to register your service containers, map proxy locations in Nginx, connect WebSocket tunnels, and align with our security policies.
+## 🤝 Team Developer Onboarding & Guides
+
+To keep our Git workflow clean and ensure seamless integration of your own modules:
+
+* **Teammates (Members 1, 2, 3, and 4)**: Please read **[COLLABORATION.md](file:///Users/macbookair/Desktop/ft_transcendence/COLLABORATION.md)** for a complete step-by-step tutorial on how to register your service containers, configure environment tunnels, map proxy routes in the Nginx config, and connect real-time WebSocket streams safely.
+* **DevOps / Member 5 Defense Details**: If you are reviewing the DevOps or Analytics architecture for evaluation prep, please read **[EVALUATION_PREP.md](file:///Users/macbookair/Desktop/ft_transcendence/EVALUATION_PREP.md)** for a comprehensive question bank and technical deep-dives.
