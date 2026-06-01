@@ -1,0 +1,47 @@
+services:
+  nginx:
+    image: nginx:stable-alpine
+    container_name: team_pulse_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - teampulse_net
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: team_pulse_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=https://localhost/api
+    networks:
+      - teampulse_net
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: team_pulse_backend
+    ports:
+      - "5005:5005"
+    environment:
+      - PORT=5005
+      - NODE_ENV=development
+    networks:
+      - teampulse_net
+    restart: always
+
+networks:
+  teampulse_net:
+    driver: bridge
