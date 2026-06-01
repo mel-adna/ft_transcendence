@@ -1,97 +1,200 @@
-# Team Pulse Workspace - ft_transcendence
-### Secure Multi-Container Architecture, Real-Time Systems, and Data Analytics
+# Team-Pulse Dashboard - ft_transcendence Project Specification
 
-This repository contains the core DevOps infrastructure and the Analytics and Data Science subsystem (Member 5) for the Team Pulse workspace, developed as part of the ft_transcendence project.
-
-To ensure modular isolation and allow independent stack selection (Node.js, Python, Go, etc.) for other team members, the workspace is provided in a clean state with pre-configured SSL routing and security policies.
+This repository contains the core codebase, DevOps environment, and multi-container orchestration for the Team-Pulse Dashboard project. 
 
 ---
 
-## Project Structure and Developer Modules
+## 1. Project Vision
 
-The system is designed as a secure, distributed microservice architecture. It is divided into five specialized engineering modules:
+### Project Name
+Team-Pulse Dashboard
 
-| Module Area | Developer Focus | Implementation Stack | Status |
-| :--- | :--- | :--- | :--- |
-| **DevOps & Reverse Proxy** | DevOps Lead (Member 5) | Nginx, Docker Compose, OpenSSL, TLS 1.3 | Active |
-| **Analytics & Data Science** | Data Analyst (Member 5) | Node.js, Express, Recharts, REST APIs | Active |
-| **Authentication & Profiles** | Member 1 & Member 2 | Node.js / Go / Python (Pending Integration) | Pending |
-| **Live Chat & Messaging** | Member 3 | WebSockets / Redis (Pending Integration) | Pending |
-| **Multiplayer Game (Pong)** | Member 4 | WebSockets / Canvas (Pending Integration) | Pending |
+### Idea
+A collaborative task-management platform designed for teams to manage tasks, communicate in real-time, and track performance through analytics.
 
----
+### The Problem
+Modern teams often utilize multiple disconnected tools, leading to poor organization, fragmented communication, and scattered performance metrics.
 
-## System Architecture
-
-The platform utilizes Docker Compose to orchestrate isolated services running within a private virtual bridge network (`teampulse_net`). External client requests are securely routed through Nginx acting as a single reverse proxy gateway.
-
-```
-                           [ Client Browser ]
-                                   │
-                         ( Secure HTTPS - 443 )
-                                   │
-                                   ▼
-                       ┌──────────────────────┐
-                       │  team_pulse_nginx    │
-                       └──────────┬───────────┘
-                                  │
-         ┌────────────────────────┼────────────────────────┐
-         │ (Internal HTTP)        │ (Internal HTTP)        │ (Internal WebSockets)
-         ▼                        ▼                        ▼
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│  team_pulse_     │    │  team_pulse_     │    │   Future Team    │
-│  frontend        │    │  backend         │    │   Microservices  │
-│  (React/Vite SPA)│    │  (Member 5 API)  │    │ (Auth, Chat, Game)│
-└──────────────────┘    └──────────────────┘    └──────────────────┘
-```
-
-### Core DevOps and Infrastructure Features:
-* **SSL Termination**: Encrypted HTTPS connections (Port 443) are terminated at the Nginx gateway, decapsulated, and forwarded as unencrypted HTTP over the internal Docker network.
-* **Unified Host Origin**: Routing all paths (Frontend: `/`, Analytics: `/api`, and future endpoints) through Nginx resolves Cross-Origin Resource Sharing (CORS) constraints natively.
-* **Security Hardening**: The Nginx configuration enforces strict HTTP headers globally, protecting all integrated microservices against Clickjacking, MIME-Sniffing, Reflected Cross-Site Scripting (XSS), and Session Hijacking.
+### The Solution
+A unified, high-performance platform combining:
+* Task management and organizational grouping.
+* Real-time team communication.
+* Performance tracking and data analytics.
 
 ---
 
-## Setup and Installation
+## 2. Core Features (MVP - Mandatory Part)
 
-Follow these steps to generate the required cryptographic key pairs and run the platform locally:
+The development lifecycle enforces a strict rule: **No bonus features until all mandatory MVP features are complete and verified.**
 
-### Prerequisites
-Ensure that Docker, Docker Compose, and OpenSSL are installed on the host system.
+### A. Authentication and User Management
+* **JWT Authentication**: Secure signup and login flows utilizing JSON Web Tokens.
+* **Profile Management**: Capabilities to update user details (name, email).
+* **Avatar Upload**: Support for custom user profile images.
+* **Online Presence Status**: Live tracking of user online/offline status using WebSocket connectivity or last-seen timestamps.
+* **Legal Compliance**: Accessible Privacy Policy and Terms of Service documents linked in the global footer.
 
-### 1. Generate SSL Certificates
-Execute the helper script at the root of the project to generate a secure self-signed key pair:
-```bash
-./generate_certs.sh
+### B. User Interaction
+* **Colleagues System**: Functionality to add or remove users and view a unified colleagues directory.
+* **Chat System**: Real-time message dispatching and reception, with permanent message archiving in the relational database.
+
+### C. Task and Organization
+* **Organization System**: Structural grouping of users into distinct teams, ensuring strict data isolation per organization.
+* **Task CRUD Operations**: Complete Create, Read, Update, and Delete actions for tasks with structured states: To-Do, Doing, and Done.
+
+### D. Data and Analytics
+* **Dashboard Visualizations**: Interactive data charts monitoring task statuses and completion trends.
+* **Export and Import**: Dynamic CSV spreadsheet loading and extraction.
+* **GDPR Compliance**: Dedicated mechanisms allowing users to download their complete personal data or permanently delete their account.
+
+### E. Technical and Security Requirements
+* **Enforced HTTPS**: All external traffic is terminated over secure HTTPS connections.
+* **Hardened Public API**: Exposes five secure, rate-limited endpoints requiring API keys:
+  * `/api/tasks`
+  * `/api/users`
+  * `/api/organizations`
+  * `/api/stats`
+  * `/api/chat`
+* **Quality Assurance**: Zero browser console errors and absolute layout integrity.
+
+---
+
+## 3. Technology Stack
+
+* **Frontend**: React (Vite), Tailwind CSS, Axios, Socket.io-client
+* **Backend**: Node.js, Express, Socket.io, JWT, Multer, express-rate-limit
+* **Database & ORM**: PostgreSQL, Prisma ORM
+* **DevOps**: Docker, Nginx (acting as the secure HTTPS reverse proxy)
+* **Development Tools**: GitHub, Postman
+
+---
+
+## 4. Project Architecture
+
+The application implements a standard three-tier architecture:
+
+```
+[ Client (React) ] <---> [ API Server (Express + Socket.io) ] <---> [ Database (PostgreSQL) ]
 ```
 
-### 2. Launch the Platform
-Build and launch the containerized services using Docker Compose:
+---
+
+## 5. File Structure
+
+```text
+/project-root
+│── docker-compose.yml
+│── .env
+│── .env.example
+│── README.md
+│── nginx/
+│
+├── backend/
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── routes/
+│   │   ├── middleware/
+│   │   ├── services/
+│   │   ├── sockets/
+│   │   ├── utils/
+│   │   ├── config/
+│   │   └── app.js
+│   └── prisma/
+│       └── schema.prisma
+│
+└── frontend/
+    ├── src/
+    │   ├── pages/
+    │   ├── components/
+    │   ├── features/
+    │   │   ├── auth/
+    │   │   ├── tasks/
+    │   │   ├── chat/
+    │   │   ├── dashboard/
+    │   │   └── organization/
+    │   ├── hooks/
+    │   ├── services/
+    │   ├── context/
+    │   └── App.jsx
+```
+
+---
+
+## 6. Team Division (Layer-Based)
+
+The project enforces strict feature ownership to prevent development conflicts:
+
+### Member 1 — Backend Core (Auth & Security)
+* **Responsibilities**: JWT Authentication, profile and password management, API security (API key authorization and rate limiting), and GDPR compliance endpoints.
+* **Files Owned**:
+  * `backend/src/controllers/authController.js`
+  * `backend/src/routes/authRoutes.js`
+  * `backend/src/middleware/auth.js`
+  * `backend/src/middleware/rateLimit.js`
+  * `backend/src/controllers/userController.js`
+
+### Member 2 — Database & ORM
+* **Responsibilities**: Database schema design, relational mappings (users, organizations, tasks, messages), and SQL query optimizations.
+* **Files Owned**:
+  * `backend/prisma/schema.prisma`
+  * `backend/src/services/databaseService.js`
+
+### Member 3 — Frontend Core (UI/UX)
+* **Responsibilities**: Core application pages (Authentication, Dashboard, Task boards), reusable UI elements, and styling.
+* **Files Owned**:
+  * `frontend/src/pages/`
+  * `frontend/src/components/`
+  * `frontend/src/features/auth/`
+  * `frontend/src/features/tasks/`
+
+### Member 4 — Real-Time System (Chat & Presence)
+* **Responsibilities**: WebSocket server configurations, real-time message tunnels, and online status monitors.
+* **Files Owned**:
+  * `backend/src/sockets/chatSocket.js`
+  * `backend/src/controllers/chatController.js`
+  * `frontend/src/features/chat/`
+
+### Member 5 — Analytics & Data
+* **Responsibilities**: Analytical dashboard charts, stats endpoints, and CSV export/import mechanics.
+* **Files Owned**:
+  * `backend/src/controllers/statsController.js`
+  * `backend/src/routes/statsRoutes.js`
+  * `frontend/src/features/dashboard/`
+
+---
+
+## 7. Workflow Rules
+
+### Git and Code Contributions
+* **Branching**: Develop each feature on an isolated feature branch based on main.
+* **Commit Guidelines**: Provide clear, semantic commit messages.
+* **Code Review**: A Pull Request and peer review are mandatory prior to merging code into the main branch.
+
+### Environment Management
+* Keep all secret credentials, private tokens, and configuration values inside the `.env` file (never commit this file to git).
+* Document empty parameter structures inside `.env.example` for teammate alignment.
+
+### Deployment & Local Development
+Launch the complete containerized stack using the following orchestration command:
 ```bash
 docker-compose up --build
 ```
 
-### 3. Service Access Points
-Once the containers are operational, the following entrypoints will be available:
-* **Web Frontend**: Access `https://localhost/` inside the browser (accept the self-signed certificate warning for local development).
-* **API Health Check**: `https://localhost/api/health`
-* **Analytics API**: `https://localhost/api/stats/summary` (Requires a valid API key header)
-* **CSV Task Exporter**: `https://localhost/api/stats/export/tasks?apiKey=team_pulse_public_api_secret_token`
+---
+
+## 8. Quality Control Standards
+
+* Zero browser console errors.
+* Consistent, clean user interface implementation.
+* Complete validation on both the frontend input layer and the backend API controller layer.
 
 ---
 
-## Member 5 Features (Analytics & Data Science)
+## 9. Bonus Strategy
 
-The subsystem is fully implemented and operational with the following capabilities:
-* **Responsive Visualizations**: Renders continuous completion gradient charts (AreaChart) on desktop viewports and targeted daily metrics charts (BarChart) on mobile layouts.
-* **Fluid Layout System**: Features an adaptive responsive grid that shifts between a pinned Left Sidebar on desktop and a fixed Bottom Navigation bar on mobile.
-* **In-Memory CSV Streamer**: Compiles task data directly in the backend memory buffer and streams it as a CSV file attachment to minimize disk write overhead.
-* **API Protection**: Hardened using API key checking (`x-api-key`) and IP-based rate limiting (`express-rate-limit`) to prevent unauthorized scraping and brute-force traffic.
-
----
-
-## Onboarding and Documentation
-
-To facilitate collaboration, the following dedicated documents are available:
-* **Team Onboarding Guide**: Read [COLLABORATION.md](file:///Users/macbookair/Desktop/ft_transcendence/COLLABORATION.md) for step-by-step instructions on how to connect your services, configure proxy paths in Nginx, and manage WebSocket tunnels.
-* **Evaluation Preparation Sheet**: Read [EVALUATION_PREP.md](file:///Users/macbookair/Desktop/ft_transcendence/EVALUATION_PREP.md) for a technical analysis of the DevOps configuration and comprehensive preparation questions for the peer-evaluation defense.
+The following features will only be explored after the core MVP mandatory requirements are completed and verified:
+* Multi-language support (i18n).
+* Right-to-Left (RTL) layout rendering.
+* Advanced system-wide search functionality.
+* Real-time browser notifications.
+* Custom, cohesive design system tokens.
