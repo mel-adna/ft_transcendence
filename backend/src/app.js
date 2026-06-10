@@ -10,6 +10,8 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
 const statsRoutes = require('./routes/statsRoutes');
+const chatRoutes = require('./interfaces/routes/chatRoutes');
+const socketServer = require('./infrastructure/socket/SocketServer');
 
 const app = express();
 const server = http.createServer(app);
@@ -50,6 +52,9 @@ app.use(express.urlencoded({ extended: true }));
 // Apply rate limits and API key validation strictly to public stats endpoints
 app.use('/api/stats', apiLimiter, validateApiKey, statsRoutes);
 
+// Chat REST (JWT auth — no API key)
+app.use('/api/chat', chatRoutes);
+
 // Health check API endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', uptime: process.uptime() });
@@ -62,6 +67,9 @@ app.use((err, req, res, next) => {
     error: err.message || 'Internal Server Error',
   });
 });
+
+// WebSocket (Socket.io)
+socketServer.init(server);
 
 // Start Server
 const PORT = process.env.PORT || 5005;
