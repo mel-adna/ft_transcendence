@@ -25,32 +25,41 @@ export function SocketProvider({ children, getToken }) {
 
   useEffect(() => {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setStatus('error');
+      return;
+    }
 
+    let cancelled = false;
     setStatus('connecting');
     socketClient.configure(getToken);
 
     let s;
     try {
       s = socketClient.connect();
-      setSocket(s);
+      if (!cancelled) setSocket(s);
     } catch (err) {
       console.error('[SocketProvider] Failed to connect:', err.message);
-      setStatus('error');
+      if (!cancelled) setStatus('error');
       return;
     }
 
     const onConnect = () => {
+      if (cancelled) return;
       setConnected(true);
       setStatus('connected');
     };
 
     const onDisconnect = () => {
+      if (cancelled) return;
       setConnected(false);
       setStatus('idle');
     };
 
-    const onConnectError = () => {
+    const onConnectError = (err) => {
+      if (cancelled) return;
+      console.error('[SocketProvider] connect_error:', err.message);
+      setConnected(false);
       setStatus('error');
     };
 
@@ -58,13 +67,10 @@ export function SocketProvider({ children, getToken }) {
     s.on('disconnect', onDisconnect);
     s.on('connect_error', onConnectError);
 
-    // Sync initial state
-    if (s.connected) {
-      setConnected(true);
-      setStatus('connected');
-    }
+    if (s.connected) onConnect();
 
     return () => {
+      cancelled = true;
       s.off('connect', onConnect);
       s.off('disconnect', onDisconnect);
       s.off('connect_error', onConnectError);

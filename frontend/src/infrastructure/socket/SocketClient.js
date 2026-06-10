@@ -32,6 +32,11 @@ class SocketClient {
     const token = this._tokenGetter?.();
     if (!token) throw new Error('SOCKET_NO_AUTH_TOKEN');
 
+    if (this._socket) {
+      this._socket.disconnect();
+      this._socket = null;
+    }
+
     this._socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:5005', {
       auth: { token },
       transports: ['websocket', 'polling'],

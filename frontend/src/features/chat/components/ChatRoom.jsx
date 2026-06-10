@@ -15,7 +15,15 @@ import { MessageInput } from './MessageInput';
  * }} props
  */
 export function ChatRoom({ roomId, currentUserId, roomName }) {
-  const { connected } = useSocket();
+  const { connected, status } = useSocket();
+
+  const statusLabel = connected
+    ? 'Connected'
+    : status === 'connecting'
+      ? 'Connecting…'
+      : status === 'error'
+        ? 'Connection error'
+        : 'Disconnected';
   const { messages, isLoading, hasMore, sendMessage, editMessage, deleteMessage, loadMore } =
     useChat(roomId);
 
@@ -31,7 +39,7 @@ export function ChatRoom({ roomId, currentUserId, roomName }) {
               : 'bg-red-500/15 text-red-400'
           }`}
         >
-          {connected ? 'Connected' : 'Disconnected'}
+          {statusLabel}
         </span>
       </div>
 

@@ -28,6 +28,11 @@ const DEV_USERS = {
   },
 };
 
+// Set dev token before SocketProvider mounts (useEffect runs too late)
+if (import.meta.env.DEV && !localStorage.getItem('token') && DEV_USERS.alice.token) {
+  localStorage.setItem('token', DEV_USERS.alice.token);
+}
+
 function ChatTab({ activeUser, onSwitchUser }) {
   const user = DEV_USERS[activeUser];
 
@@ -78,14 +83,6 @@ function App() {
   const [socketKey, setSocketKey] = useState(0);
 
   const getToken = useCallback(() => localStorage.getItem('token'), []);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    if (!localStorage.getItem('token') && DEV_USERS.alice.token) {
-      localStorage.setItem('token', DEV_USERS.alice.token);
-      setSocketKey((k) => k + 1);
-    }
-  }, []);
 
   const handleSwitchUser = (name) => {
     const user = DEV_USERS[name];
