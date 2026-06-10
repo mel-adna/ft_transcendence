@@ -1,0 +1,81 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id              String       @id @default(uuid())
+  username        String       @unique
+  email           String       @unique
+  passwordHash    String
+  avatarUrl       String?
+  presenceStatus  String       @default("OFFLINE") // ONLINE | OFFLINE | AWAY
+  lastSeenAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sentMessages    Message[]
+  roomMemberships RoomMember[]
+
+  @@index([presenceStatus])
+}
+
+// ─── ROOM ─────────────────────────────────────────────────────────────────
+
+model Room {
+  id        String       @id @default(uuid())
+  name      String?
+  type      String       @default("GROUP") // GROUP | DIRECT
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  members   RoomMember[]
+  messages  Message[]
+
+  @@index([type])
+}
+
+// ─── ROOM MEMBERSHIP ──────────────────────────────────────────────────────
+
+model RoomMember {
+  roomId    String
+  userId    String
+  role      String   @default("MEMBER") // MEMBER | ADMIN | OWNER
+  joinedAt  DateTime @default(now())
+
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId])
+}
+
+// ─── MESSAGE ──────────────────────────────────────────────────────────────
+
+model Message {
+  id        String    @id @default(uuid())
+  roomId    String
+  senderId  String
+  content   String    @db.VarChar(4000)
+  type      String    @default("TEXT") // TEXT | IMAGE | FILE | SYSTEM
+  parentId  String?   // thread/reply reference (self-relation)
+  isEdited  Boolean   @default(false)
+  deletedAt DateTime? // soft delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender    User      @relation(fields: [senderId], references: [id])
+  parent    Message?  @relation("MessageThread", fields: [parentId], references: [id])
+  replies   Message[] @relation("MessageThread")
+
+  @@index([roomId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([parentId])
+}
