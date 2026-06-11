@@ -1,22 +1,13 @@
 import { useState, useCallback } from 'react';
+import { useSocket } from './useSocket';
 import { useSocketEvent } from './useSocketEvent';
 
 /**
  * usePresence
- * Tracks realtime presence updates for any user visible in current context.
- * Feed it an initial presence map from your user store.
- *
- * @param {Record<string, { status: string, lastSeen: string|null }>} initialPresence
- * @returns {{
- *   presence: Record<string, { status: string, lastSeen: string|null }>,
- *   getStatus: (userId: string) => string,
- * }}
- *
- * @example
- * const { presence, getStatus } = usePresence({});
- * getStatus('user-123') // → 'ONLINE' | 'OFFLINE' | 'AWAY'
+ * Tracks realtime presence + manual status changes.
  */
 export function usePresence(initialPresence = {}) {
+  const { socket, connected } = useSocket();
   const [presence, setPresence] = useState(initialPresence);
 
   useSocketEvent(
@@ -34,5 +25,13 @@ export function usePresence(initialPresence = {}) {
     [presence],
   );
 
-  return { presence, getStatus };
+  const setStatus = useCallback(
+    (status) => {
+      if (!socket || !connected) return;
+      socket.emit('presence:set', { status });
+    },
+    [socket, connected],
+  );
+
+  return { presence, getStatus, setStatus };
 }

@@ -1,6 +1,13 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../database/prismaClient');
 
-const prisma = new PrismaClient();
+const USER_PUBLIC_SELECT = {
+  id: true,
+  username: true,
+  email: true,
+  avatarUrl: true,
+  presenceStatus: true,
+  lastSeenAt: true,
+};
 
 /**
  * UserRepository
@@ -14,14 +21,33 @@ const UserRepository = {
   async findById(id) {
     return prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        avatarUrl: true,
-        presenceStatus: true,
-        lastSeenAt: true,
-      },
+      select: USER_PUBLIC_SELECT,
+    });
+  },
+
+  /**
+   * List users except requester (for DM picker)
+   * @param {string} excludeUserId
+   * @param {{ limit?: number }} [options]
+   */
+  async findAllExcept(excludeUserId, { limit = 100 } = {}) {
+    return prisma.user.findMany({
+      where: { id: { not: excludeUserId } },
+      select: USER_PUBLIC_SELECT,
+      orderBy: { username: 'asc' },
+      take: Math.min(limit, 200),
+    });
+  },
+
+  /**
+   * Bulk fetch by ids
+   * @param {string[]} ids
+   */
+  async findManyByIds(ids) {
+    if (!ids.length) return [];
+    return prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: USER_PUBLIC_SELECT,
     });
   },
 
@@ -49,6 +75,37 @@ const UserRepository = {
       select: { roomId: true },
     });
     return memberships.map((m) => m.roomId);
+  },
+
+  /**
+   * Presence snapshot for all members of a room
+   * @param {string} roomId
+   */
+  async getPresenceByRoom(roomId) {
+    return prisma.roomMember.findMany({
+      where: { roomId },
+      select: {
+        userId: true,
+        user: {
+          select: USER_PUBLIC_SELECT,
+        },
+      },
+    });
+  },
+
+  /**
+   * Mark stale AWAY users as OFFLINE after timeout
+   * @param {Date} cutoff
+   */
+  async markStaleOffline(cutoff) {
+    const result = await prisma.user.updateMany({
+      where: {
+        presenceStatus: { in: ['ONLINE', 'AWAY'] },
+        lastSeenAt: { lt: cutoff },
+      },
+      data: { presenceStatus: 'OFFLINE' },
+    });
+    return result.count;
   },
 };
 

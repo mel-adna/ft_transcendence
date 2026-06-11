@@ -1,3 +1,4 @@
+const GetRoomPresenceUseCase = require('../../application/presence/GetRoomPresenceUseCase');
 const UpdatePresenceUseCase = require('../../application/presence/UpdatePresenceUseCase');
 const PresenceStatus = require('../../domain/presence/PresenceStatus');
 const PresenceService = require('../../domain/presence/PresenceService');
@@ -8,22 +9,25 @@ const registry = require('../../infrastructure/socket/SocketRegistry');
  * presenceHandler (Interface Layer)
  *
  * Socket Events (inbound):
- *   presence:set     { status: 'ONLINE' | 'AWAY' }
- *   presence:heartbeat  (no payload, keeps ONLINE alive)
+ *   presence:set         { status: 'ONLINE' | 'AWAY' }
+ *   presence:heartbeat   (no payload)
+ *   presence:subscribe   { roomId }
+ *   presence:unsubscribe { roomId }
  *
  * Socket Events (outbound):
- *   presence:update  → all room-mates: { userId, status, lastSeen }
- *
- * @param {import('socket.io').Server} io
- * @param {import('socket.io').Socket} socket
+ *   presence:update    → room-mates: { userId, status, lastSeen }
+ *   presence:snapshot  → subscriber: { roomId, members }
+ *   presence:error     → sender only
  */
 function registerPresenceHandlers(io, socket) {
   const userId = socket.user.id;
 
-  // Announce ONLINE to room-mates on connect
+  if (!socket.data.presenceRooms) {
+    socket.data.presenceRooms = new Set();
+  }
+
   _broadcastPresence(io, userId, PresenceStatus.ONLINE);
 
-  // ─── MANUAL STATUS CHANGE ─────────────────────────────────────────────────
   socket.on('presence:set', async ({ status } = {}) => {
     try {
       const validated = PresenceService.validateStatusChange(status);
@@ -34,14 +38,35 @@ function registerPresenceHandlers(io, socket) {
     }
   });
 
-  // ─── HEARTBEAT ────────────────────────────────────────────────────────────
-  // Client pings every 30s to stay ONLINE; server-side timeout in 60s window
-  socket.on('presence:heartbeat', () => {
-    // No-op on server: as long as socket is alive, user is ONLINE
-    // Heartbeat is purely to let clients detect stale connections
+  socket.on('presence:heartbeat', async () => {
+    try {
+      await UpdatePresenceUseCase.execute({
+        userId,
+        status: PresenceStatus.ONLINE,
+        persist: false,
+      });
+    } catch (err) {
+      console.error(`[presenceHandler] heartbeat failed userId=${userId}:`, err.message);
+    }
   });
 
-  // ─── DISCONNECT ───────────────────────────────────────────────────────────
+  socket.on('presence:subscribe', async ({ roomId } = {}) => {
+    try {
+      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+
+      const members = await GetRoomPresenceUseCase.execute({ roomId, requesterId: userId });
+      socket.data.presenceRooms.add(roomId);
+
+      socket.emit('presence:snapshot', { roomId, members });
+    } catch (err) {
+      socket.emit('presence:error', { code: err.message, event: 'presence:subscribe' });
+    }
+  });
+
+  socket.on('presence:unsubscribe', ({ roomId } = {}) => {
+    if (roomId) socket.data.presenceRooms.delete(roomId);
+  });
+
   socket.on('disconnect', async () => {
     const result = registry.unregister(socket.id);
     if (result?.isLastSocket) {
@@ -58,10 +83,6 @@ function registerPresenceHandlers(io, socket) {
   });
 }
 
-/**
- * Broadcast presence to all room-mates of the user
- * Scoped: only users sharing at least one room receive the event
- */
 async function _broadcastPresence(io, userId, status, lastSeen = null) {
   try {
     const roomIds = await UserRepository.getRoomIds(userId);

@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StatsDashboard } from './features/dashboard/StatsDashboard';
-import { SocketProvider, ChatRoom } from './features/chat';
+import { SocketProvider, ChatLayout } from './features/chat';
 import {
   LayoutGrid,
   LayoutDashboard,
@@ -13,9 +13,6 @@ import {
   Bell,
   Plus,
 } from 'lucide-react';
-
-const DEV_ROOM_ID =
-  import.meta.env.VITE_DEV_ROOM_ID ?? '33333333-3333-3333-3333-333333333333';
 
 const DEV_USERS = {
   alice: {
@@ -59,11 +56,7 @@ function ChatTab({ activeUser, onSwitchUser }) {
         </div>
       )}
       <div className="flex-1 min-h-0">
-        <ChatRoom
-          roomId={DEV_ROOM_ID}
-          currentUserId={user.id}
-          roomName="General"
-        />
+        <ChatLayout currentUserId={user.id} />
       </div>
     </div>
   );

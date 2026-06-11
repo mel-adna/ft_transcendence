@@ -13,4 +13,14 @@ const router = express.Router();
  */
 router.get('/rooms/:roomId/messages', authMiddleware, chatController.getHistory);
 
+/**
+ * GET /api/chat/rooms/:roomId/messages/search?q=
+ */
+router.get('/rooms/:roomId/messages/search', authMiddleware, chatController.searchMessages);
+
+/**
+ * GET /api/chat/messages/:messageId/thread
+ */
+router.get('/messages/:messageId/thread', authMiddleware, chatController.getThread);
+
 module.exports = router;

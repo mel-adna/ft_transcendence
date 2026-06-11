@@ -1,6 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = require('../database/prismaClient');
 
 const MESSAGE_SELECT = {
   id: true,
@@ -50,12 +48,13 @@ const MessageRepository = {
    * @returns {Promise<{ messages: object[], nextCursor: string|null }>}
    */
   async findByRoom(roomId, { cursor, limit = 50 } = {}) {
-    const take = Math.min(limit, 100); // hard cap
+    const take = Math.min(limit, 100);
 
     const messages = await prisma.message.findMany({
       where: {
         roomId,
         deletedAt: null,
+        parentId: null,
       },
       select: MESSAGE_SELECT,
       orderBy: { createdAt: 'desc' },
@@ -70,6 +69,47 @@ const MessageRepository = {
       messages: page,
       nextCursor: hasMore ? page[page.length - 1].id : null,
     };
+  },
+
+  /**
+   * Thread replies for a parent message
+   * @param {string} parentId
+   * @param {{ limit?: number }} [options]
+   */
+  async findByThread(parentId, { limit = 50 } = {}) {
+    const take = Math.min(limit, 100);
+    return prisma.message.findMany({
+      where: {
+        parentId,
+        deletedAt: null,
+      },
+      select: MESSAGE_SELECT,
+      orderBy: { createdAt: 'asc' },
+      take,
+    });
+  },
+
+  /**
+   * Full-text search within a room (case-insensitive)
+   * @param {string} roomId
+   * @param {string} query
+   * @param {number} [limit=20]
+   */
+  async search(roomId, query, limit = 20) {
+    const take = Math.min(limit, 50);
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    return prisma.message.findMany({
+      where: {
+        roomId,
+        deletedAt: null,
+        content: { contains: trimmed, mode: 'insensitive' },
+      },
+      select: MESSAGE_SELECT,
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
   },
 
   /**
@@ -99,12 +139,21 @@ const MessageRepository = {
   /**
    * Soft delete
    * @param {string} id
-   * @returns {Promise<void>}
    */
   async softDelete(id) {
     await prisma.message.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+  },
+
+  /**
+   * Count replies for a parent message
+   * @param {string} parentId
+   */
+  async countReplies(parentId) {
+    return prisma.message.count({
+      where: { parentId, deletedAt: null },
     });
   },
 };

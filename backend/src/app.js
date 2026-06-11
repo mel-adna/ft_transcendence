@@ -11,26 +11,25 @@ const rateLimit = require('express-rate-limit');
 
 const statsRoutes = require('./routes/statsRoutes');
 const chatRoutes = require('./interfaces/routes/chatRoutes');
+const roomRoutes = require('./interfaces/routes/roomRoutes');
 const socketServer = require('./infrastructure/socket/SocketServer');
+const { startPresenceCleanup, gracefulShutdown } = require('./infrastructure/lifecycle/serverLifecycle');
 
 const app = express();
 const server = http.createServer(app);
 
-// Trust proxy for express-rate-limit behind Nginx reverse proxy
 app.set('trust proxy', 1);
 
-// 1. Core Rate Limiter to prevent Denial of Service (DoS) - Requirement E
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 60, // Limit each IP to 60 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 60,
   message: {
-    error: 'Too many requests from this IP, please try again after 15 minutes.'
+    error: 'Too many requests from this IP, please try again after 15 minutes.',
   },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// 2. Public API Key Checker - Requirement E
 const validateApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   const SYSTEM_API_KEY = process.env.PUBLIC_API_KEY || 'team_pulse_public_api_secret_token';
@@ -41,7 +40,6 @@ const validateApiKey = (req, res, next) => {
   next();
 };
 
-// Middleware
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
@@ -49,18 +47,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Apply rate limits and API key validation strictly to public stats endpoints
 app.use('/api/stats', apiLimiter, validateApiKey, statsRoutes);
-
-// Chat REST (JWT auth — no API key)
 app.use('/api/chat', chatRoutes);
+app.use('/api/chat', roomRoutes);
 
-// Health check API endpoint
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'OK', uptime: process.uptime() });
+  res.status(200).json({
+    status: 'OK',
+    uptime: process.uptime(),
+    socket: socketServer.getStats?.() ?? { status: 'not_initialized' },
+  });
 });
 
-// Centralized error handling
 app.use((err, req, res, next) => {
   console.error('Server error:', err.stack);
   res.status(err.status || 500).json({
@@ -68,13 +66,27 @@ app.use((err, req, res, next) => {
   });
 });
 
-// WebSocket (Socket.io)
-socketServer.init(server);
-
-// Start Server
 const PORT = process.env.PORT || 5005;
-server.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
+let presenceCleanupTimer = null;
+
+async function bootstrap() {
+  await socketServer.init(server);
+
+  presenceCleanupTimer = startPresenceCleanup();
+
+  server.listen(PORT, () => {
+    console.log(`Backend server running on port ${PORT}`);
+  });
+}
+
+bootstrap().catch((err) => {
+  console.error('[Server] Bootstrap failed:', err);
+  process.exit(1);
 });
+
+const shutdown = () => gracefulShutdown(server, socketServer, presenceCleanupTimer);
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 module.exports = { app, server };

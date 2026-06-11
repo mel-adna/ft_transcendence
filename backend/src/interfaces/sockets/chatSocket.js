@@ -1,3 +1,4 @@
+const JoinRoomUseCase = require('../../application/rooms/JoinRoomUseCase');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 
 /**
@@ -10,22 +11,28 @@ const RoomRepository = require('../../infrastructure/repositories/RoomRepository
  */
 function registerChatHandlers(io, socket) {
   const userId = socket.user.id;
-
-  // Auto-join all rooms the user is a member of
   _autoJoinRooms(socket, userId);
 }
 
 async function _autoJoinRooms(socket, userId) {
   try {
-    const rooms = await RoomRepository.findByUser(userId);
-    const roomIds = rooms.map((r) => r.id);
+    const rooms = await RoomRepository.findAllForUser(userId);
+    const roomIds = [];
+
+    for (const room of rooms) {
+      await JoinRoomUseCase.execute({
+        userId,
+        roomId: room.id,
+        socket,
+        silent: true,
+      });
+      roomIds.push(room.id);
+    }
 
     if (roomIds.length > 0) {
-      await socket.join(roomIds);
       console.log(`[chatSocket] userId=${userId} auto-joined ${roomIds.length} room(s)`);
     }
 
-    // Inform client which rooms are active
     socket.emit('chat:rooms_joined', { roomIds });
   } catch (err) {
     console.error(`[chatSocket] Auto-join failed for userId=${userId}:`, err.message);
