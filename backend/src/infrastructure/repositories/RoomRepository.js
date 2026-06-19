@@ -147,6 +147,29 @@ const RoomRepository = {
   },
 
   /**
+   * Most recent non-deleted message in a room (for room-list previews).
+   * Uses the Message(roomId, createdAt DESC) index.
+   * @param {string} roomId
+   * @returns {Promise<object|null>}
+   */
+  async getLastMessage(roomId) {
+    return prisma.message.findFirst({
+      where: { roomId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        content: true,
+        type: true,
+        senderId: true,
+        createdAt: true,
+        sender: {
+          select: { id: true, username: true, avatarUrl: true },
+        },
+      },
+    });
+  },
+
+  /**
    * Check membership
    * @param {string} roomId
    * @param {string} userId

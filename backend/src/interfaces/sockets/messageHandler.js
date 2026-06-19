@@ -1,6 +1,7 @@
 const SendMessageUseCase = require('../../application/messaging/SendMessageUseCase');
 const EditMessageUseCase = require('../../application/messaging/EditMessageUseCase');
 const DeleteMessageUseCase = require('../../application/messaging/DeleteMessageUseCase');
+const MarkAsReadUseCase = require('../../application/messaging/MarkAsReadUseCase');
 
 /**
  * messageHandler (Interface Layer)
@@ -11,11 +12,13 @@ const DeleteMessageUseCase = require('../../application/messaging/DeleteMessageU
  *   message:send    { roomId, content, type?, parentId? }
  *   message:edit    { messageId, newContent }
  *   message:delete  { messageId }
+ *   message:read    { roomId, lastReadMessageId? }
  *
  * Socket Events (outbound):
  *   message:new          → room broadcast
  *   message:updated      → room broadcast
  *   message:deleted      → room broadcast
+ *   message:read         → room broadcast
  *   message:error        → sender only
  *
  * @param {import('socket.io').Server} io
@@ -86,6 +89,26 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true });
     } catch (err) {
       _emitError(socket, 'message:delete', err);
+      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+    }
+  });
+
+  // ─── READ RECEIPT ────────────────────────────────────────────────────────
+  socket.on('message:read', async (payload, ack) => {
+    try {
+      const { roomId, lastReadMessageId } = payload ?? {};
+
+      const result = await MarkAsReadUseCase.execute({
+        userId,
+        roomId,
+        lastReadMessageId,
+      });
+
+      io.to(roomId).emit('message:read', result);
+
+      if (typeof ack === 'function') ack({ ok: true });
+    } catch (err) {
+      _emitError(socket, 'message:read', err);
       if (typeof ack === 'function') ack({ ok: false, error: err.message });
     }
   });

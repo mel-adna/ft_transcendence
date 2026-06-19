@@ -22,6 +22,7 @@ model User {
 
   sentMessages    Message[]
   roomMemberships RoomMember[]
+  readReceipts    ReadReceipt[]
 
   @@index([presenceStatus])
 }
@@ -35,8 +36,9 @@ model Room {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  members   RoomMember[]
-  messages  Message[]
+  members      RoomMember[]
+  messages     Message[]
+  readReceipts ReadReceipt[]
 
   @@index([type])
 }
@@ -74,8 +76,27 @@ model Message {
   sender    User      @relation(fields: [senderId], references: [id])
   parent    Message?  @relation("MessageThread", fields: [parentId], references: [id])
   replies   Message[] @relation("MessageThread")
+  readReceipts ReadReceipt[] @relation("ReadReceiptMessage")
 
   @@index([roomId, createdAt(sort: Desc)])
   @@index([senderId])
   @@index([parentId])
+}
+
+// ─── READ RECEIPT ─────────────────────────────────────────────────────────
+// One row per (room, user): tracks the last message a user has read in a room.
+// Drives unread counts and read-status indicators.
+
+model ReadReceipt {
+  roomId            String
+  userId            String
+  lastReadMessageId String?
+  readAt            DateTime @default(now())
+
+  room            Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage Message? @relation("ReadReceiptMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@id([roomId, userId])
+  @@index([userId])
 }
