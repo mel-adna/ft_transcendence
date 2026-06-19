@@ -19,7 +19,7 @@ export function ChatRoom({ roomId, currentUserId, roomName, roomType, showMember
     showMembers ? roomId : null,
   );
   const { messages, isLoading, hasMore, sendMessage, editMessage, deleteMessage, loadMore } =
-    useChat(roomId);
+    useChat(roomId, currentUserId);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

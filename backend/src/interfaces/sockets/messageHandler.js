@@ -40,8 +40,10 @@ function registerMessageHandlers(io, socket) {
         parentId,
       });
 
-      // Broadcast to everyone in room (including sender)
-      io.to(roomId).emit('message:new', result);
+      // Broadcast to the room EXCEPT the sender. The sender already renders
+      // this message via optimistic append and reconciles it from the ack
+      // below — echoing it back would render a duplicate on the sender side.
+      socket.to(roomId).emit('message:new', result);
 
       // Acknowledge sender with message id (for optimistic UI reconciliation)
       if (typeof ack === 'function') ack({ ok: true, messageId: result.id });

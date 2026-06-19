@@ -10,6 +10,7 @@ const HISTORY_API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/
  * for a single room.
  *
  * @param {string | null} roomId
+ * @param {string} currentUserId - id of the logged-in user (for optimistic attribution)
  * @returns {{
  *   messages: object[],
  *   isLoading: boolean,
@@ -20,13 +21,12 @@ const HISTORY_API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/
  *   loadMore: () => void,
  * }}
  */
-export function useChat(roomId) {
+export function useChat(roomId, currentUserId) {
   const { socket, connected } = useSocket();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const cursorRef = useRef(null);
-  const optimisticIds = useRef(new Set());
 
   // ─── FETCH HISTORY (REST) ─────────────────────────────────────────────────
   const fetchHistory = useCallback(
@@ -85,12 +85,12 @@ export function useChat(roomId) {
     useCallback(
       (msg) => {
         if (msg.roomId !== roomId) return;
-        // Drop if already added optimistically
-        if (optimisticIds.current.has(msg.id)) {
-          optimisticIds.current.delete(msg.id);
-          return;
-        }
-        setMessages((prev) => [...prev, msg]);
+        // The server excludes the sender from this broadcast, so our own
+        // messages never arrive here (they're handled optimistically on send).
+        // Guard against duplicate ids from reconnect replays / StrictMode.
+        setMessages((prev) =>
+          prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
+        );
       },
       [roomId],
     ),
@@ -139,7 +139,7 @@ export function useChat(roomId) {
         isEdited: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        sender: socket.user ?? { id: 'me', username: 'You' },
+        sender: { id: currentUserId, username: 'You' },
         _optimistic: true,
       };
       setMessages((prev) => [...prev, optimisticMsg]);
@@ -149,8 +149,7 @@ export function useChat(roomId) {
         { roomId, content: content.trim(), type, parentId },
         ({ ok, messageId, error }) => {
           if (ok) {
-            optimisticIds.current.add(messageId);
-            // Replace temp with real id
+            // Replace temp id with the real DB id so edit/delete target it
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempId ? { ...m, id: messageId, _optimistic: false } : m,
@@ -164,7 +163,7 @@ export function useChat(roomId) {
         },
       );
     },
-    [socket, connected, roomId],
+    [socket, connected, roomId, currentUserId],
   );
 
   // ─── EDIT ─────────────────────────────────────────────────────────────────
