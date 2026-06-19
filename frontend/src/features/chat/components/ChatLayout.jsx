@@ -37,6 +37,7 @@ export function ChatLayout({ currentUserId }) {
             roomId={activeRoom.id}
             currentUserId={currentUserId}
             roomName={displayName(activeRoom)}
+            roomType={activeRoom.type}
             showMembers
           />
         ) : (

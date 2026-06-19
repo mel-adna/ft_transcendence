@@ -5,6 +5,7 @@ import { useRoomPresence } from '../hooks/useRoomPresence';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { MemberList } from './MemberList';
+import { InviteMembersModal } from './InviteMembersModal';
 import { Search } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 
@@ -12,9 +13,11 @@ import { chatApi } from '../services/chatApi';
  * ChatRoom
  * Full-feature room view with optional members panel and search.
  */
-export function ChatRoom({ roomId, currentUserId, roomName, showMembers = false }) {
+export function ChatRoom({ roomId, currentUserId, roomName, roomType, showMembers = false }) {
   const { connected, status } = useSocket();
-  const { members, onlineCount } = useRoomPresence(showMembers ? roomId : null);
+  const { members, onlineCount, refresh: refreshMembers } = useRoomPresence(
+    showMembers ? roomId : null,
+  );
   const { messages, isLoading, hasMore, sendMessage, editMessage, deleteMessage, loadMore } =
     useChat(roomId);
 
@@ -22,6 +25,14 @@ export function ChatRoom({ roomId, currentUserId, roomName, showMembers = false 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+
+  const canInvite = showMembers && roomType === 'GROUP';
+
+  const handleInvite = async (userIds) => {
+    await chatApi.inviteToRoom(roomId, userIds);
+    await refreshMembers();
+  };
 
   const statusLabel = connected
     ? 'Connected'
@@ -112,8 +123,19 @@ export function ChatRoom({ roomId, currentUserId, roomName, showMembers = false 
             members={members}
             currentUserId={currentUserId}
             onlineCount={onlineCount}
+            onInvite={canInvite ? () => setInviteOpen(true) : undefined}
           />
         </aside>
+      )}
+
+      {canInvite && (
+        <InviteMembersModal
+          open={inviteOpen}
+          roomId={roomId}
+          roomName={roomName}
+          onClose={() => setInviteOpen(false)}
+          onInvite={handleInvite}
+        />
       )}
     </div>
   );

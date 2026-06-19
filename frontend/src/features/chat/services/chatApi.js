@@ -26,11 +26,30 @@ export const chatApi = {
     return request('/chat/users', { headers: authHeaders() });
   },
 
-  createGroup(name) {
+  /**
+   * Search users by username/email for the invite picker.
+   * @param {string} query
+   * @param {{ roomId?: string }} [opts] - exclude existing members of this room
+   */
+  searchUsers(query, { roomId } = {}) {
+    const params = new URLSearchParams({ q: query });
+    if (roomId) params.set('roomId', roomId);
+    return request(`/chat/users/search?${params}`, { headers: authHeaders() });
+  },
+
+  createGroup(name, memberIds = []) {
     return request('/chat/rooms', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, memberIds }),
+    });
+  },
+
+  inviteToRoom(roomId, userIds) {
+    return request(`/chat/rooms/${roomId}/invite`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ userIds }),
     });
   },
 

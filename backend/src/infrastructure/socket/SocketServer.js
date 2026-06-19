@@ -105,6 +105,21 @@ class SocketServer {
     }
   }
 
+  /**
+   * Add all of a user's live sockets to a room so they receive its events
+   * immediately (e.g. after being invited). No-op if the user is offline —
+   * their sockets auto-join on next connect via chatSocket. Cluster-safe via
+   * the Redis adapter's socketsJoin.
+   * @param {string} userId
+   * @param {string} roomId
+   */
+  joinUserToRoom(userId, roomId) {
+    if (!this.io) return;
+    for (const socketId of registry.getSocketIds(userId)) {
+      this.io.in(socketId).socketsJoin(roomId);
+    }
+  }
+
   getStats() {
     if (!this.io) {
       return { status: 'initializing', connections: 0, redisEnabled: false };

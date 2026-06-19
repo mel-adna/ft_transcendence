@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Hash, MessageCircle } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
+import { UserSearchSelect } from './UserSearchSelect';
 
 /**
  * CreateRoomModal
@@ -19,6 +20,7 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
   const [name, setName] = useState('');
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [invitees, setInvitees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -40,11 +42,12 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
     try {
       const room =
         tab === 'group'
-          ? await createGroup(name.trim())
+          ? await createGroup(name.trim(), invitees.map((u) => u.id))
           : await createDM(selectedUserId);
       onCreated(room);
       setName('');
       setSelectedUserId('');
+      setInvitees([]);
       onClose();
     } catch (err) {
       setError(err.message);
@@ -89,13 +92,23 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
 
         <form onSubmit={handleSubmit} className="p-4 space-y-3">
           {tab === 'group' ? (
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Channel name…"
-              className="w-full rounded-xl border border-[#71717A]/30 bg-[#181824] px-3 py-2 text-sm text-white outline-none placeholder-[#71717A] focus:border-[#3B82F6]/50"
-            />
+            <>
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Channel name…"
+                className="w-full rounded-xl border border-[#71717A]/30 bg-[#181824] px-3 py-2 text-sm text-white outline-none placeholder-[#71717A] focus:border-[#3B82F6]/50"
+              />
+              <div>
+                <label className="text-[10px] font-semibold text-[#71717A] uppercase tracking-wider">
+                  Invite people (optional)
+                </label>
+                <div className="mt-1">
+                  <UserSearchSelect selected={invitees} onChange={setInvitees} />
+                </div>
+              </div>
+            </>
           ) : (
             <select
               value={selectedUserId}

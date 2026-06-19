@@ -1,4 +1,5 @@
 import React from 'react';
+import { UserPlus } from 'lucide-react';
 import { PresenceIndicator } from './PresenceIndicator';
 
 /**
@@ -9,9 +10,10 @@ import { PresenceIndicator } from './PresenceIndicator';
  *   members: object[],
  *   currentUserId: string,
  *   onlineCount?: number,
+ *   onInvite?: () => void,   // when provided, renders an invite button
  * }} props
  */
-export function MemberList({ members, currentUserId, onlineCount }) {
+export function MemberList({ members, currentUserId, onlineCount, onInvite }) {
   const sorted = [...members].sort((a, b) => {
     const order = { ONLINE: 0, AWAY: 1, OFFLINE: 2 };
     const diff = (order[a.status] ?? 2) - (order[b.status] ?? 2);
@@ -21,12 +23,21 @@ export function MemberList({ members, currentUserId, onlineCount }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-3 py-2 border-b border-[#71717A]/25 shrink-0">
+      <div className="px-3 py-2 border-b border-[#71717A]/25 shrink-0 flex items-center">
         <span className="text-[10px] font-semibold text-[#71717A] uppercase tracking-wider">
           Members
         </span>
         {onlineCount != null && (
           <span className="ml-2 text-[10px] text-emerald-400">{onlineCount} online</span>
+        )}
+        {onInvite && (
+          <button
+            onClick={onInvite}
+            className="ml-auto p-1 rounded-lg text-[#71717A] hover:text-white hover:bg-[#181824] cursor-pointer"
+            title="Invite people"
+          >
+            <UserPlus size={14} />
+          </button>
         )}
       </div>
 

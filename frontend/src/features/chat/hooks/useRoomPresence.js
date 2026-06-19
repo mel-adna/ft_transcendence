@@ -13,25 +13,23 @@ export function useRoomPresence(roomId) {
   const { socket, connected } = useSocket();
   const [members, setMembers] = useState([]);
 
+  const refresh = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const { members: fetched } = await chatApi.getPresence(roomId);
+      setMembers(fetched);
+    } catch (err) {
+      console.error('[useRoomPresence] fetch error:', err.message);
+    }
+  }, [roomId]);
+
   useEffect(() => {
     if (!roomId) {
       setMembers([]);
       return;
     }
-
-    let cancelled = false;
-
-    chatApi
-      .getPresence(roomId)
-      .then(({ members: fetched }) => {
-        if (!cancelled) setMembers(fetched);
-      })
-      .catch((err) => console.error('[useRoomPresence] fetch error:', err.message));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [roomId]);
+    refresh();
+  }, [roomId, refresh]);
 
   useEffect(() => {
     if (!socket || !connected || !roomId) return;
@@ -77,5 +75,5 @@ export function useRoomPresence(roomId) {
 
   const onlineCount = members.filter((m) => m.status === 'ONLINE').length;
 
-  return { members, onlineCount };
+  return { members, onlineCount, refresh };
 }

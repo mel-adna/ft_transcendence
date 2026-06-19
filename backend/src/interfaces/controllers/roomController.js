@@ -1,8 +1,10 @@
 const ListRoomsUseCase = require('../../application/rooms/ListRoomsUseCase');
 const CreateRoomUseCase = require('../../application/rooms/CreateRoomUseCase');
+const InviteToRoomUseCase = require('../../application/rooms/InviteToRoomUseCase');
 const RoomService = require('../../domain/rooms/RoomService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const Room = require('../../domain/rooms/Room');
+const socketServer = require('../../infrastructure/socket/SocketServer');
 
 const STATUS_MAP = {
   ROOM_INVALID_TYPE: 400,
@@ -15,18 +17,48 @@ const STATUS_MAP = {
   ROOM_NOT_FOUND: 404,
   ROOM_ACCESS_DENIED: 403,
   ROOM_NOT_MEMBER: 403,
+  ROOM_INVITE_NO_USERS: 400,
+  ROOM_CANNOT_INVITE_DM: 400,
+  ROOM_INVITE_FORBIDDEN: 403,
 };
 
 const roomController = {
   async createGroup(req, res) {
     try {
-      const { name } = req.body ?? {};
+      const { name, memberIds } = req.body ?? {};
       const room = await CreateRoomUseCase.execute({
         creatorId: req.user.id,
         type: Room.TYPES.GROUP,
         name,
+        memberIds: Array.isArray(memberIds) ? memberIds : [],
       });
       return res.status(201).json({ room });
+    } catch (err) {
+      return _handleError(res, err);
+    }
+  },
+
+  /**
+   * POST /api/chat/rooms/:roomId/invite  { userIds: [] }
+   * OWNER/ADMIN adds members; invited online users are joined + notified live.
+   */
+  async invite(req, res) {
+    try {
+      const { roomId } = req.params;
+      const { userIds } = req.body ?? {};
+
+      const { room, invitedUserIds } = await InviteToRoomUseCase.execute({
+        roomId,
+        inviterId: req.user.id,
+        userIds,
+      });
+
+      for (const userId of invitedUserIds) {
+        socketServer.joinUserToRoom(userId, roomId);
+        socketServer.emitToUser(userId, 'room:joined', { roomId, room });
+      }
+
+      return res.json({ room, invitedUserIds });
     } catch (err) {
       return _handleError(res, err);
     }

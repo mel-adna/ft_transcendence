@@ -40,6 +40,33 @@ const UserRepository = {
   },
 
   /**
+   * Search users by username or email (case-insensitive), for the invite picker.
+   * Optionally excludes the requester and anyone already in a given room.
+   * @param {string} query
+   * @param {{ excludeUserId?: string, excludeRoomId?: string, limit?: number }} [options]
+   */
+  async searchByUsernameOrEmail(query, { excludeUserId, excludeRoomId, limit = 10 } = {}) {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const where = {
+      OR: [
+        { username: { contains: trimmed, mode: 'insensitive' } },
+        { email: { contains: trimmed, mode: 'insensitive' } },
+      ],
+    };
+    if (excludeUserId) where.id = { not: excludeUserId };
+    if (excludeRoomId) where.roomMemberships = { none: { roomId: excludeRoomId } };
+
+    return prisma.user.findMany({
+      where,
+      select: USER_PUBLIC_SELECT,
+      orderBy: { username: 'asc' },
+      take: Math.min(limit, 25),
+    });
+  },
+
+  /**
    * Bulk fetch by ids
    * @param {string[]} ids
    */

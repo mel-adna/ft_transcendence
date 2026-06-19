@@ -15,6 +15,8 @@ export { MessageInput } from './components/MessageInput';
 export { RoomSidebar, CreateRoomModal } from './components/RoomSidebar';
 export { MemberList } from './components/MemberList';
 export { PresenceIndicator } from './components/PresenceIndicator';
+export { UserSearchSelect } from './components/UserSearchSelect';
+export { InviteMembersModal } from './components/InviteMembersModal';
 
 // Services
 export { chatApi } from './services/chatApi';

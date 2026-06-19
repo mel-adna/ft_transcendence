@@ -14,24 +14,34 @@ class CreateRoomUseCase {
    * @param {'GROUP'|'DIRECT'} params.type
    * @param {string} [params.name] - required for GROUP
    * @param {string} [params.targetUserId] - required for DIRECT
+   * @param {string[]} [params.memberIds] - initial members to invite (GROUP only)
    * @returns {Promise<object>} room response DTO
    */
-  async execute({ creatorId, type, name, targetUserId }) {
+  async execute({ creatorId, type, name, targetUserId, memberIds = [] }) {
     if (type === Room.TYPES.DIRECT) {
       return this._createDirectRoom(creatorId, targetUserId);
     }
 
     if (type === Room.TYPES.GROUP) {
-      return this._createGroupRoom(creatorId, name);
+      return this._createGroupRoom(creatorId, name, memberIds);
     }
 
     throw new Error('ROOM_INVALID_TYPE');
   }
 
-  async _createGroupRoom(creatorId, name) {
+  async _createGroupRoom(creatorId, name, memberIds = []) {
     const roomEntity = Room.create(name, Room.TYPES.GROUP);
     const created = await RoomRepository.create(roomEntity.toCreateInput());
     await RoomRepository.addMember(created.id, creatorId, 'OWNER');
+
+    // Seed initial members (validated, deduped, creator excluded)
+    const candidateIds = [...new Set(memberIds)].filter((id) => id && id !== creatorId);
+    if (candidateIds.length) {
+      const users = await UserRepository.findManyByIds(candidateIds);
+      for (const user of users) {
+        await RoomRepository.addMember(created.id, user.id, 'MEMBER');
+      }
+    }
 
     const room = await RoomRepository.findById(created.id);
     return RoomService.buildRoomResponse(room);

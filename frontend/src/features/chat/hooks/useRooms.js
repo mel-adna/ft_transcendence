@@ -49,9 +49,15 @@ export function useRooms() {
     }, [refresh]),
   );
 
-  const createGroup = useCallback(async (name) => {
-    const { room } = await chatApi.createGroup(name);
+  const createGroup = useCallback(async (name, memberIds = []) => {
+    const { room } = await chatApi.createGroup(name, memberIds);
     setRooms((prev) => [room, ...prev.filter((r) => r.id !== room.id)]);
+    return room;
+  }, []);
+
+  const inviteToRoom = useCallback(async (roomId, userIds) => {
+    const { room } = await chatApi.inviteToRoom(roomId, userIds);
+    setRooms((prev) => prev.map((r) => (r.id === room.id ? room : r)));
     return room;
   }, []);
 
@@ -77,6 +83,7 @@ export function useRooms() {
     refresh,
     createGroup,
     createDM,
+    inviteToRoom,
     displayName,
   };
 }
