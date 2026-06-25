@@ -26,10 +26,18 @@ class RoomService {
 
   /**
    * @param {object} room - Prisma room with optional members
+   * @param {string|null} [requesterId] - when given, includes the requester's
+   *   own role in the room as `myRole` so clients can gate owner-only actions
+   *   without scanning the members array.
    * @returns {object}
    */
-  buildRoomResponse(room) {
+  buildRoomResponse(room, requesterId = null) {
     if (!room) return null;
+
+    const myRole =
+      requesterId && room.members
+        ? room.members.find((m) => m.userId === requesterId)?.role ?? null
+        : undefined;
 
     return {
       id: room.id,
@@ -39,6 +47,7 @@ class RoomService {
         ? room.createdAt.toISOString()
         : room.createdAt,
       memberCount: room.members?.length ?? undefined,
+      myRole,
       members: room.members
         ? room.members.map((m) => this.buildMemberResponse(m))
         : undefined,
@@ -76,6 +85,21 @@ class RoomService {
     const isMember = room.members?.some((m) => m.userId === requesterId);
     if (!isMember) {
       throw new Error('ROOM_ACCESS_DENIED');
+    }
+  }
+
+  /**
+   * Only the OWNER of a GROUP room may delete it. DIRECT rooms have no owner
+   * and cannot be deleted this way.
+   * @param {string} requesterRole - the requester's role in the room, or null
+   * @param {string} roomType
+   */
+  assertCanDeleteRoom(requesterRole, roomType) {
+    if (roomType !== 'GROUP') {
+      throw new Error('ROOM_NOT_DELETABLE');
+    }
+    if (requesterRole !== 'OWNER') {
+      throw new Error('ROOM_DELETE_FORBIDDEN');
     }
   }
 }

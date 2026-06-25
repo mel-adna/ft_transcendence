@@ -1,9 +1,11 @@
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const RoomService = require('../../domain/rooms/RoomService');
+const ReadReceiptRepository = require('../../infrastructure/repositories/ReadReceiptRepository');
 
 /**
  * ListRoomsUseCase
- * Returns all rooms the requester belongs to.
+ * Returns all rooms the requester belongs to, each annotated with the
+ * requester's unread message count (drives sidebar badges).
  */
 class ListRoomsUseCase {
   /**
@@ -12,7 +14,16 @@ class ListRoomsUseCase {
    */
   async execute(requesterId) {
     const rooms = await RoomRepository.findAllForUser(requesterId);
-    return rooms.map((room) => RoomService.buildRoomResponse(room));
+
+    return Promise.all(
+      rooms.map(async (room) => {
+        const unreadCount = await ReadReceiptRepository.getUnreadCount(
+          room.id,
+          requesterId,
+        );
+        return { ...RoomService.buildRoomResponse(room, requesterId), unreadCount };
+      }),
+    );
   }
 }
 

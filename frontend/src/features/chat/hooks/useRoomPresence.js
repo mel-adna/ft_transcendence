@@ -73,6 +73,32 @@ export function useRoomPresence(roomId) {
     !!roomId,
   );
 
+  // A member left the room — drop them locally (and refresh for accuracy).
+  useSocketEvent(
+    'room:member_left',
+    useCallback(
+      (payload) => {
+        if (!roomId || payload.roomId !== roomId) return;
+        setMembers((prev) => prev.filter((m) => m.userId !== payload.userId));
+      },
+      [roomId],
+    ),
+    !!roomId,
+  );
+
+  // A member joined (e.g. invited) — pull the fresh roster.
+  useSocketEvent(
+    'room:joined',
+    useCallback(
+      (payload) => {
+        if (!roomId || payload?.roomId !== roomId) return;
+        refresh();
+      },
+      [roomId, refresh],
+    ),
+    !!roomId,
+  );
+
   const onlineCount = members.filter((m) => m.status === 'ONLINE').length;
 
   return { members, onlineCount, refresh };

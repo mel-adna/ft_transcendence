@@ -181,6 +181,44 @@ const RoomRepository = {
     });
     return !!member;
   },
+
+  /**
+   * A user's role in a room, or null if not a member.
+   * @param {string} roomId
+   * @param {string} userId
+   * @returns {Promise<string|null>}
+   */
+  async getMemberRole(roomId, userId) {
+    const member = await prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+      select: { role: true },
+    });
+    return member?.role ?? null;
+  },
+
+  /**
+   * The ids of every member of a room (for broadcasting room-wide events
+   * like deletion to users who may be offline / not in the socket room).
+   * @param {string} roomId
+   * @returns {Promise<string[]>}
+   */
+  async getMemberIds(roomId) {
+    const members = await prisma.roomMember.findMany({
+      where: { roomId },
+      select: { userId: true },
+    });
+    return members.map((m) => m.userId);
+  },
+
+  /**
+   * Delete a room. Messages, memberships and read receipts cascade via the
+   * schema's onDelete: Cascade relations.
+   * @param {string} roomId
+   * @returns {Promise<void>}
+   */
+  async delete(roomId) {
+    await prisma.room.delete({ where: { id: roomId } });
+  },
 };
 
 module.exports = RoomRepository;

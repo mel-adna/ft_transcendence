@@ -167,6 +167,7 @@ export function RoomSidebar({ rooms, selectedRoomId, onSelect, displayName, onCr
         {rooms.map((room) => {
           const isActive = room.id === selectedRoomId;
           const Icon = room.type === 'DIRECT' ? MessageCircle : Hash;
+          const unread = !isActive ? room.unreadCount ?? 0 : 0;
           return (
             <button
               key={room.id}
@@ -174,11 +175,18 @@ export function RoomSidebar({ rooms, selectedRoomId, onSelect, displayName, onCr
               className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-xs font-semibold cursor-pointer transition-colors ${
                 isActive
                   ? 'bg-[#3B82F6]/15 text-[#3B82F6]'
-                  : 'text-[#71717A] hover:text-slate-200 hover:bg-[#181824]'
+                  : unread > 0
+                    ? 'text-white hover:bg-[#181824]'
+                    : 'text-[#71717A] hover:text-slate-200 hover:bg-[#181824]'
               }`}
             >
               <Icon size={14} className="shrink-0" />
-              <span className="truncate">{displayName(room)}</span>
+              <span className="truncate flex-1">{displayName(room)}</span>
+              {unread > 0 && (
+                <span className="shrink-0 min-w-[18px] h-[18px] px-1.5 flex items-center justify-center rounded-full bg-[#3B82F6] text-[10px] font-bold text-white">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
             </button>
           );
         })}

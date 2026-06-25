@@ -1,6 +1,8 @@
 const ListRoomsUseCase = require('../../application/rooms/ListRoomsUseCase');
 const CreateRoomUseCase = require('../../application/rooms/CreateRoomUseCase');
 const InviteToRoomUseCase = require('../../application/rooms/InviteToRoomUseCase');
+const DeleteRoomUseCase = require('../../application/rooms/DeleteRoomUseCase');
+const LeaveRoomUseCase = require('../../application/rooms/LeaveRoomUseCase');
 const RoomService = require('../../domain/rooms/RoomService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const Room = require('../../domain/rooms/Room');
@@ -20,6 +22,10 @@ const STATUS_MAP = {
   ROOM_INVITE_NO_USERS: 400,
   ROOM_CANNOT_INVITE_DM: 400,
   ROOM_INVITE_FORBIDDEN: 403,
+  ROOM_ID_REQUIRED: 400,
+  ROOM_NOT_DELETABLE: 400,
+  ROOM_DELETE_FORBIDDEN: 403,
+  ROOM_CANNOT_LEAVE_DM: 400,
 };
 
 const roomController = {
@@ -59,6 +65,55 @@ const roomController = {
       }
 
       return res.json({ room, invitedUserIds });
+    } catch (err) {
+      return _handleError(res, err);
+    }
+  },
+
+  /**
+   * DELETE /api/chat/rooms/:roomId
+   * Owner-only deletion of a GROUP room. Notifies every member live so their
+   * UI drops the room immediately.
+   */
+  async deleteRoom(req, res) {
+    try {
+      const { roomId } = req.params;
+
+      const { memberIds } = await DeleteRoomUseCase.execute({
+        actorId: req.user.id,
+        roomId,
+      });
+
+      for (const userId of memberIds) {
+        socketServer.emitToUser(userId, 'room:deleted', { roomId });
+      }
+
+      return res.json({ ok: true, roomId });
+    } catch (err) {
+      return _handleError(res, err);
+    }
+  },
+
+  /**
+   * POST /api/chat/rooms/:roomId/leave
+   * The requester leaves a GROUP room. Their sockets leave the room and remaining
+   * members are notified so their member lists update.
+   */
+  async leaveRoom(req, res) {
+    try {
+      const { roomId } = req.params;
+      const userId = req.user.id;
+
+      await LeaveRoomUseCase.execute({ userId, roomId });
+
+      // Detach the leaver's sockets and tell their other tabs to drop the room.
+      socketServer.leaveUserFromRoom(userId, roomId);
+      socketServer.emitToUser(userId, 'room:left', { roomId });
+
+      // Notify everyone still in the room so presence/member panels refresh.
+      socketServer.getIO().to(roomId).emit('room:member_left', { roomId, userId });
+
+      return res.json({ ok: true, roomId });
     } catch (err) {
       return _handleError(res, err);
     }

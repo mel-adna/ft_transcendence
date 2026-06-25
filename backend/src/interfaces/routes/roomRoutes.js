@@ -15,6 +15,8 @@ router.post('/rooms/dm', roomController.createDM);
 router.post('/rooms', roomController.createGroup);
 router.get('/rooms', roomController.listRooms);
 router.post('/rooms/:roomId/invite', roomController.invite);
+router.post('/rooms/:roomId/leave', roomController.leaveRoom);
+router.delete('/rooms/:roomId', roomController.deleteRoom);
 router.get('/rooms/:roomId/members', roomController.getMembers);
 router.get('/rooms/:roomId/presence', presenceController.getRoomPresence);
 

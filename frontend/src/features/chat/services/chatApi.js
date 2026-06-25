@@ -53,6 +53,20 @@ export const chatApi = {
     });
   },
 
+  deleteRoom(roomId) {
+    return request(`/chat/rooms/${roomId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+  },
+
+  leaveRoom(roomId) {
+    return request(`/chat/rooms/${roomId}/leave`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+  },
+
   createDM(targetUserId) {
     return request('/chat/rooms/dm', {
       method: 'POST',

@@ -122,6 +122,20 @@ class SocketServer {
     }
   }
 
+  /**
+   * Remove all of a user's live sockets from a room so they stop receiving its
+   * events immediately (e.g. after leaving). No-op if offline. Cluster-safe via
+   * the Redis adapter's socketsLeave.
+   * @param {string} userId
+   * @param {string} roomId
+   */
+  leaveUserFromRoom(userId, roomId) {
+    if (!this.io) return;
+    for (const socketId of registry.getSocketIds(userId)) {
+      this.io.in(socketId).socketsLeave(roomId);
+    }
+  }
+
   getStats() {
     if (!this.io) {
       return { status: 'initializing', connections: 0, redisEnabled: false };

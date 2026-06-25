@@ -44,7 +44,7 @@ class CreateRoomUseCase {
     }
 
     const room = await RoomRepository.findById(created.id);
-    return RoomService.buildRoomResponse(room);
+    return RoomService.buildRoomResponse(room, creatorId);
   }
 
   async _createDirectRoom(creatorId, targetUserId) {
