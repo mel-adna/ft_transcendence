@@ -2,6 +2,7 @@ const SendMessageUseCase = require('../../application/messaging/SendMessageUseCa
 const EditMessageUseCase = require('../../application/messaging/EditMessageUseCase');
 const DeleteMessageUseCase = require('../../application/messaging/DeleteMessageUseCase');
 const MarkAsReadUseCase = require('../../application/messaging/MarkAsReadUseCase');
+const GetRoomReadReceiptsUseCase = require('../../application/messaging/GetRoomReadReceiptsUseCase');
 
 /**
  * messageHandler (Interface Layer)
@@ -13,12 +14,13 @@ const MarkAsReadUseCase = require('../../application/messaging/MarkAsReadUseCase
  *   message:edit    { messageId, newContent }
  *   message:delete  { messageId }
  *   message:read    { roomId, lastReadMessageId? }
+ *   read:sync       { roomId }                       (ack → { ok, receipts })
  *
  * Socket Events (outbound):
  *   message:new          → room broadcast
  *   message:updated      → room broadcast
  *   message:deleted      → room broadcast
- *   message:read         → room broadcast
+ *   message:read         → room broadcast { roomId, userId, lastReadMessageId, readAt }
  *   message:error        → sender only
  *
  * @param {import('socket.io').Server} io
@@ -111,6 +113,23 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true });
     } catch (err) {
       _emitError(socket, 'message:read', err);
+      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+    }
+  });
+
+  // ─── READ SYNC (bootstrap all members' read positions on room open) ────────
+  socket.on('read:sync', async (payload, ack) => {
+    try {
+      const { roomId } = payload ?? {};
+
+      const receipts = await GetRoomReadReceiptsUseCase.execute({
+        roomId,
+        requesterId: userId,
+      });
+
+      if (typeof ack === 'function') ack({ ok: true, receipts });
+    } catch (err) {
+      _emitError(socket, 'read:sync', err);
       if (typeof ack === 'function') ack({ ok: false, error: err.message });
     }
   });
