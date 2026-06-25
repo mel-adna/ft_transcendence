@@ -206,7 +206,7 @@ function App() {
           <div
             className={`flex-1 min-h-0 ${
               activeTab === 'chat'
-                ? 'overflow-hidden'
+                ? 'overflow-hidden pb-20 md:pb-0'
                 : 'overflow-y-auto p-5 md:p-8 pb-24 md:pb-8'
             }`}
           >
