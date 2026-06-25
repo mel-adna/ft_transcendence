@@ -8,6 +8,7 @@ const registerChatHandlers = require('../../interfaces/sockets/chatSocket');
 const registerMessageHandlers = require('../../interfaces/sockets/messageHandler');
 const registerPresenceHandlers = require('../../interfaces/sockets/presenceHandler');
 const registerRoomHandlers = require('../../interfaces/sockets/roomHandler');
+const registerTypingHandlers = require('../../interfaces/sockets/typingHandler');
 
 /**
  * SocketServer
@@ -83,6 +84,7 @@ class SocketServer {
       registerMessageHandlers(this.io, socket);
       registerPresenceHandlers(this.io, socket);
       registerRoomHandlers(this.io, socket);
+      registerTypingHandlers(this.io, socket);
 
       socket.on('disconnect', (reason) => {
         this._connectionCount = Math.max(0, this._connectionCount - 1);
