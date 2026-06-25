@@ -54,6 +54,7 @@ class SocketClient {
    * Disconnect and destroy the socket.
    */
   disconnect() {
+    this._stopHeartbeat();
     if (this._socket) {
       this._socket.disconnect();
       this._socket = null;
@@ -92,10 +93,12 @@ class SocketClient {
 
     s.on('connect', () => {
       console.log('[SocketClient] Connected:', s.id);
+      this._startHeartbeat();
     });
 
     s.on('disconnect', (reason) => {
       console.log('[SocketClient] Disconnected:', reason);
+      this._stopHeartbeat();
     });
 
     s.on('connect_error', (err) => {
@@ -109,21 +112,21 @@ class SocketClient {
         s.disconnect();
       }
     });
+  }
 
-    // Heartbeat every 30s to signal ONLINE presence
-    s.on('connect', () => {
-      if (this._heartbeatInterval) clearInterval(this._heartbeatInterval);
-      this._heartbeatInterval = setInterval(() => {
-        if (s.connected) s.emit('presence:heartbeat');
-      }, 30_000);
-    });
+  // Heartbeat every 30s to signal ONLINE presence.
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this._heartbeatInterval = setInterval(() => {
+      if (this._socket?.connected) this._socket.emit('presence:heartbeat');
+    }, 30_000);
+  }
 
-    s.on('disconnect', () => {
-      if (this._heartbeatInterval) {
-        clearInterval(this._heartbeatInterval);
-        this._heartbeatInterval = null;
-      }
-    });
+  _stopHeartbeat() {
+    if (this._heartbeatInterval) {
+      clearInterval(this._heartbeatInterval);
+      this._heartbeatInterval = null;
+    }
   }
 }
 

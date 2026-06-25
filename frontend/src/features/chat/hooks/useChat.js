@@ -16,8 +16,8 @@ const HISTORY_API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/
  *   isLoading: boolean,
  *   hasMore: boolean,
  *   sendMessage: (content: string, opts?: { type?: string, parentId?: string }) => void,
- *   editMessage: (messageId: string, newContent: string) => void,
- *   deleteMessage: (messageId: string) => void,
+ *   retryMessage: (tempId: string) => void,
+ *   discardMessage: (tempId: string) => void,
  *   loadMore: () => void,
  * }}
  */
@@ -124,16 +124,58 @@ export function useChat(roomId, currentUserId) {
   );
 
   // ─── SEND ─────────────────────────────────────────────────────────────────
+  // Emits an already-optimistic message (identified by tempId) and reconciles
+  // the ack. Shared by sendMessage (first attempt) and retryMessage.
+  const emitMessage = useCallback(
+    (tempId, { content, type, parentId }) => {
+      if (!socket || !connected) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? { ...m, _optimistic: false, _failed: true } : m,
+          ),
+        );
+        return;
+      }
+
+      socket.emit(
+        'message:send',
+        { roomId, content, type, parentId },
+        ({ ok, messageId, error }) => {
+          if (ok) {
+            // Replace temp id with the real DB id so edit/delete target it.
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempId
+                  ? { ...m, id: messageId, _optimistic: false, _failed: false }
+                  : m,
+              ),
+            );
+          } else {
+            // Keep the message visible and flag it so the user can retry.
+            console.error('[useChat] Send failed:', error);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempId ? { ...m, _optimistic: false, _failed: true } : m,
+              ),
+            );
+          }
+        },
+      );
+    },
+    [socket, connected, roomId],
+  );
+
   const sendMessage = useCallback(
     (content, { type = 'TEXT', parentId = null } = {}) => {
-      if (!socket || !connected || !roomId || !content.trim()) return;
+      if (!roomId || !content.trim()) return;
+      const trimmed = content.trim();
 
-      // Optimistic: immediate local append with a temp id
-      const tempId = `temp_${Date.now()}`;
+      // Optimistic: immediate local append with a temp id.
+      const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const optimisticMsg = {
         id: tempId,
         roomId,
-        content: content.trim(),
+        content: trimmed,
         type,
         parentId,
         isEdited: false,
@@ -141,60 +183,52 @@ export function useChat(roomId, currentUserId) {
         updatedAt: new Date().toISOString(),
         sender: { id: currentUserId, username: 'You' },
         _optimistic: true,
+        _failed: false,
       };
       setMessages((prev) => [...prev, optimisticMsg]);
 
-      socket.emit(
-        'message:send',
-        { roomId, content: content.trim(), type, parentId },
-        ({ ok, messageId, error }) => {
-          if (ok) {
-            // Replace temp id with the real DB id so edit/delete target it
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempId ? { ...m, id: messageId, _optimistic: false } : m,
-              ),
-            );
-          } else {
-            // Rollback
-            console.error('[useChat] Send failed:', error);
-            setMessages((prev) => prev.filter((m) => m.id !== tempId));
-          }
-        },
-      );
+      emitMessage(tempId, { content: trimmed, type, parentId });
     },
-    [socket, connected, roomId, currentUserId],
+    [roomId, currentUserId, emitMessage],
   );
 
-  // ─── EDIT ─────────────────────────────────────────────────────────────────
-  const editMessage = useCallback(
-    (messageId, newContent) => {
-      if (!socket || !connected || !newContent.trim()) return;
-      socket.emit('message:edit', { messageId, newContent: newContent.trim() }, ({ ok, error }) => {
-        if (!ok) console.error('[useChat] Edit failed:', error);
+  // ─── RETRY ────────────────────────────────────────────────────────────────
+  const retryMessage = useCallback(
+    (tempId) => {
+      setMessages((prev) => {
+        const target = prev.find((m) => m.id === tempId);
+        if (target) {
+          emitMessage(tempId, {
+            content: target.content,
+            type: target.type,
+            parentId: target.parentId,
+          });
+        }
+        // Flip back to "sending" state immediately for feedback.
+        return prev.map((m) =>
+          m.id === tempId ? { ...m, _optimistic: true, _failed: false } : m,
+        );
       });
     },
-    [socket, connected],
+    [emitMessage],
   );
 
-  // ─── DELETE ───────────────────────────────────────────────────────────────
-  const deleteMessage = useCallback(
-    (messageId) => {
-      if (!socket || !connected) return;
-      socket.emit('message:delete', { messageId }, ({ ok, error }) => {
-        if (!ok) console.error('[useChat] Delete failed:', error);
-      });
-    },
-    [socket, connected],
-  );
+  // ─── DISCARD (drop a failed optimistic message) ─────────────────────────────
+  const discardMessage = useCallback((tempId) => {
+    setMessages((prev) => prev.filter((m) => m.id !== tempId));
+  }, []);
+
+  // Inbound message:updated / message:deleted are still handled above so the
+  // list stays in sync if another client (or a moderator tool) changes a
+  // message — this UI just no longer exposes edit/delete actions itself.
 
   return {
     messages,
     isLoading,
     hasMore,
     sendMessage,
-    editMessage,
-    deleteMessage,
+    retryMessage,
+    discardMessage,
     loadMore,
   };
 }

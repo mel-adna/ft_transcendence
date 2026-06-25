@@ -1,32 +1,31 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 /**
  * MessageItem
- * Renders a single message with inline edit/delete for own messages.
+ * Renders a single message with an optimistic "sending" state, a failed-send
+ * retry affordance, and (on your most recent message) a read indicator:
+ *   ✓   delivered / not yet read
+ *   ✓✓  read by another member (blue)
  *
  * @param {{
  *   message: object,
  *   isOwn: boolean,
- *   onEdit: (messageId: string, newContent: string) => void,
- *   onDelete: (messageId: string) => void,
+ *   onRetry?: (tempId: string) => void,
+ *   onDiscard?: (tempId: string) => void,
+ *   showReadStatus?: boolean,  // render the ✓ indicator on this (last own) message
+ *   isRead?: boolean,          // another member has read it
  * }} props
  */
-export function MessageItem({ message, isOwn, onEdit, onDelete }) {
-  const [editing, setEditing] = useState(false);
-  const [editContent, setEditContent] = useState(message.content);
-
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
-    if (editContent.trim() && editContent.trim() !== message.content) {
-      onEdit(message.id, editContent.trim());
-    }
-    setEditing(false);
-  };
-
-  const handleEditKeyDown = (e) => {
-    if (e.key === 'Escape') setEditing(false);
-    if (e.key === 'Enter' && !e.shiftKey) handleEditSubmit(e);
-  };
+export function MessageItem({
+  message,
+  isOwn,
+  onRetry,
+  onDiscard,
+  showReadStatus = false,
+  isRead = false,
+}) {
+  const failed = !!message._failed;
+  const sending = !!message._optimistic;
 
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
     hour: '2-digit',
@@ -35,79 +34,68 @@ export function MessageItem({ message, isOwn, onEdit, onDelete }) {
 
   return (
     <div
+      className="flex flex-col px-3 py-1"
       style={{
-        display: 'flex',
-        flexDirection: 'column',
         alignItems: isOwn ? 'flex-end' : 'flex-start',
-        padding: '4px 12px',
-        opacity: message._optimistic ? 0.6 : 1,
+        opacity: sending ? 0.6 : 1,
       }}
     >
       {/* Sender name (only for others) */}
       {!isOwn && (
-        <span style={{ fontSize: '11px', marginBottom: '2px', fontWeight: 600 }}>
+        <span className="text-[11px] mb-0.5 font-semibold text-slate-300">
           {message.sender?.username ?? 'Unknown'}
         </span>
       )}
 
       <div
+        className="max-w-[85%] sm:max-w-[70%] px-3 py-2 text-sm break-words"
         style={{
-          maxWidth: '70%',
           background: isOwn ? '#3B82F6' : '#181824',
           color: isOwn ? '#fff' : '#e2e8f0',
-          padding: '8px 12px',
           borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-          wordBreak: 'break-word',
+          border: failed ? '1px solid #ef4444' : '1px solid transparent',
         }}
       >
-        {editing ? (
-          <form onSubmit={handleEditSubmit}>
-            <textarea
-              autoFocus
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              onKeyDown={handleEditKeyDown}
-              style={{ width: '100%', resize: 'none', background: 'transparent', border: 'none', color: 'inherit', outline: 'none' }}
-              rows={2}
-            />
-          </form>
-        ) : (
-          <span style={{ whiteSpace: 'pre-wrap' }}>{message.content}</span>
-        )}
+        <span style={{ whiteSpace: 'pre-wrap' }}>{message.content}</span>
       </div>
 
-      {/* Meta: time + edited badge + actions */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
-        <span style={{ fontSize: '10px', opacity: 0.5 }}>{formattedTime}</span>
-        {message.isEdited && (
-          <span style={{ fontSize: '10px', opacity: 0.4 }}>(edited)</span>
-        )}
-        {isOwn && !editing && (
-          <>
-            <button
-              onClick={() => { setEditContent(message.content); setEditing(true); }}
-              style={actionButtonStyle}
-            >
-              Edit
+      {/* Failed state: error line + retry / discard */}
+      {failed && (
+        <div className="flex gap-2 items-center mt-0.5">
+          <span className="text-[10px] text-red-400">Not sent</span>
+          {onRetry && (
+            <button onClick={() => onRetry(message.id)} className="text-[10px] text-[#3B82F6] cursor-pointer">
+              Retry
             </button>
-            <button
-              onClick={() => onDelete(message.id)}
-              style={{ ...actionButtonStyle, color: '#ef4444' }}
-            >
-              Delete
+          )}
+          {onDiscard && (
+            <button onClick={() => onDiscard(message.id)} className="text-[10px] text-red-400 cursor-pointer">
+              Discard
             </button>
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {/* Meta: time + edited badge + read indicator */}
+      {!failed && (
+        <div className="flex gap-1.5 items-center mt-0.5">
+          <span className="text-[10px] opacity-50">
+            {sending ? 'Sending…' : formattedTime}
+          </span>
+          {message.isEdited && !sending && (
+            <span className="text-[10px] opacity-40">(edited)</span>
+          )}
+          {isOwn && showReadStatus && !sending && (
+            <span
+              className="text-[10px]"
+              style={{ color: isRead ? '#3B82F6' : '#71717A' }}
+              title={isRead ? 'Read' : 'Delivered'}
+            >
+              {isRead ? '✓✓' : '✓'}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
-
-const actionButtonStyle = {
-  background: 'none',
-  border: 'none',
-  fontSize: '10px',
-  cursor: 'pointer',
-  opacity: 0.6,
-  padding: '0 2px',
-};

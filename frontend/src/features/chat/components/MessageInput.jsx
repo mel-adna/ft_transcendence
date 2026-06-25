@@ -6,11 +6,13 @@ import React, { useState, useRef } from 'react';
  *
  * @param {{
  *   onSend: (content: string) => void,
+ *   onTyping?: () => void,
+ *   onStopTyping?: () => void,
  *   disabled?: boolean,
  *   placeholder?: string,
  * }} props
  */
-export function MessageInput({ onSend, disabled = false, placeholder = 'Messageâ€¦' }) {
+export function MessageInput({ onSend, onTyping, onStopTyping, disabled = false, placeholder = 'Messageâ€¦' }) {
   const [value, setValue] = useState('');
   const textareaRef = useRef(null);
 
@@ -19,7 +21,14 @@ export function MessageInput({ onSend, disabled = false, placeholder = 'Messageâ
     if (!trimmed || disabled) return;
     onSend(trimmed);
     setValue('');
+    onStopTyping?.();
     textareaRef.current?.focus();
+  };
+
+  const handleChange = (e) => {
+    setValue(e.target.value);
+    if (e.target.value.trim()) onTyping?.();
+    else onStopTyping?.();
   };
 
   const handleKeyDown = (e) => {
@@ -34,8 +43,9 @@ export function MessageInput({ onSend, disabled = false, placeholder = 'Messageâ
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={() => onStopTyping?.()}
         disabled={disabled}
         placeholder={disabled ? 'Connectingâ€¦' : placeholder}
         rows={1}
