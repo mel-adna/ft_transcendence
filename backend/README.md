@@ -11,12 +11,13 @@ This option uses multi-stage builds and layered JAR extraction to spin up the Sp
 
 1. Open your terminal in the root directory of this project (where `docker-compose.yml` is located).
 2. Run the following command to build and launch all services in the background:
-   ```bash
-   docker compose up -d --build
 
+```bash
+   docker compose up -d --build
 ```
 
 3. To verify that all containers are healthy and running:
+
 ```bash
 docker compose ps
 
@@ -24,6 +25,7 @@ docker compose ps
 
 
 4. To check live application logs:
+
 ```bash
 docker compose logs -f backend
 
