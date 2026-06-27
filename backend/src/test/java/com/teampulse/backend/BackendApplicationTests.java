@@ -1,10 +1,10 @@
-package com.teampulse.dashboard;
+package com.teampulse.backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class DashboardApplicationTests {
+class BackendApplicationTests {
 
 	@Test
 	void contextLoads() {
