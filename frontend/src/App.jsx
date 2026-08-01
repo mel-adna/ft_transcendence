@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
@@ -18,13 +20,23 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
-          <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-          <Route path="/colleagues" element={<ProtectedRoute><ColleaguesPage /></ProtectedRoute>} />
-          <Route path="/teams" element={<ProtectedRoute><TeamsPage /></ProtectedRoute>} />
-          <Route path="/teams/new" element={<ProtectedRoute><CreateTeamPage /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route
+            element={
+              <ProtectedRoute>
+                <WorkspaceProvider>
+                  <AppLayout />
+                </WorkspaceProvider>
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/colleagues" element={<ColleaguesPage />} />
+            <Route path="/teams" element={<TeamsPage />} />
+            <Route path="/teams/new" element={<CreateTeamPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
         </Routes>
