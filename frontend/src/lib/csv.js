@@ -14,43 +14,82 @@ export function tasksToCsv(tasks = []) {
   return [header, ...rows].join('\n');
 }
 
-function splitLine(line) {
-  const cells = [];
+function tokenizeCsv(text) {
+  const records = [];
+  let cells = [];
   let cell = '';
   let inQuotes = false;
+  let line = 1;
+  let recordLine;
+  let hasPendingRecord = false;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
+  function endCell() {
+    cells.push(cell);
+    cell = '';
+  }
+
+  function endRecord() {
+    endCell();
+    records.push({ line: recordLine, cells });
+    cells = [];
+    hasPendingRecord = false;
+  }
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '\r') continue;
+
+    if (!hasPendingRecord) {
+      recordLine = line;
+      hasPendingRecord = true;
+    }
+
     if (inQuotes) {
-      if (char === '"' && line[index + 1] === '"') {
+      if (char === '"' && text[index + 1] === '"') {
         cell += '"';
         index += 1;
       } else if (char === '"') {
         inQuotes = false;
+      } else if (char === '\n') {
+        cell += char;
+        line += 1;
       } else {
         cell += char;
       }
-    } else if (char === '"') {
+      continue;
+    }
+
+    if (char === '"') {
       inQuotes = true;
     } else if (char === ',') {
-      cells.push(cell);
-      cell = '';
+      endCell();
+    } else if (char === '\n') {
+      endRecord();
+      line += 1;
     } else {
       cell += char;
     }
   }
-  cells.push(cell);
-  return cells;
+
+  if (hasPendingRecord) endRecord();
+
+  return records;
+}
+
+function isBlankRecord(record) {
+  return record.cells.length === 1 && record.cells[0].trim() === '';
 }
 
 export function parseTasksCsv(text = '') {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+  const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const records = tokenizeCsv(source).filter((record) => !isBlankRecord(record));
   const rows = [];
   const errors = [];
 
-  if (lines.length === 0) return { rows, errors };
+  if (records.length === 0) return { rows, errors };
 
-  const header = splitLine(lines[0]).map((cell) => cell.trim().toLowerCase());
+  const [headerRecord, ...dataRecords] = records;
+  const header = headerRecord.cells.map((cell) => cell.trim().toLowerCase());
   const indexOf = (name) => header.indexOf(name);
 
   if (indexOf('title') === -1) {
@@ -58,16 +97,15 @@ export function parseTasksCsv(text = '') {
     return { rows, errors };
   }
 
-  for (let line = 1; line < lines.length; line += 1) {
-    const cells = splitLine(lines[line]);
+  for (const record of dataRecords) {
     const read = (name) => {
       const position = indexOf(name);
-      return position === -1 ? '' : (cells[position] ?? '').trim();
+      return position === -1 ? '' : (record.cells[position] ?? '').trim();
     };
 
     const title = read('title');
     if (!title) {
-      errors.push(`Row ${line + 1} was skipped because it has no title.`);
+      errors.push(`Row ${record.line} was skipped because it has no title.`);
       continue;
     }
 
