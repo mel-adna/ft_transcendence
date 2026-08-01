@@ -12,6 +12,13 @@
 
 These apply to every task. No exceptions.
 
+**Scope of these constraints:** they bind code written for this plan. They do
+NOT bind `src/features/chat/**` and `src/infrastructure/socket/**`, which are
+copied verbatim from `origin/aarab` in Task 11 and must stay byte-for-byte
+identical so git merges cleanly. Never edit, reformat, de-comment, or
+"fix" a file under those two paths. Any verification command in this plan
+excludes them.
+
 - **No comments in any source file.** Names and structure carry the meaning. The README explains the system.
 - **No em dash (`—`) in any user-facing string.** UI copy, labels, placeholders, error text, seed data. Use a comma, a colon, parentheses, a spaced hyphen, or two sentences.
 - **One responsive component per screen.** Never a `hidden md:block` desktop copy paired with a `block md:hidden` mobile copy. Layout differences use responsive utilities on one tree.
@@ -1501,12 +1508,15 @@ git commit -m "feat(frontend): mount aarab's chat module in the app shell"
 
 ```bash
 cd frontend
-grep -rn "console\.\|TODO\|FIXME" src || echo "clean"
-grep -rn "—" src || echo "no em dashes"
-grep -rn "unsplash\|1,284\|942\|mock" src || echo "no mock data"
+EXCL="--exclude-dir=chat --exclude-dir=socket"
+grep -rn $EXCL "console\.\|TODO\|FIXME" src || echo "clean"
+grep -rn $EXCL "—" src || echo "no em dashes"
+grep -rn $EXCL "unsplash\|1,284\|942\|mock" src || echo "no mock data"
 ```
 
 Expected: all three report clean. Fix anything they surface.
+
+The exclusions cover `src/features/chat/` and `src/infrastructure/socket/`, which are aarab's vendored files and must not be edited.
 
 - [ ] **Step 2: Verify comments were never added**
 
