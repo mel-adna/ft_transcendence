@@ -51,8 +51,8 @@ Base URL `http://localhost:8080/api/v1`. All authenticated requests need `Author
 | POST | `/workspaces/{id}/members` | `{email, role}` | string |
 | DELETE | `/workspaces/{id}/members/{email}` | | string |
 | GET | `/tasks/workspace/{wsId}` | | `TaskResponse[]` |
-| POST | `/tasks/workspace/{wsId}` | `{title, description, priority, assigneeId}` | `TaskResponse` |
-| PUT | `/tasks/{id}` | `{title, description, priority, assigneeId}` | `TaskResponse` |
+| POST | `/tasks/workspace/{wsId}` | `{title, description, priority, assigneeId}` (no `status`) | `TaskResponse` |
+| PUT | `/tasks/{id}` | `{title, description, status, priority, assigneeId}` | `TaskResponse` |
 | PATCH | `/tasks/{id}/status` | `{status}` | `TaskResponse` |
 | DELETE | `/tasks/{id}` | | 204 |
 
@@ -63,6 +63,20 @@ WorkspaceResponse { id, name, type, owner }
 TaskResponse      { id, workspaceId, title, description, status, priority,
                     assignee, creator, createdAt, updatedAt }
 ```
+
+Request-DTO traps, verified against the Java source:
+
+- `TaskUpdateRequest` marks BOTH `status` and `priority` `@NotNull`, and the controller binds
+  it with `@Valid`. A PUT missing `status` is rejected with a 400 before any service code
+  runs. `TaskCreateRequest` has no `status` field at all, so a task is always created as
+  `TODO`. The two DTOs differ; never infer one from the other.
+- `TaskService.updateTask` clears the assignee whenever `assigneeId` is absent, so an edit
+  must resend the task's existing `assignee.id` or it silently unassigns the task.
+- `PasswordChangeRequest` is `{currentPassword, newPassword}`, min 8 with no character-class
+  rule. `SignupRequest` is the strict one. The frontend applies the strict rule to both,
+  which is safe because it is a superset.
+- `WorkspaceMemberAddRequest` and `WorkspaceMemberRoleUpdateRequest` are both
+  `{email, role}`; the delete endpoint takes the email in the path instead.
 
 ---
 
