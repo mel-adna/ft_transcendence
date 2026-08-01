@@ -8,6 +8,9 @@ export function validatePassword(value) {
   if (!/[@$!%*?&#]/.test(value)) {
     return 'Password needs one special character (@$!%*?&#).';
   }
+  if (!/^[A-Za-z\d@$!%*?&#]+$/.test(value)) {
+    return 'Password can only use letters, numbers and @$!%*?&#.';
+  }
   return null;
 }
 
