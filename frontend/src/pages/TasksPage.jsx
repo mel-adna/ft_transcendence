@@ -53,7 +53,7 @@ export default function TasksPage() {
 
   async function handleFormSubmit(payload) {
     if (editingTask) {
-      await updateTask(editingTask.id, payload);
+      await updateTask(editingTask.id, { ...payload, status: editingTask.status });
       closeModal();
       return;
     }
