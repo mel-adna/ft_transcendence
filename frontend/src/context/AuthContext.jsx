@@ -1,22 +1,28 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api, { setToken, getToken, clearToken } from '../lib/api';
-
-const AuthContext = createContext(null);
+import { AuthContext } from './useAuth';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!getToken()) {
-      setLoading(false);
-      return;
+    async function restoreSession() {
+      if (!getToken()) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await api.get('/users/me');
+        setUser(response.data);
+      } catch {
+        clearToken();
+      } finally {
+        setLoading(false);
+      }
     }
-    api
-      .get('/users/me')
-      .then((response) => setUser(response.data))
-      .catch(() => clearToken())
-      .finally(() => setLoading(false));
+
+    restoreSession();
   }, []);
 
   const login = useCallback(async (email, password) => {
@@ -47,8 +53,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

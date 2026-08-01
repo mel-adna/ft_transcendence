@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { LayoutGrid, Mail, Lock, User, ArrowRight } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { getErrorMessage } from '../lib/api';
 import { validateEmail, validatePassword, validateRequired } from '../lib/validation';
 import Field from '../components/Field';
