@@ -44,7 +44,7 @@ export function useTasks(workspaceId) {
 
   const moveTask = useCallback(
     async (taskId, status) => {
-      const snapshot = tasks;
+      const previousStatus = tasks.find((task) => task.id === taskId)?.status;
       setTasks((previous) =>
         previous.map((task) => (task.id === taskId ? { ...task, status } : task)),
       );
@@ -54,7 +54,11 @@ export function useTasks(workspaceId) {
           previous.map((task) => (task.id === taskId ? response.data : task)),
         );
       } catch (requestError) {
-        setTasks(snapshot);
+        setTasks((previous) =>
+          previous.map((task) =>
+            task.id === taskId ? { ...task, status: previousStatus } : task,
+          ),
+        );
         throw requestError;
       }
     },
