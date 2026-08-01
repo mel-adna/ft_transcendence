@@ -2,13 +2,21 @@ function dayKey(value) {
   return String(value).slice(0, 10);
 }
 
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
+function localDayKey(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function lastDays(count) {
   const days = [];
   const today = new Date();
   for (let offset = count - 1; offset >= 0; offset -= 1) {
     const date = new Date(today);
     date.setDate(today.getDate() - offset);
-    days.push(date.toISOString().slice(0, 10));
+    days.push(localDayKey(date));
   }
   return days;
 }
@@ -34,6 +42,7 @@ export function computeStats(tasks = [], days = 7) {
   }
 
   const completionTrend = lastDays(days).map((key) => ({
+    key,
     label: labelFor(key, days),
     completed: completedPerDay.get(key) ?? 0,
   }));
