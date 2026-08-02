@@ -1,13 +1,19 @@
-export default function Avatar({ user, size = 32 }) {
-  const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase() || '?';
-  const style = { width: size, height: size };
+import { useState } from 'react';
 
-  if (user?.avatarUrl) {
+export default function Avatar({ user, size = 32 }) {
+  const [failedUrl, setFailedUrl] = useState(null);
+  const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase() || '?';
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'User';
+  const style = { width: size, height: size };
+  const showImage = Boolean(user?.avatarUrl) && user.avatarUrl !== failedUrl;
+
+  if (showImage) {
     return (
       <img
         src={user.avatarUrl}
-        alt={`${user.firstName} ${user.lastName}`}
+        alt={displayName}
         style={style}
+        onError={() => setFailedUrl(user.avatarUrl)}
         className="rounded-full border border-[#71717A]/30 object-cover"
       />
     );

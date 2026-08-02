@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Trash2 } from 'lucide-react';
+import { Download, LogOut, Trash2 } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { downloadFile } from '../lib/csv';
 import { validatePassword, validateRequired } from '../lib/validation';
@@ -81,8 +81,8 @@ function ProfileCard({ user, onSaved }) {
         lastName: lastName.trim(),
         avatarUrl: avatarUrl.trim(),
       });
-      await onSaved();
       setSuccess(true);
+      await onSaved();
     } catch (error) {
       setServerError(getErrorMessage(error));
     } finally {
@@ -424,6 +424,11 @@ export default function SettingsPage() {
   const { workspaces } = useWorkspace();
   const navigate = useNavigate();
 
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
+
   function handleAccountDeleted() {
     logout();
     navigate('/login', { replace: true });
@@ -432,8 +437,20 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">Account Settings</h1>
-        <p className="mt-2 text-sm text-[#71717A]">Manage your profile, password and data.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white sm:text-3xl">Account Settings</h1>
+            <p className="mt-2 text-sm text-[#71717A]">Manage your profile, password and data.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5"
+          >
+            <LogOut size={16} />
+            Log out
+          </button>
+        </div>
 
         <div className="mt-6 space-y-6">
           <ProfileCard user={user} onSaved={refreshUser} />

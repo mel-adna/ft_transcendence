@@ -32,7 +32,8 @@ function validateName(value) {
 
 export default function CreateTeamPage() {
   const navigate = useNavigate();
-  const { selectWorkspace, refresh } = useWorkspace();
+  const { workspaces, selectWorkspace, refresh } = useWorkspace();
+  const canCancel = workspaces.length > 0;
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -84,14 +85,16 @@ export default function CreateTeamPage() {
             </div>
             <h1 className="text-lg font-bold text-white">Create New Team</h1>
           </div>
-          <button
-            type="button"
-            onClick={goToTeams}
-            aria-label="Close"
-            className="text-[#71717A] transition-colors hover:text-white"
-          >
-            <X size={20} />
-          </button>
+          {canCancel && (
+            <button
+              type="button"
+              onClick={goToTeams}
+              aria-label="Close"
+              className="text-[#71717A] transition-colors hover:text-white"
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         <form className="mt-6 space-y-5" onSubmit={handleSubmit} noValidate>
@@ -164,14 +167,16 @@ export default function CreateTeamPage() {
           )}
 
           <div className="flex items-center justify-end gap-3 border-t border-[#27273a] pt-5">
-            <button
-              type="button"
-              onClick={goToTeams}
-              disabled={submitting}
-              className="rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Cancel
-            </button>
+            {canCancel && (
+              <button
+                type="button"
+                onClick={goToTeams}
+                disabled={submitting}
+                className="rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            )}
             <button
               type="submit"
               disabled={submitting}

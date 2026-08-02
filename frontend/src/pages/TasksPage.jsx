@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ClipboardList, Plus, X } from 'lucide-react';
 import { getErrorMessage } from '../lib/api';
 import { useWorkspace } from '../context/useWorkspace';
@@ -20,11 +21,27 @@ export default function TasksPage() {
   const { tasks, loading, error, reload, createTask, updateTask, moveTask, removeTask } =
     useTasks(workspaceId);
 
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [createStatus, setCreateStatus] = useState('TODO');
   const [actionError, setActionError] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState(null);
+  const [handledNewTaskKey, setHandledNewTaskKey] = useState(null);
+
+  if (location.state?.newTask && location.key !== handledNewTaskKey) {
+    setHandledNewTaskKey(location.key);
+    setEditingTask(null);
+    setCreateStatus('TODO');
+    setModalOpen(true);
+  }
+
+  useEffect(() => {
+    if (!location.state?.newTask) return;
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate]);
 
   const tasksByStatus = useMemo(() => {
     const grouped = { TODO: [], DOING: [], DONE: [] };
