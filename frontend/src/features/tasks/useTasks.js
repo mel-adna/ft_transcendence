@@ -1,22 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../lib/api';
 
 export function useTasks(workspaceId) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const currentRequestRef = useRef(null);
 
   const reload = useCallback(async () => {
     if (!workspaceId) return;
+    const requestToken = {};
+    currentRequestRef.current = requestToken;
     setLoading(true);
     setError(null);
     try {
       const response = await api.get(`/tasks/workspace/${workspaceId}`);
+      if (currentRequestRef.current !== requestToken) return;
       setTasks(response.data);
     } catch (requestError) {
+      if (currentRequestRef.current !== requestToken) return;
       setError(requestError);
     } finally {
-      setLoading(false);
+      if (currentRequestRef.current === requestToken) setLoading(false);
     }
   }, [workspaceId]);
 
