@@ -25,7 +25,7 @@ export default function ChatPage() {
         </p>
       </div>
 
-      <div className="h-[calc(100vh-19rem)] min-h-[24rem] md:h-[calc(100vh-15rem)]">
+      <div className="h-[calc(100dvh-23rem)] min-h-[24rem] md:h-[calc(100dvh-20rem)]">
         <SocketProvider getToken={readToken}>
           <ChatLayout currentUserId={user.id} />
         </SocketProvider>
