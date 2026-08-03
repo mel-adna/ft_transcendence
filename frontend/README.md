@@ -15,6 +15,35 @@ What has to be running for the app to actually work:
 
 Other scripts: `npm run build` produces the production bundle, `npm run lint` runs eslint, `npm test` runs the unit tests (see Testing below).
 
+### If the backend will not start
+
+Two problems have actually happened on this project, both in the backend's docker setup rather than in this frontend. Both are worth recognising quickly.
+
+**`UnknownHostException: postgres`.** The backend cannot resolve the database host. Check whether the postgres container is attached to a network at all:
+
+```
+docker inspect teampulse-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}'
+```
+
+If that prints nothing, the container is running with no network. The usual cause is that another project on your machine already holds host port 5433, so docker cannot program the port binding and silently leaves the container unnetworked. Find the culprit with `lsof -nP -iTCP:5433 -sTCP:LISTEN`, stop it, then run `docker compose up -d --force-recreate postgres`.
+
+**`Schema-validation: missing table [activity_logs]`.** The Java tables were never created. This happens when something else reaches the database first, because `application.yaml` sets `baseline-on-migrate: true`: Flyway sees a non-empty schema, writes a baseline row, and skips `V1__init_schema.sql` entirely. Check with:
+
+```
+docker exec teampulse-postgres psql -U med -d teampulsedb -c "\dt"
+docker exec teampulse-postgres psql -U med -d teampulsedb -c "SELECT version, type FROM flyway_schema_history;"
+```
+
+If the tables are Prisma's (`User`, `Room`, `Message`) and history holds a single BASELINE row at version 1, lower it so the migration becomes pending, then restart the backend:
+
+```
+docker exec teampulse-postgres psql -U med -d teampulsedb \
+  -c "UPDATE flyway_schema_history SET version='0' WHERE type='BASELINE';"
+docker compose up -d --force-recreate backend
+```
+
+The underlying cause is that the Java backend and the chat backend point at the same database. The two schemas do not collide, because Flyway creates snake_case tables (`users`, `tasks`) while Prisma creates quoted PascalCase ones (`"User"`, `"Room"`), but giving each backend its own database would remove the problem for good. That is a team decision, not a frontend one.
+
 ## Folder map
 
 Read the code in this order:
