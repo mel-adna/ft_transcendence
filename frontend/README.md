@@ -100,8 +100,21 @@ Gotcha worth remembering: `POST /tasks/workspace/{id}` (create) does not accept 
 
 | Variable | Points at | Used for |
 |---|---|---|
-| `VITE_CORE_API_URL` | Java backend, port 8080, base path `/api/v1` | Everything except chat: auth, tasks, workspaces, colleagues, settings (`lib/api.js`) |
+| `VITE_CORE_API_URL` | `/api/v1`, a relative path | Everything except chat: auth, tasks, workspaces, colleagues, settings (`lib/api.js`) |
+| `CORE_API_PROXY_TARGET` | Java backend, `http://localhost:8080` | Where Vite forwards `/api/v1` during development. Not read by app code |
 | `VITE_API_URL` | Node chat backend, port 5005, base path `/api` | Chat's own REST calls: rooms, messages, search (`features/chat/services/chatApi.js`, vendored) |
 | `VITE_WS_URL` | Node chat backend, port 5005 | The chat socket connection (`infrastructure/socket/SocketClient.js`, vendored) |
+
+### Why the core API is a relative path and goes through a proxy
+
+Ask this one out loud and you will sound like you understand CORS, because you will.
+
+The Java backend allows a fixed list of browser origins. `SecurityConfig.corsConfigurationSource()` permits `app.frontend-url` (which defaults to `http://localhost:8080`), plus `http://localhost:3000`, `http://localhost:5000`, and a production domain. `WebConfig` separately hardcodes 3000 and 5000. Vite's dev server runs on `http://localhost:5173`, which appears in neither list, so the browser's preflight came back `403 Invalid CORS request` and every single request failed.
+
+The confusing part is that `curl` to port 8080 worked perfectly the whole time. CORS is enforced by browsers, not by servers refusing to answer, so a command line client never sees the problem.
+
+Rather than wait on a backend change, `vite.config.js` proxies `/api/v1` to `CORE_API_PROXY_TARGET` and strips the `Origin` header on the way through. The browser now talks only to `localhost:5173`, which is its own origin, so CORS never applies. Note that `changeOrigin: true` alone is not enough: it rewrites `Host`, not `Origin`, and Spring reads `Origin`.
+
+Because `VITE_CORE_API_URL` is relative rather than an absolute `http://localhost:8080/...`, the same value is also correct in production, where nginx serves the built frontend and the API from one origin. The alternative fix, adding `http://localhost:5173` to the backend's allowed origins, would work too and belongs to whoever owns `SecurityConfig`.
 
 `VITE_API_URL` looks like it should be the main API, and `VITE_CORE_API_URL` looks like the odd one out. It is the other way round on purpose. The vendored chat code already reads `import.meta.env.VITE_API_URL` and `import.meta.env.VITE_WS_URL` as the address of the chat service; that naming came from aarab's branch, and those files cannot be edited here. So this app's own network layer was given its own variable, `VITE_CORE_API_URL`, instead of repurposing `VITE_API_URL` for the Java backend. Reusing `VITE_API_URL` for the Java API would have silently pointed the chat module at the wrong backend.
