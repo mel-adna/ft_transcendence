@@ -15,35 +15,6 @@ What has to be running for the app to actually work:
 
 Other scripts: `npm run build` produces the production bundle, `npm run lint` runs eslint, `npm test` runs the unit tests (see Testing below).
 
-### If the backend will not start
-
-Two problems have actually happened on this project, both in the backend's docker setup rather than in this frontend. Both are worth recognising quickly.
-
-**`UnknownHostException: postgres`.** The backend cannot resolve the database host. Check whether the postgres container is attached to a network at all:
-
-```
-docker inspect teampulse-postgres --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}'
-```
-
-If that prints nothing, the container is running with no network. The usual cause is that another project on your machine already holds host port 5433, so docker cannot program the port binding and silently leaves the container unnetworked. Find the culprit with `lsof -nP -iTCP:5433 -sTCP:LISTEN`, stop it, then run `docker compose up -d --force-recreate postgres`.
-
-**`Schema-validation: missing table [activity_logs]`.** The Java tables were never created. This happens when something else reaches the database first, because `application.yaml` sets `baseline-on-migrate: true`: Flyway sees a non-empty schema, writes a baseline row, and skips `V1__init_schema.sql` entirely. Check with:
-
-```
-docker exec teampulse-postgres psql -U med -d teampulsedb -c "\dt"
-docker exec teampulse-postgres psql -U med -d teampulsedb -c "SELECT version, type FROM flyway_schema_history;"
-```
-
-If the tables are Prisma's (`User`, `Room`, `Message`) and history holds a single BASELINE row at version 1, lower it so the migration becomes pending, then restart the backend:
-
-```
-docker exec teampulse-postgres psql -U med -d teampulsedb \
-  -c "UPDATE flyway_schema_history SET version='0' WHERE type='BASELINE';"
-docker compose up -d --force-recreate backend
-```
-
-The underlying cause is that the Java backend and the chat backend point at the same database. The two schemas do not collide, because Flyway creates snake_case tables (`users`, `tasks`) while Prisma creates quoted PascalCase ones (`"User"`, `"Room"`), but giving each backend its own database would remove the problem for good. That is a team decision, not a frontend one.
-
 ## Folder map
 
 Read the code in this order:
@@ -92,6 +63,7 @@ These are open, with the actual fix each one needs:
 - **The Colleagues roster is inferred, not exact.** There is no `GET /workspaces/{id}/members` endpoint, so `features/colleagues/roster.js` builds the list from the workspace owner plus everyone who has created or been assigned at least one task in that workspace. A member who exists in the workspace but has never touched a task will not show up yet. Adding that endpoint would make the roster exact instead of inferred.
 - **No avatar upload.** `PUT /users/profile` only accepts an `avatarUrl` string, so the Profile card in Settings takes an image link rather than a file. There is no endpoint to upload binary image data to.
 - **`TaskCommentController` is unreachable.** It is mapped at `/api/v1`, but the app already sets `/api/v1` as its servlet context path, so its real paths are doubled (`/api/v1/api/v1/tasks/{taskId}/comments` and so on). No screen in this frontend calls it.
+- **No notification bell, although the API for one exists.** The mockups show a bell and the backend exposes five working notification endpoints, but nothing is built against them, on purpose. Completing a task currently writes no notification at all: `NotificationService` assigns the entity id by hand even though the entity is mapped `@GeneratedValue`, so Spring Data treats it as an existing row, calls `merge()` instead of `persist()`, and the write fails. The listener swallows the exception, so the API still answers 200 and `unread-count` always returns 0. A bell built today would be a permanently empty dropdown. Details and the one-line fix are in `docs/backend-notification-bugs.md`. Note that even once fixed, notifications only fire for a task's assignee, and this frontend has no assignee picker because no endpoint lists a workspace's members.
 - **The dashboard's day buckets mix two clocks.** `lib/stats.js`'s `dayKey` slices the first ten characters off the backend's `updatedAt` value, a naive `LocalDateTime` in the server's own wall-clock time, while the trend's day buckets (`lastDays`) are built from the browser's local calendar. When the backend container runs in UTC and the browser sits in a different time zone, a task completed near midnight can land in the wrong bucket, a day early or missing from the window entirely. It stays hidden whenever the backend runs on the same machine as the demo, which is why it is easy to miss. The real fix belongs on the backend: return a timezone-aware instant instead of a naive `LocalDateTime`, so the frontend has an actual point in time to convert instead of a string to guess at.
 
 Gotcha worth remembering: `POST /tasks/workspace/{id}` (create) does not accept a `status` field at all, a new task is always created as `TODO`, while `PUT /tasks/{id}` (edit) requires `status` and answers with a 400 if it is missing. `pages/TasksPage.jsx` handles this by always resending the task's current status on every edit. Missing that distinction is what made every task edit fail during the build, before it was caught.
@@ -106,8 +78,6 @@ Gotcha worth remembering: `POST /tasks/workspace/{id}` (create) does not accept 
 | `VITE_WS_URL` | Node chat backend, port 5005 | The chat socket connection (`infrastructure/socket/SocketClient.js`, vendored) |
 
 ### Why the core API is a relative path and goes through a proxy
-
-Ask this one out loud and you will sound like you understand CORS, because you will.
 
 The Java backend allows a fixed list of browser origins. `SecurityConfig.corsConfigurationSource()` permits `app.frontend-url` (which defaults to `http://localhost:8080`), plus `http://localhost:3000`, `http://localhost:5000`, and a production domain. `WebConfig` separately hardcodes 3000 and 5000. Vite's dev server runs on `http://localhost:5173`, which appears in neither list, so the browser's preflight came back `403 Invalid CORS request` and every single request failed.
 
