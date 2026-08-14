@@ -40,7 +40,7 @@ export const StatsDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'https://localhost/api';
+        const API_URL = import.meta.env.VITE_API_URL || 'https://localhost/api/v1';
         const res = await axios.get(`${API_URL}/stats/summary`, {
           headers: {
             'x-api-key': 'team_pulse_public_api_secret_token'
@@ -60,7 +60,7 @@ export const StatsDashboard = () => {
   }, []);
 
   const handleExportCSV = () => {
-    const API_URL = import.meta.env.VITE_API_URL || 'https://localhost/api';
+    const API_URL = import.meta.env.VITE_API_URL || 'https://localhost/api/v1';
     window.open(`${API_URL}/stats/export/tasks?apiKey=team_pulse_public_api_secret_token`, '_blank');
   };
 

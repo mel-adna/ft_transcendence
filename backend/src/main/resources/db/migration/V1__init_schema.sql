@@ -17,7 +17,7 @@ CREATE TABLE workspaces (
     id UUID PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
 	description VARCHAR(500),
-    type VARCHAR(50) NOT NULL,  -- PERSONAL, ORGANIZATION
+    type VARCHAR(50) NOT NULL, -- Enum: PERSONAL, ORGANIZATION
     owner_id UUID NOT NULL,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -29,7 +29,7 @@ CREATE TABLE workspaces (
 CREATE TABLE workspace_members (
     workspace_id UUID NOT NULL,
     user_id UUID NOT NULL,
-    role VARCHAR(50) NOT NULL, -- ADMIN, MEMBER, VIEWER
+    role VARCHAR(50) NOT NULL, -- Enum: ADMIN, MEMBER, VIEWER
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (workspace_id, user_id),
@@ -43,8 +43,8 @@ CREATE TABLE tasks (
     workspace_id UUID NOT NULL,
     title VARCHAR(150) NOT NULL,
     description VARCHAR(40000),
-    status VARCHAR(50) NOT NULL DEFAULT 'TODO',	-- TODO, DOING, DONE
-    priority VARCHAR(50) NOT NULL DEFAULT 'MEDIUM', -- LOW, MEDIUM, HIGH
+    status VARCHAR(50) NOT NULL DEFAULT 'TODO',	-- Enum: TODO, DOING, DONE
+    priority VARCHAR(50) NOT NULL DEFAULT 'MEDIUM', -- Enum: LOW, MEDIUM, HIGH
     assignee_id UUID,
     creator_id UUID NOT NULL,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
@@ -86,7 +86,7 @@ CREATE TABLE notifications (
     recipient_id UUID NOT NULL,
     type VARCHAR(100) NOT NULL,	-- ex: TASK_ASSIGNED, TASK_COMMENTED, WORKSPACE_MEMBER_ADDED
     entity_type VARCHAR(50),	-- ex: TASK, WORKSPACE, TASK_COMMENT
-    entity_id UUID,
+    entity_id UUID,	-- ID of the related entity (task, workspace, etc.)
     message VARCHAR(500) NOT NULL,
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -98,7 +98,7 @@ CREATE TABLE activity_logs (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL,
     workspace_id UUID NOT NULL,
-    action_type VARCHAR(255) NOT NULL,    -- Ex: TASK_COMPLETED
+    action_type VARCHAR(255) NOT NULL, -- Ex:  'TASK_COMPLETED'
 	description VARCHAR(500),
     entity_id UUID,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

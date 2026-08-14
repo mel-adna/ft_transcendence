@@ -17,6 +17,7 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
 	boolean existsByNameAndOwnerId(String name, UUID ownerId);
 	Optional<Workspace> findByNameAndOwnerId(String name, UUID ownerId);
 
+	// @Query("SELECT m.workspace FROM WorkspaceMember m WHERE m.user.email = :email")
 	@Query("SELECT m.workspace FROM WorkspaceMember m WHERE m.user.email = :email AND m.workspace.deleted = false")
     List<Workspace> findAllByMembersUserEmail(@Param("email") String email);
 
