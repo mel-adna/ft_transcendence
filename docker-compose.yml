@@ -1,5 +1,37 @@
 services:
 
+  # ----------- Nginx ---------------
+  nginx:
+    image: nginx:stable-alpine
+    container_name: team_pulse_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - teampulse_net
+    restart: always
+
+  # ----------- Frontend ---------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: team_pulse_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=https://localhost/api/v1
+    networks:
+      - teampulse_net
+    restart: always
+
+  # ----------- Backend ---------------
   backend:
     build: ./backend
     container_name: teampulse-backend
@@ -19,6 +51,7 @@ services:
       - teampulse_net
     restart: always
 
+  # ----------- Database ---------------
   postgres:
     image: postgres:15-alpine
     container_name: teampulse-postgres
@@ -34,6 +67,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # ----------- Redis ---------------
   redis:
     image: redis:7-alpine
     container_name: teampulse-redis
@@ -45,7 +79,6 @@ services:
     volumes:
       - redis_data:/data
 
-
 networks:
   teampulse_net:
     driver: bridge
@@ -53,49 +86,3 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-
-
-
-
-  # nginx:
-  #   image: nginx:stable-alpine
-  #   container_name: team_pulse_nginx
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./nginx/certs:/etc/nginx/certs:ro
-  #   depends_on:
-  #     - frontend
-  #     - backend
-  #   networks:
-  #     - teampulse_net
-  #   restart: always
-
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: team_pulse_frontend
-  #   ports:
-  #     - "5173:5173"
-  #   environment:
-  #     - VITE_API_URL=https://localhost/api
-  #   networks:
-  #     - teampulse_net
-  #   restart: always
-
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   container_name: team_pulse_backend
-  #   ports:
-  #     - "5005:5005"
-  #   environment:
-  #     - PORT=5005
-  #     - NODE_ENV=development
-  #   networks:
-  #     - teampulse_net
-  #   restart: always
