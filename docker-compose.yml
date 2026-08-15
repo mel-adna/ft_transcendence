@@ -26,7 +26,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=https://localhost/api/v1
+      # - VITE_API_URL=/api/v1
+      - VITE_CORE_API_URL=/api/v1
     networks:
       - teampulse_net
     restart: always
@@ -43,10 +44,9 @@ services:
       - DB_NAME=teampulsedb
       - DB_USERNAME=med
       - DB_PASSWORD=123
-      - SPRING_REDIS_HOST=redis
+      - FRONTEND_URL=https://localhost
     depends_on:
       - postgres
-      - redis
     networks:
       - teampulse_net
     restart: always
@@ -67,22 +67,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # ----------- Redis ---------------
-  redis:
-    image: redis:7-alpine
-    container_name: teampulse-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - teampulse_net
-    restart: always
-    volumes:
-      - redis_data:/data
-
 networks:
   teampulse_net:
     driver: bridge
 
 volumes:
   postgres_data:
-  redis_data:
