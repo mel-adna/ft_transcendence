@@ -45,8 +45,14 @@ services:
       - DB_USERNAME=med
       - DB_PASSWORD=123
       - FRONTEND_URL=https://localhost
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_PUBLIC_URL=http://localhost:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET_NAME=teampulse-avatars
     depends_on:
       - postgres
+      - minio
     networks:
       - teampulse_net
     restart: always
@@ -67,9 +73,28 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # ----------- minio ---------------
+  minio:
+      image: minio/minio:latest
+      container_name: teampulse-minio
+      ports:
+        - "9000:9000"
+        - "9001:9001"
+      environment:
+        MINIO_ROOT_USER: minioadmin
+        MINIO_ROOT_PASSWORD: minioadmin
+      command: server /data --console-address ":9001"
+      networks:
+        - teampulse_net
+      restart: always
+      volumes:
+        - minio_data:/data
+
 networks:
   teampulse_net:
     driver: bridge
 
 volumes:
   postgres_data:
+  minio_data:
+
