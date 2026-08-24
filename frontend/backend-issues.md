@@ -6,9 +6,11 @@
 | 2 | Notifications never saved | Notification API always returns 0 | 1 line |
 | 3 | Activity logs never written | `activity_logs` table stays empty | Small |
 | 4 | `TaskCommentController` path doubled | Endpoint unreachable | 1 line |
-| 5 | No endpoint lists workspace members | Colleagues roster is guessed | Small |
+| 5 | `GET /workspaces/{id}/members` returns `member: null` | Endpoint exists but is unusable | 2 lines |
 | 6 | `TaskResponse.workspaceId` always null | Field is dead weight | 1 line |
-| 7 | CORS rejects the dev frontend origin | Browser could not call the API | 1 line |
+| 7 | ~~CORS rejects the dev frontend origin~~ | FIXED, `localhost:5173` added | done |
+| 8 | Avatar bucket is private, uploaded images 403 | Avatars never display | Small |
+| 9 | `V1__init_schema.sql` edited after being applied | Backend will not boot on an existing DB | Config |
 
 ---
 
@@ -112,20 +114,30 @@ matching every other controller.
 No frontend screen calls it, so nothing is broken today, but the endpoint does not exist
 at the address anyone would expect.
 
-## 5. There is no endpoint that lists a workspace's members
+## 5. The members endpoint returns `member: null`
 
-`GET /workspaces/{id}` returns `{ id, name, type, owner }` and nothing else. There are
-endpoints to add a member, change a member's role and remove a member, but none to read
-the list.
+`GET /workspaces/{workspaceId}/members` now exists, which is the endpoint the Colleagues
+page needed. It answers 200, but every entry comes back with no user attached:
 
-Consequence on the frontend: the Colleagues page cannot show the real roster. It infers
-one from the workspace owner plus everyone who appears as the creator or assignee of a
-task in that workspace. A member who has never touched a task is invisible. This is
-documented in the frontend README under known issues.
+```json
+[{"member": null, "role": "ADMIN", "joinedAt": null}]
+```
 
-**Fix:** add `GET /workspaces/{workspaceId}/members` returning
-`List<WorkspaceMemberResponse>`. That DTO already exists. This also unblocks an assignee
-picker on the task form, which is a prerequisite for notifications ever firing.
+Cause: `WorkspaceMemberResponse` names the field `member`, while the `WorkspaceMember`
+entity names it `user`. MapStruct maps by property name, finds no source called `member`,
+and leaves it null. `joinedAt` is null for the same reason: the entity field is `createdAt`.
+
+**Fix:** add the two mappings in `WorkspaceMapper`, above `toMemberResponse`:
+
+```java
+@Mapping(target = "member", source = "user")
+@Mapping(target = "joinedAt", source = "createdAt")
+WorkspaceMemberResponse toMemberResponse(WorkspaceMember member);
+```
+
+Until that lands, the frontend calls the endpoint and falls back to inferring the roster
+from tasks whenever the response has no usable members, so the Colleagues page keeps
+working either way and starts showing real roles automatically once this is fixed.
 
 ## 6. `TaskResponse.workspaceId` is always null
 
@@ -138,7 +150,7 @@ weight in the API contract.
 
 **Fix:** map it from `task.workspace.id`, or drop the field from the DTO.
 
-## 7. CORS rejects the development frontend
+## 7. CORS rejects the development frontend (FIXED)
 
 `SecurityConfig.corsConfigurationSource()` allows `app.frontend-url` (which defaults to
 `http://localhost:8080`), plus `http://localhost:3000`, `http://localhost:5000` and a
@@ -157,3 +169,45 @@ No backend change is strictly required.
 whether two separate CORS configurations should exist at all. Having both
 `WebConfig.addCorsMappings` and a `CorsConfigurationSource` bean is confusing, since the
 bean wins for anything inside the security filter chain.
+
+## 8. Uploaded avatars are not publicly readable
+
+`POST /users/me/avatar` works: it accepts the multipart `file`, stores it in MinIO, and
+returns a URL such as `http://localhost:9000/teampulse-avatars/avatar-<uuid>.png`.
+
+Fetching that URL returns **403** with an XML error body. `FileStorageService` calls
+`makeBucket` but never sets a bucket policy, so the bucket is private while the URL handed
+to the browser is a plain public one.
+
+**Fix, pick one:**
+- Call `minioClient.setBucketPolicy(...)` with a public-read policy for the bucket right
+  after `makeBucket`.
+- Or return a presigned URL instead of a raw one.
+- Or serve avatars through a backend endpoint that streams the object.
+
+The frontend degrades gracefully in the meantime: `Avatar.jsx` falls back to the user's
+initials when the image fails to load, so nothing looks broken, but no avatar ever appears.
+
+## 9. Editing `V1__init_schema.sql` breaks existing databases
+
+The comments in `V1__init_schema.sql` were reworded (for example `-- PERSONAL, ORGANIZATION`
+became `-- Enum: PERSONAL, ORGANIZATION`). Flyway checksums the whole file, comments included,
+so any database that already ran V1 now refuses to start:
+
+```
+Migration checksum mismatch for migration version 1
+-> Applied to database : -662914434
+-> Resolved locally    : 626826728
+```
+
+The schema itself is unchanged, so this is safe to repair rather than rebuild. Recovery
+used on a local database:
+
+```bash
+docker exec teampulse-postgres psql -U med -d teampulsedb \
+  -c "UPDATE flyway_schema_history SET checksum = 626826728 WHERE version = '1';"
+```
+
+**Going forward:** treat an applied migration file as immutable, comments included. Anything
+that needs to change belongs in a new `V2__...sql`. Everyone on the team who already has a
+database will hit this, so it is worth a message rather than letting each person debug it.

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, LogOut, Trash2 } from 'lucide-react';
+import { Download, LogOut, Trash2, Upload } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { downloadFile } from '../lib/csv';
 import { validatePassword, validateRequired } from '../lib/validation';
@@ -50,14 +50,51 @@ function SuccessBanner({ show, message }) {
   );
 }
 
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
 function ProfileCard({ user, onSaved }) {
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
   const [lastName, setLastName] = useState(user?.lastName ?? '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  async function handleAvatarChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setAvatarError(null);
+    setSuccess(false);
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Choose an image file.');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarError('That image is larger than 5 MB. Pick a smaller one.');
+      return;
+    }
+
+    const body = new FormData();
+    body.append('file', file);
+
+    setUploading(true);
+    try {
+      await api.post('/users/me/avatar', body, {
+        headers: { 'Content-Type': undefined },
+      });
+      await onSaved();
+    } catch (uploadError) {
+      setAvatarError(getErrorMessage(uploadError));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -79,7 +116,7 @@ function ProfileCard({ user, onSaved }) {
       await api.put('/users/profile', {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        avatarUrl: avatarUrl.trim(),
+        avatarUrl: user?.avatarUrl ?? null,
       });
       setSuccess(true);
       await onSaved();
@@ -90,7 +127,7 @@ function ProfileCard({ user, onSaved }) {
     }
   }
 
-  const previewUser = { firstName, lastName, avatarUrl };
+  const previewUser = { firstName, lastName, avatarUrl: user?.avatarUrl ?? null };
 
   return (
     <section className={cardClass}>
@@ -107,21 +144,29 @@ function ProfileCard({ user, onSaved }) {
         <div className="flex items-center gap-4">
           <Avatar user={previewUser} size={56} />
           <div className="min-w-0 flex-1">
-            <Field
-              label="Avatar image URL"
-              id="avatarUrl"
-              hint="Paste a link to an image. File upload is not supported by the API yet."
+            <p className="text-xs font-semibold text-[#71717A]">Profile photo</p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#71717A]/25 px-3 py-2 text-xs font-semibold text-[#71717A] transition-colors hover:border-[#3B82F6]/40 hover:text-white disabled:opacity-60"
             >
-              <input
-                id="avatarUrl"
-                type="text"
-                value={avatarUrl}
-                onChange={(event) => setAvatarUrl(event.target.value)}
-                placeholder="https://example.com/avatar.jpg"
-                maxLength={255}
-                className={inputClass}
-              />
-            </Field>
+              {uploading ? <Spinner /> : <Upload size={14} />}
+              {uploading ? 'Uploading' : 'Upload a photo'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
+            <p className="mt-2 text-[11px] text-[#71717A]">
+              JPEG or PNG, up to 5 MB. Saved as soon as you pick it.
+            </p>
+            {avatarError && (
+              <p className="mt-1 text-[11px] font-medium text-rose-400">{avatarError}</p>
+            )}
           </div>
         </div>
 
