@@ -1,27 +1,21 @@
+FROM maven:3.9-eclipse-temurin-21 AS build
 
-FROM maven:3.9.6-eclipse-temurin-21-alpine AS builder
-WORKDIR /application
+WORKDIR /app
 
 COPY pom.xml .
+
 RUN mvn dependency:go-offline -B
 
 COPY src ./src
-RUN mvn clean package -DskipTests -B
+RUN mvn clean package -DskipTests
 
-RUN java -Djarmode=layertools -jar target/*.jar extract
 
-FROM eclipse-temurin:21-jre-alpine
-WORKDIR /application
+FROM eclipse-temurin:21-jre
 
-RUN addgroup -S teampulse && adduser -S teampulse -G teampulse
-USER teampulse
+WORKDIR /app
 
-COPY --from=builder /application/dependencies/ ./
-COPY --from=builder /application/spring-boot-loader/ ./
-COPY --from=builder /application/snapshot-dependencies/ ./
-COPY --from=builder /application/application/ ./
-
+COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "-jar", "-Djava.security.egd=file:/dev/./urandom", "app.jar"]
