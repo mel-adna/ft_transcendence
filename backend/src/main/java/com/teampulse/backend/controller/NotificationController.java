@@ -9,12 +9,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.teampulse.backend.dto.response.ErrorResponse;
 import com.teampulse.backend.dto.response.NotificationResponse;
@@ -29,6 +24,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -115,7 +111,7 @@ public class NotificationController {
         
         log.info("[REST Request] User '{}' requested state transition to read for notification ID: {}", principal.getName(), id);
         notificationService.markAsRead(id, principal.getName());
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().build(); // HTTP standard 204 No Content for successful void mutations
     }
 
 

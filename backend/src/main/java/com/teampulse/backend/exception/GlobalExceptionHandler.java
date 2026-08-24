@@ -6,7 +6,6 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,9 +13,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.teampulse.backend.dto.response.ErrorResponse;
 
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
@@ -60,27 +56,12 @@ public class GlobalExceptionHandler {
 		return buildResponseEntity(HttpStatus.BAD_REQUEST, "Validation failed", request, validationError);
 	}
 
-	@ExceptionHandler(ExpiredJwtException.class)
+	@ExceptionHandler(io.jsonwebtoken.ExpiredJwtException.class)
     public ResponseEntity<ErrorResponse> handleExpiredJwtException(io.jsonwebtoken.ExpiredJwtException ex, HttpServletRequest request) {
         log.warn("JWT Token status: Expired | Path: {}", request.getRequestURI());
         return buildResponseEntity(
                 HttpStatus.UNAUTHORIZED, 
                 "Your session has expired. Please refresh your token or log in again.", 
-                request, 
-                null
-        );
-    }
-
-	@ExceptionHandler({
-        UsernameNotFoundException.class,
-        SignatureException.class,
-        MalformedJwtException.class
-    })
-    public ResponseEntity<ErrorResponse> handleSecurityAuthExceptions(Exception ex, HttpServletRequest request) {
-        log.warn("Security exception caught: {} | Path: {}", ex.getMessage(), request.getRequestURI());
-        return buildResponseEntity(
-                HttpStatus.UNAUTHORIZED, 
-                "Authentication failed. Your token is invalid, altered, or the account was deleted.", 
                 request, 
                 null
         );
