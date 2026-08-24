@@ -1,7 +1,25 @@
 # Backend issues
 
-| # | Issue | Impact | Effort |
+Status re-verified on 2026-08-24 against `origin/mdbentaleb` at `324e226`, his latest,
+by reading the source and by calling the running API. Issues 5, 8 and 9 were found after
+his last push, so he has not seen them yet.
+
+| # | Issue | Status | Effort |
 |---|---|---|---|
+| 1 | JWT carries no `id` claim | OPEN. Live token still `{sub, iat, exp}` | 1 line |
+| 2 | Notifications never saved | OPEN. 0 rows, same error reproduced | 1 line |
+| 3 | Activity logs never written | OPEN, and intermittent. Errors continue | Small |
+| 4 | `TaskCommentController` path doubled | OPEN. Still `@RequestMapping("/api/v1")` | 1 line |
+| 5 | Members endpoint returns `member: null` | OPEN, not yet reported to him | 2 lines |
+| 6 | `TaskResponse.workspaceId` always null | OPEN. Still null on every task | 1 line |
+| 7 | CORS rejects the dev frontend origin | **FIXED.** Preflight from `:5173` now 200 | done |
+| 8 | Avatar bucket private, images 403 | OPEN, not yet reported to him | Small |
+| 9 | `V1__init_schema.sql` edited after apply | OPEN in the repo. Repaired on this machine | Config |
+
+One of nine fixed. Issues 5, 8 and 9 were introduced by his most recent commits and are
+new findings, so the fair count of things he knew about and has not done is five.
+
+---|---|---|---|
 | 1 | JWT carries no `id` claim | Chat is completely blocked | 1 line |
 | 2 | Notifications never saved | Notification API always returns 0 | 1 line |
 | 3 | Activity logs never written | `activity_logs` table stays empty | Small |
@@ -72,6 +90,11 @@ assigns an id before saving, and it is the only one whose writes fail. `TaskServ
 correctly.
 
 ## 3. Activity logs are never written
+
+Re-verified 2026-08-24: still failing, and **intermittently**. The `activity_logs` table
+holds one row from an earlier attempt that happened to succeed, while completing a task
+today still logs the error below. An intermittent failure is worse than a consistent one,
+because it occasionally looks like the feature works.
 
 `TaskEventListener.java:48-52`, in `processActivityLogging`.
 
@@ -150,7 +173,7 @@ weight in the API contract.
 
 **Fix:** map it from `task.workspace.id`, or drop the field from the DTO.
 
-## 7. CORS rejects the development frontend (FIXED)
+## 7. CORS rejects the development frontend (FIXED 2026-08-24)
 
 `SecurityConfig.corsConfigurationSource()` allows `app.frontend-url` (which defaults to
 `http://localhost:8080`), plus `http://localhost:3000`, `http://localhost:5000` and a
@@ -165,10 +188,14 @@ Worked around on the frontend for now: `vite.config.js` proxies `/api/v1` to por
 and strips the `Origin` header, so the browser stays same origin and CORS never applies.
 No backend change is strictly required.
 
-**Still worth fixing:** add `http://localhost:5173` to the allowed origins, and consider
-whether two separate CORS configurations should exist at all. Having both
-`WebConfig.addCorsMappings` and a `CorsConfigurationSource` bean is confusing, since the
-bean wins for anything inside the security filter chain.
+**Fixed.** `SecurityConfig` now allows `http://localhost:5173`, `http://localhost` and
+`https://localhost`. Verified: a preflight from `:5173` straight to `:8080` returns 200.
+The Vite proxy is therefore no longer required, though it is kept because a relative base
+URL is also what production needs behind nginx.
+
+**Still worth tidying:** there are two CORS configurations, `WebConfig.addCorsMappings` and
+the `CorsConfigurationSource` bean, and only the bean applies inside the security filter
+chain. Having both invites confusion later.
 
 ## 8. Uploaded avatars are not publicly readable
 
