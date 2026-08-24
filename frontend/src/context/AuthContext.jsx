@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import api, { setToken, getToken, clearToken } from '../lib/api';
+import api, { setToken, setRefreshToken, getToken, clearToken } from '../lib/api';
 import { AuthContext } from './useAuth';
 
 export function AuthProvider({ children }) {
@@ -28,12 +28,14 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     setToken(response.data.accessToken);
+    setRefreshToken(response.data.refreshToken);
     setUser(response.data.user);
   }, []);
 
   const signup = useCallback(async (payload) => {
     const response = await api.post('/auth/signup', payload);
     setToken(response.data.accessToken);
+    setRefreshToken(response.data.refreshToken);
     setUser(response.data.user);
   }, []);
 

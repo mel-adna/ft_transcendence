@@ -26,7 +26,7 @@ function TeamCard({ workspace, canDelete, onOpen, onDelete }) {
     <div className="flex flex-col justify-between rounded-2xl border border-[#27273a] bg-[#181824] p-5">
       <div>
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-base font-bold text-white">{workspace.name}</h3>
+          <h3 className="min-w-0 break-words text-base font-bold text-white">{workspace.name}</h3>
           <span
             className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
               isOrganization
