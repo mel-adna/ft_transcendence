@@ -73,7 +73,7 @@ export default function AppLayout() {
 
   return (
     <div className="flex min-h-screen bg-[#0c0c14] text-white">
-      <aside className="hidden md:flex md:w-64 md:shrink-0 md:flex-col md:border-r md:border-[#27273a] md:bg-[#0e0e17]">
+      <aside className="hidden md:sticky md:top-0 md:flex md:h-screen md:w-64 md:shrink-0 md:flex-col md:border-r md:border-[#27273a] md:bg-[#0e0e17]">
         <div className="flex items-center gap-3 px-5 py-6">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3B82F6]">
             <LayoutGrid size={20} className="text-white" />
@@ -103,7 +103,7 @@ export default function AppLayout() {
           </select>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3">
           {NAV.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={desktopNavClass}>
               {({ isActive }) => (
@@ -122,7 +122,7 @@ export default function AppLayout() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2 border-t border-[#27273a] px-5 py-4">
+        <div className="mt-auto flex items-center gap-2 border-t border-[#27273a] px-5 py-4">
           <Link
             to="/settings"
             className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-sm transition-colors hover:bg-[#181824]"

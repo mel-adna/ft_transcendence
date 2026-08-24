@@ -170,6 +170,16 @@ export default function LoginPage() {
             id="password"
             error={errors.password}
             hint={mode === 'signup' ? passwordHint : undefined}
+            action={
+              mode === 'login' ? (
+                <Link
+                  to="/forgot-password"
+                  className="text-[11px] font-semibold text-[#3B82F6] transition-opacity hover:opacity-80"
+                >
+                  Forgot?
+                </Link>
+              ) : null
+            }
           >
             <div className="relative">
               <Lock

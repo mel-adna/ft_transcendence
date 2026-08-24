@@ -6,6 +6,7 @@ import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
 import TaskCard from '../features/tasks/TaskCard';
 import TaskFormModal from '../features/tasks/TaskFormModal';
+import TaskDetailModal from '../features/tasks/TaskDetailModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 
@@ -26,6 +27,7 @@ export default function TasksPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [detailTask, setDetailTask] = useState(null);
   const [createStatus, setCreateStatus] = useState('TODO');
   const [actionError, setActionError] = useState(null);
   const [dragOverStatus, setDragOverStatus] = useState(null);
@@ -66,6 +68,26 @@ export default function TasksPage() {
   function closeModal() {
     setModalOpen(false);
     setEditingTask(null);
+  }
+
+  function openDetail(task) {
+    setDetailTask(task);
+  }
+
+  function closeDetail() {
+    setDetailTask(null);
+  }
+
+  function editFromDetail() {
+    const task = detailTask;
+    setDetailTask(null);
+    openEditModal(task);
+  }
+
+  async function deleteFromDetail() {
+    const task = detailTask;
+    setDetailTask(null);
+    await handleDelete(task);
   }
 
   async function handleFormSubmit(payload) {
@@ -251,6 +273,7 @@ export default function TasksPage() {
                     onEdit={() => openEditModal(task)}
                     onDelete={() => handleDelete(task)}
                     onMove={(status) => handleMove(task, status)}
+                    onOpen={() => openDetail(task)}
                   />
                 ))}
               </div>
@@ -260,6 +283,14 @@ export default function TasksPage() {
       </div>
 
       <TaskFormModal open={modalOpen} onClose={closeModal} onSubmit={handleFormSubmit} task={editingTask} />
+
+      <TaskDetailModal
+        open={Boolean(detailTask)}
+        onClose={closeDetail}
+        task={detailTask}
+        onEdit={editFromDetail}
+        onDelete={deleteFromDetail}
+      />
     </div>
   );
 }
