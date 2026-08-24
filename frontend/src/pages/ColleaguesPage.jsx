@@ -3,8 +3,9 @@ import { AlertTriangle, UserMinus, UserPlus, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
+import { useMembers } from '../features/colleagues/useMembers';
 import { useTasks } from '../features/tasks/useTasks';
-import { buildRoster, fullName } from '../features/colleagues/roster';
+import { buildRoster, inferRoster, fullName } from '../features/colleagues/roster';
 import AddMemberModal from '../features/colleagues/AddMemberModal';
 import Avatar from '../components/Avatar';
 import Modal from '../components/Modal';
@@ -13,7 +14,9 @@ import EmptyState from '../components/EmptyState';
 
 const ROLE_STYLE = {
   OWNER: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
+  ADMIN: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
   MEMBER: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
+  VIEWER: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
 };
 
 function MemberCard({ member, isSelf, onRemove }) {
@@ -63,14 +66,18 @@ export default function ColleaguesPage() {
   const { user } = useAuth();
   const { current } = useWorkspace();
   const workspaceId = current?.id ?? null;
-  const { tasks, loading, error, reload } = useTasks(workspaceId);
+  const { members, loading, error, reload } = useMembers(workspaceId);
+  const { tasks } = useTasks(workspaceId);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [pendingRemove, setPendingRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(null);
 
-  const roster = useMemo(() => buildRoster(current, tasks), [current, tasks]);
+  const roster = useMemo(() => {
+    const fromApi = buildRoster(members, current?.owner?.id);
+    return fromApi.length > 0 ? fromApi : inferRoster(current, tasks);
+  }, [members, current, tasks]);
   const rosterIds = useMemo(() => new Set(roster.map((member) => member.user.id)), [roster]);
 
   function openAddModal() {
@@ -142,7 +149,7 @@ export default function ColleaguesPage() {
         <EmptyState
           icon={Users}
           title="No colleagues yet"
-          message="Once someone creates or is assigned a task here, they will show up on this page."
+          message="Invite a teammate to get started."
           action={
             <button
               type="button"
@@ -176,8 +183,7 @@ export default function ColleaguesPage() {
         <div>
           <h1 className="text-2xl font-bold text-white sm:text-3xl">Colleagues</h1>
           <p className="mt-2 max-w-2xl text-sm text-[#71717A]">
-            Showing the team owner and everyone with tasks here. A member with no tasks yet will
-            appear once they create or are assigned one.
+            Everyone who belongs to this team, and what they can do here.
           </p>
         </div>
         <button

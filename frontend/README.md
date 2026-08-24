@@ -13,6 +13,8 @@ What has to be running for the app to actually work:
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
 - The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works fine without it.
 
+The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, and Settings uploads a real image file to `POST /users/me/avatar`. Both endpoints are new. Two known backend defects mean they do not fully work yet, and both are written up with their fixes in `backend-issues.md`, issues 5 and 8. The frontend degrades gracefully in each case rather than breaking.
+
 Other scripts: `npm run build` produces the production bundle, `npm run lint` runs eslint, `npm test` runs the unit tests (see Testing below).
 
 ## Folder map
@@ -39,14 +41,14 @@ The same is true of the app's two export features: CSV export and import (`lib/c
 
 ## Testing
 
-`npm test` runs vitest against four files, 34 tests total:
+`npm test` runs vitest against four files, 35 tests total:
 
 - `lib/stats.test.js`
 - `lib/csv.test.js`
 - `features/colleagues/roster.test.js`
 - `features/settings/dataExport.test.js`
 
-These four are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `roster.js` derives the Colleagues list from the workspace and its tasks, and `dataExport.js` assembles the GDPR export payload. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
+These four are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `roster.js` turns the members endpoint into the Colleagues list, and can rebuild that list from tasks when the endpoint cannot supply it, and `dataExport.js` assembles the GDPR export payload. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
 
 ## Which code is whose
 
@@ -65,11 +67,11 @@ Everything else under `frontend/src` was written for this task list.
 
 ### Why the core API is a relative path and goes through a proxy
 
-The Java backend allows a fixed list of browser origins. `SecurityConfig.corsConfigurationSource()` permits `app.frontend-url` (which defaults to `http://localhost:8080`), plus `http://localhost:3000`, `http://localhost:5000`, and a production domain. `WebConfig` separately hardcodes 3000 and 5000. Vite's dev server runs on `http://localhost:5173`, which appears in neither list, so the browser's preflight came back `403 Invalid CORS request` and every single request failed.
+The Java backend allows a fixed list of browser origins in `SecurityConfig.corsConfigurationSource()`. For a while `http://localhost:5173`, where Vite's dev server runs, was not on that list, so the browser's preflight came back `403 Invalid CORS request` and every single request failed. It has since been added on the backend, so CORS would now work without the proxy. The proxy stays anyway, for the reason in the last paragraph.
 
 The confusing part is that `curl` to port 8080 worked perfectly the whole time. CORS is enforced by browsers, not by servers refusing to answer, so a command line client never sees the problem.
 
-Rather than wait on a backend change, `vite.config.js` proxies `/api/v1` to `CORE_API_PROXY_TARGET` and strips the `Origin` header on the way through. The browser now talks only to `localhost:5173`, which is its own origin, so CORS never applies. Note that `changeOrigin: true` alone is not enough: it rewrites `Host`, not `Origin`, and Spring reads `Origin`.
+`vite.config.js` proxies `/api/v1` to `CORE_API_PROXY_TARGET` and strips the `Origin` header on the way through. The browser now talks only to `localhost:5173`, which is its own origin, so CORS never applies. Note that `changeOrigin: true` alone is not enough: it rewrites `Host`, not `Origin`, and Spring reads `Origin`.
 
 Because `VITE_CORE_API_URL` is relative rather than an absolute `http://localhost:8080/...`, the same value is also correct in production, where nginx serves the built frontend and the API from one origin. The alternative fix, adding `http://localhost:5173` to the backend's allowed origins, would work too and belongs to whoever owns `SecurityConfig`.
 
