@@ -1,16 +1,18 @@
 package com.teampulse.backend.event;
 
-import com.teampulse.backend.service.ActivityLogService;
-import com.teampulse.backend.service.NotificationService;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.teampulse.backend.model.Task;
-import com.teampulse.backend.model.enums.NotificationType;
 import com.teampulse.backend.model.enums.EntityType;
+import com.teampulse.backend.model.enums.NotificationType;
+import com.teampulse.backend.repository.TaskRepository;
+import com.teampulse.backend.service.ActivityLogService;
+import com.teampulse.backend.service.NotificationService;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,12 +23,21 @@ public class TaskEventListener {
 
     private final NotificationService notificationService;
 	private final ActivityLogService activityLogService;
+	private final TaskRepository taskRepository;
 
 
 	@Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	@Transactional
     public void handleTaskCompletedEvent(TaskCompletedEvent event) {
-        Task task = event.getTask();
+        // Task task = event.getTask();
+
+		Task task = taskRepository.findById(event.getTask().getId()).orElse(null);
+
+		if (task == null) {
+			log.warn("Task not found for event logging: {}", event.getTask().getId());
+            return;
+		}
         
         log.info("Successfully intercepted TaskCompletedEvent for Task ID: {} which occurred at: {}", 
                 																			task.getId(), event.getTimeAt());

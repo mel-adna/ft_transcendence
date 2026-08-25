@@ -36,7 +36,7 @@ public class NotificationService {
         log.info("Persisting new notification in DB for user: {}. Type: {}", recipient.getEmail(), type);
 
         Notification notification = new Notification();
-        notification.setId(UUID.randomUUID());
+        // notification.setId(UUID.randomUUID());
         notification.setRecipient(recipient);
         notification.setType(type);
         notification.setEntityType(entityType);

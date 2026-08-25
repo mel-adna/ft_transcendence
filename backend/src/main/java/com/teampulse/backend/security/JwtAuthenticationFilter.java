@@ -24,69 +24,67 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtUtils jwtUtils;
-    private final CustomUserDetailsService customUserDetailsService;
+	private final JwtUtils jwtUtils;
+	private final CustomUserDetailsService customUserDetailsService;
 
-    @Autowired
-    @Qualifier("handlerExceptionResolver")
-    private HandlerExceptionResolver resolver;
+	@Autowired
+	@Qualifier("handlerExceptionResolver")
+	private HandlerExceptionResolver resolver;
 
-    @Override
-    protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
-        
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
+	@Override
+	protected void doFilterInternal(
+			@NonNull HttpServletRequest request,
+			@NonNull HttpServletResponse response,
+			@NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+		final String authHeader = request.getHeader("Authorization");
+		final String jwt;
+		final String userEmail;
 
-        try {
-            jwt = authHeader.substring(7);
-            userEmail = jwtUtils.extractUsername(jwt);
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+			filterChain.doFilter(request, response);
+			return;
+		}
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+		try {
+			jwt = authHeader.substring(7);
+			userEmail = jwtUtils.extractUsername(jwt);
 
-                UserDetails userDetails = this.customUserDetailsService.loadUserByUsername(userEmail);
+			if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                if (jwtUtils.isTokenValid(jwt, userDetails)) {
+				UserDetails userDetails = this.customUserDetailsService.loadUserByUsername(userEmail);
 
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
+				if (jwtUtils.isTokenValid(jwt, userDetails)) {
 
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+					UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+							userDetails,
+							null,
+							userDetails.getAuthorities());
 
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                }
-            }
-            filterChain.doFilter(request, response);
-            
-        } catch (ExpiredJwtException ex) {
-            resolver.resolveException(request, response, null, ex);
-        } catch (Exception ex) {
-            resolver.resolveException(request, response, null, ex);
-        }
-    }
+					authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        String path = request.getServletPath();
-        
-        return path.startsWith("/api/v1/auth/login") 
-            || path.startsWith("/api/v1/auth/signup") 
-            || path.startsWith("/api/v1/auth/refresh")
-            || path.startsWith("/api/v1/auth/forgot-password")
-            || path.startsWith("/api/v1/auth/reset-password")
-            || path.startsWith("/swagger-ui") 
-            || path.startsWith("/v3/api-docs");
-    }
+					SecurityContextHolder.getContext().setAuthentication(authToken);
+				}
+			}
+			filterChain.doFilter(request, response);
+
+		} catch (ExpiredJwtException ex) {
+			resolver.resolveException(request, response, null, ex);
+		} catch (Exception ex) {
+			resolver.resolveException(request, response, null, ex);
+		}
+	}
+
+	@Override
+	protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+		String path = request.getServletPath();
+
+		return path.startsWith("/api/v1/auth/login")
+				|| path.startsWith("/api/v1/auth/signup")
+				|| path.startsWith("/api/v1/auth/refresh")
+				|| path.startsWith("/api/v1/auth/forgot-password")
+				|| path.startsWith("/api/v1/auth/reset-password")
+				|| path.startsWith("/swagger-ui")
+				|| path.startsWith("/v3/api-docs");
+	}
 }

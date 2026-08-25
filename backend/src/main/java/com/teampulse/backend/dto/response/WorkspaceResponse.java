@@ -10,8 +10,8 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class WorkspaceResponse {
-	private UUID id;
-	private String name;
-	private WorkspaceType type;
-	private UserResponse owner;
+	private final UUID id;
+	private final String name;
+	private final WorkspaceType type;
+	private final UserResponse owner;
 }

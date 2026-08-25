@@ -1,19 +1,36 @@
 package com.teampulse.backend.config;
 
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.lang.NonNull;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+
+
 
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
-	@Override
-	public void addCorsMappings(@NonNull CorsRegistry registry) {
-		registry.addMapping("/**")
-				.allowedOrigins("https://localhost", "http://localhost", "http://localhost:5173")
-				.allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
-				.allowedHeaders("*")
-				.allowCredentials(true)
-				.maxAge(3600);
+public class WebConfig {
+	@Value("${app.frontend-url}")
+	private String frontendUrl;
+
+	@Bean
+	public CorsConfigurationSource corsConfigurationSource() {
+		CorsConfiguration config = new CorsConfiguration();
+
+		config.setAllowedOrigins(List.of(frontendUrl));
+		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+		config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+		config.setAllowCredentials(false);
+		config.setMaxAge(3600L);
+		
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+
+		source.registerCorsConfiguration("/api/**", config);
+
+		return source;
 	}
 }
