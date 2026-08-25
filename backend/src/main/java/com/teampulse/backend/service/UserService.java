@@ -1,6 +1,7 @@
 package com.teampulse.backend.service;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,7 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import com.teampulse.backend.dto.request.ForgotPasswordRequest;
+import com.teampulse.backend.dto.request.GoogleLoginRequest;
 import com.teampulse.backend.dto.request.LoginRequest;
 import com.teampulse.backend.dto.request.PasswordChangeRequest;
 import com.teampulse.backend.dto.request.ProfileUpdateRequest;
@@ -31,6 +37,7 @@ import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.mapper.UserMapper;
 import com.teampulse.backend.model.PasswordResetToken;
 import com.teampulse.backend.model.User;
+import com.teampulse.backend.model.enums.AuthProvider;
 import com.teampulse.backend.repository.PasswordResetTokenRepository;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.security.JwtUtils;
@@ -55,6 +62,9 @@ public class UserService {
 
 	@Value("${app.frontend-url}")
 	private String frontendUrl;
+
+	@Value("${spring.security.oauth2.client.registration.google.client-id}")
+	private String googleClientId;
 
 	@Transactional
 	public AuthResponse signup(SignupRequest request) {
@@ -249,5 +259,64 @@ public class UserService {
 		User updatedUser = userRepository.save(user);
 
 		return userMapper.toResponse(updatedUser);
+	}
+
+	@Transactional
+	public AuthResponse googleLogin(GoogleLoginRequest request) {
+		try {
+			GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+					new NetHttpTransport(),
+					GsonFactory.getDefaultInstance())
+					.setAudience(Collections.singletonList(googleClientId))
+					.build();
+
+			GoogleIdToken idToken = verifier.verify(request.getIdToken());
+			if (idToken == null) {
+				throw new BadCredentialsException("Invalid Google ID Token");
+			}
+
+			GoogleIdToken.Payload payload = idToken.getPayload();
+
+			String email = payload.getEmail();
+			String googleId = payload.getSubject();
+			String firstName = (String) payload.get("given_name");
+			String lastName = (String) payload.get("family_name");
+			String pictureUrl = (String) payload.get("picture");
+
+			User user = userRepository.findByEmail(email)
+					.map(existingUser -> {
+						if (existingUser.getProvider() == AuthProvider.LOCAL) {
+							existingUser.setProvider(AuthProvider.GOOGLE);
+							existingUser.setProviderId(googleId);
+							if (existingUser.getAvatarUrl() == null) {
+								existingUser.setAvatarUrl(pictureUrl);
+							}
+							return userRepository.save(existingUser);
+						}
+						return existingUser;
+					})
+					.orElseGet(() -> userRepository.save(
+							User.builder()
+									.email(email)
+									.firstName(firstName)
+									.lastName(lastName)
+									.avatarUrl(pictureUrl)
+									.provider(AuthProvider.GOOGLE)
+									.providerId(googleId)
+									.build()));
+
+			UserPrincipal userPrincipal = new UserPrincipal(user);
+			String accessToken = jwtUtils.generateToken(userPrincipal);
+			String refreshToken = jwtUtils.generateRefreshToken(userPrincipal);
+
+			return AuthResponse.builder()
+					.accessToken(accessToken)
+					.refreshToken(refreshToken)
+					.user(userMapper.toResponse(user))
+					.build();
+
+		} catch (Exception e) {
+			throw new BadCredentialsException("Failed to authenticate with Google: " + e.getMessage());
+		}
 	}
 }

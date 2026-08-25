@@ -5,13 +5,6 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import com.teampulse.backend.mapper.TaskCommentMapper;
-import com.teampulse.backend.repository.TaskCommentRepository;
-import com.teampulse.backend.repository.TaskRepository;
-import com.teampulse.backend.repository.UserRepository;
-import com.teampulse.backend.repository.WorkspaceMemberRepository;
-
 import org.springframework.transaction.annotation.Transactional;
 
 import com.teampulse.backend.dto.request.TaskCommentCreateRequest;
@@ -20,11 +13,16 @@ import com.teampulse.backend.dto.response.TaskCommentResponse;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
+import com.teampulse.backend.mapper.TaskCommentMapper;
 import com.teampulse.backend.model.Task;
 import com.teampulse.backend.model.TaskComment;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.model.enums.WorkspaceMemberRole;
+import com.teampulse.backend.repository.TaskCommentRepository;
+import com.teampulse.backend.repository.TaskRepository;
+import com.teampulse.backend.repository.UserRepository;
+import com.teampulse.backend.repository.WorkspaceMemberRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -103,7 +101,6 @@ public class TaskCommentService {
 		return taskCommentMapper.toResponse(updatedComment);
 	}
 
-
 	@Transactional
 	public void deleteComment(UUID commentId, String email) {
 		if (commentId == null)
@@ -131,8 +128,6 @@ public class TaskCommentService {
 
 		activityLogService.logActivity(workspaceId, currentUser.getId(), commentId, "TASK_COMMENT_DELETED", logDescription);
 	}
-
-
 
 	private void validateWorkspaceMembership(UUID workspaceId, String email) {
 		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);

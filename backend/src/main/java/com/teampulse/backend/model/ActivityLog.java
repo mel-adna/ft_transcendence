@@ -1,6 +1,6 @@
 package com.teampulse.backend.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -52,6 +52,5 @@ public class ActivityLog {
 
 	@CreationTimestamp
 	@Column(name="created_at", nullable=false, updatable=false)
-	private LocalDateTime createdAt;
-
+	private Instant createdAt;
 }

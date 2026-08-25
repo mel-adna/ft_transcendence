@@ -7,6 +7,8 @@ CREATE TABLE users (
     first_name VARCHAR(50),
     last_name VARCHAR(50),
     avatar_url VARCHAR(255),
+	provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL',    -- Enum: LOCAL, GOOGLE
+	provider_id VARCHAR(255),
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -93,7 +95,7 @@ CREATE TABLE notifications (
     CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 8. Activity Logs
+-- 8. Activity Log
 CREATE TABLE activity_logs (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL,

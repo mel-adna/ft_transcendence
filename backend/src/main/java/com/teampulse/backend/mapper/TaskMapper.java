@@ -17,6 +17,7 @@ import com.teampulse.backend.model.Task;
 	uses = {UserMapper.class, TaskCommentMapper.class}
 )
 public interface TaskMapper {
+	@Mapping(source = "workspace.id", target = "workspaceId")
     TaskResponse toResponse(Task task);
 
     @Mapping (target = "id", ignore = true)

@@ -1,6 +1,6 @@
 package com.teampulse.backend.dto.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;
@@ -15,5 +15,5 @@ public class ActivityLogResponse {
 	private String actionType;
 	private String description;
 	private UUID entityId;
-	private LocalDateTime createdAt;
+	private Instant createdAt;
 }
