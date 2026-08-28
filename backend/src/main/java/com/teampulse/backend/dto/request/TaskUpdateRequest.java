@@ -2,8 +2,8 @@ package com.teampulse.backend.dto.request;
 
 import java.util.UUID;
 
-import com.teampulse.backend.model.enums.TaskPriority;
-import com.teampulse.backend.model.enums.TaskStatus;
+import com.teampulse.backend.enums.TaskPriority;
+import com.teampulse.backend.enums.TaskStatus;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

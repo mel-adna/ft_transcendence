@@ -8,7 +8,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.teampulse.backend.model.enums.AuthProvider;
+import com.teampulse.backend.enums.AuthProvider;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

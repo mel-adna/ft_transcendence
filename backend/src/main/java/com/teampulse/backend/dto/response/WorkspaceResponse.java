@@ -2,7 +2,7 @@ package com.teampulse.backend.dto.response;
 
 import java.util.UUID;
 
-import com.teampulse.backend.model.enums.WorkspaceType;
+import com.teampulse.backend.enums.WorkspaceType;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

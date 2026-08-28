@@ -5,6 +5,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.teampulse.backend.event.WorkspaceMemberAddedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,8 @@ import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
 import com.teampulse.backend.dto.request.WorkspaceUpdateRequest;
 import com.teampulse.backend.dto.response.WorkspaceMemberResponse;
 import com.teampulse.backend.dto.response.WorkspaceResponse;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
+import com.teampulse.backend.enums.WorkspaceType;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
@@ -22,8 +26,6 @@ import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.Workspace;
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.model.WorkspaceMemberId;
-import com.teampulse.backend.model.enums.WorkspaceMemberRole;
-import com.teampulse.backend.model.enums.WorkspaceType;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
@@ -39,6 +41,7 @@ public class WorkspaceService {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final UserRepository userRepository;
 	private final WorkspaceMapper workspaceMapper;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
@@ -163,6 +166,9 @@ public class WorkspaceService {
 		newMember.setRole(request.getRole() != null ? request.getRole() : WorkspaceMemberRole.MEMBER);
 	
 		workspaceMemberRepository.save(newMember);
+
+		User admin = userRepository.findByEmail(adminEmail).orElse(null);
+		eventPublisher.publishEvent(new WorkspaceMemberAddedEvent(this, workspace,newUser, admin));
 	}
 
 	@Transactional

@@ -8,8 +8,8 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.teampulse.backend.model.enums.TaskPriority;
-import com.teampulse.backend.model.enums.TaskStatus;
+import com.teampulse.backend.enums.TaskPriority;
+import com.teampulse.backend.enums.TaskStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
