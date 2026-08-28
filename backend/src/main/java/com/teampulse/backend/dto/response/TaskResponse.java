@@ -3,8 +3,8 @@ package com.teampulse.backend.dto.response;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.teampulse.backend.model.enums.TaskPriority;
-import com.teampulse.backend.model.enums.TaskStatus;
+import com.teampulse.backend.enums.TaskPriority;
+import com.teampulse.backend.enums.TaskStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

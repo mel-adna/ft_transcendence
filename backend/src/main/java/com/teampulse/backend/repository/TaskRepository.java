@@ -5,9 +5,9 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import com.teampulse.backend.enums.TaskPriority;
+import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.model.Task;
-import com.teampulse.backend.model.enums.TaskPriority;
-import com.teampulse.backend.model.enums.TaskStatus;
 
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {

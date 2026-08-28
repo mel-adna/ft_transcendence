@@ -3,8 +3,8 @@ package com.teampulse.backend.dto.response;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import com.teampulse.backend.model.enums.EntityType;
-import com.teampulse.backend.model.enums.NotificationType;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

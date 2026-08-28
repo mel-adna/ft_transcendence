@@ -1,4 +1,4 @@
-package com.teampulse.backend.model.enums;
+package com.teampulse.backend.enums;
 
 public enum WorkspaceType {
 	PERSONAL,

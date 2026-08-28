@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.teampulse.backend.dto.response.NotificationResponse;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.mapper.NotificationMapper;
 import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.User;
-import com.teampulse.backend.model.enums.EntityType;
-import com.teampulse.backend.model.enums.NotificationType;
 import com.teampulse.backend.repository.NotificationRepository;
 import com.teampulse.backend.repository.UserRepository;
 

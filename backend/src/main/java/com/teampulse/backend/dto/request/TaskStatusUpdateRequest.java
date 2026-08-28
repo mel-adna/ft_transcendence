@@ -1,6 +1,6 @@
 package com.teampulse.backend.dto.request;
 
-import com.teampulse.backend.model.enums.TaskStatus;
+import com.teampulse.backend.enums.TaskStatus;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;

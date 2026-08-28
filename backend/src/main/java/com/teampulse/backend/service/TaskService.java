@@ -3,6 +3,7 @@ package com.teampulse.backend.service;
 import java.util.List;
 import java.util.UUID;
 
+import com.teampulse.backend.event.TaskAssignedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import com.teampulse.backend.dto.request.TaskCreateRequest;
 import com.teampulse.backend.dto.request.TaskStatusUpdateRequest;
 import com.teampulse.backend.dto.request.TaskUpdateRequest;
 import com.teampulse.backend.dto.response.TaskResponse;
+import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.event.TaskCompletedEvent;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
@@ -20,7 +22,6 @@ import com.teampulse.backend.model.Task;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.Workspace;
 import com.teampulse.backend.model.WorkspaceMemberId;
-import com.teampulse.backend.model.enums.TaskStatus;
 import com.teampulse.backend.repository.TaskRepository;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
@@ -34,174 +35,190 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class TaskService {
 
-    private final TaskRepository taskRepository;
-    private final WorkspaceRepository workspaceRepository;
-    private final WorkspaceMemberRepository workspaceMemberRepository;
-    private final UserRepository userRepository;
-    private final TaskMapper taskMapper;
-    private final ApplicationEventPublisher eventPublisher;
+	private final TaskRepository taskRepository;
+	private final WorkspaceRepository workspaceRepository;
+	private final WorkspaceMemberRepository workspaceMemberRepository;
+	private final UserRepository userRepository;
+	private final TaskMapper taskMapper;
+	private final ApplicationEventPublisher eventPublisher;
 
 
-    @Transactional
-    public TaskResponse createTask(UUID workspaceId, String creatorEmail, TaskCreateRequest request) {
-		if (workspaceId == null) 
+	@Transactional
+	public TaskResponse createTask(UUID workspaceId, String creatorEmail, TaskCreateRequest request) {
+		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
 
-        log.info("Attempting to create task '{}' in workspace ID: {} by user: {}", request.getTitle(), workspaceId, creatorEmail);
+		log.info("Attempting to create task '{}' in workspace ID: {} by user: {}", request.getTitle(), workspaceId, creatorEmail);
 
-        Workspace workspace = workspaceRepository.findById(workspaceId)
-                				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
+		Workspace workspace = workspaceRepository.findById(workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
 
-        validateWorkspaceMembership(workspaceId, creatorEmail, "You must be a member of this workspace to create tasks!");
+		validateWorkspaceMembership(workspaceId, creatorEmail, "You must be a member of this workspace to create tasks!");
 
-        User creator = userRepository.findByEmail(creatorEmail)
-                							.orElseThrow(() -> new ResourceNotFoundException("Creator user profile not found"));
+		User creator = userRepository.findByEmail(creatorEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("Creator user profile not found"));
 
-        Task task = new Task();
-        task.setWorkspace(workspace);
-        task.setCreator(creator);
-        task.setTitle(request.getTitle());
-        task.setDescription(request.getDescription());
-        task.setPriority(request.getPriority());
-        task.setStatus(TaskStatus.TODO);
+		Task task = new Task();
+		task.setWorkspace(workspace);
+		task.setCreator(creator);
+		task.setTitle(request.getTitle());
+		task.setDescription(request.getDescription());
+		task.setPriority(request.getPriority());
+		task.setStatus(TaskStatus.TODO);
 
-        if (request.getAssigneeId() != null) {
-            User assignee = validateAndGetAssignee(workspaceId, request.getAssigneeId());
-            task.setAssignee(assignee);
-        }
+		if (request.getAssigneeId() != null) {
+			User assignee = validateAndGetAssignee(workspaceId, request.getAssigneeId());
+			task.setAssignee(assignee);
+		}
 
-        Task savedTask = taskRepository.save(task);
-        log.info("Task successfully created with ID: {} in workspace: {}", savedTask.getId(), workspaceId);
-        return taskMapper.toResponse(savedTask);
-    }
+		Task savedTask = taskRepository.save(task);
 
+		if (savedTask.getAssignee() != null)
+			eventPublisher.publishEvent(new TaskAssignedEvent(this, savedTask, savedTask.getAssignee(), creator, false));
 
-    @Transactional(readOnly = true)
-    public List<TaskResponse> getWorkspaceTasks(UUID workspaceId, String email) {
-        validateWorkspaceMembership(workspaceId, email, "You don't have access to this workspace's tasks!");
-
-        return taskRepository.findByWorkspaceId(workspaceId).stream()
-                .map(taskMapper::toResponse)
-                .toList();
-    }
+		log.info("Task successfully created with ID: {} in workspace: {}", savedTask.getId(), workspaceId);
+		return taskMapper.toResponse(savedTask);
+	}
 
 
-    @Transactional(readOnly = true)
-    public TaskResponse getTaskById(UUID taskId, String email) {
+	@Transactional(readOnly = true)
+	public List<TaskResponse> getWorkspaceTasks(UUID workspaceId, String email) {
+		validateWorkspaceMembership(workspaceId, email, "You don't have access to this workspace's tasks!");
 
-		if (taskId == null)
-			throw new BadRequestException("Task ID cannot be null");
-
-        Task task = taskRepository.findById(taskId)
-                						.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
-
-        validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have access to view this task!");
-
-        return taskMapper.toResponse(task);
-    }
+		return taskRepository.findByWorkspaceId(workspaceId).stream()
+				.map(taskMapper::toResponse)
+				.toList();
+	}
 
 
-    @Transactional
-    public TaskResponse updateTask(UUID taskId, String email, TaskUpdateRequest request) {
+	@Transactional(readOnly = true)
+	public TaskResponse getTaskById(UUID taskId, String email) {
 
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
-        Task task = taskRepository.findById(taskId)
-                						.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+		Task task = taskRepository.findById(taskId)
+				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
-        UUID workspaceId = task.getWorkspace().getId();
-        validateWorkspaceMembership(workspaceId, email, "You don't have permission to update tasks in this workspace!");
+		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have access to view this task!");
 
-        final TaskStatus oldStatus = task.getStatus();
-
-        task.setTitle(request.getTitle());
-        task.setDescription(request.getDescription());
-        task.setPriority(request.getPriority());
-        task.setStatus(request.getStatus());
-
-        if (request.getAssigneeId() != null) {
-            User assignee = validateAndGetAssignee(workspaceId, request.getAssigneeId());
-            task.setAssignee(assignee);
-        } else {
-            task.setAssignee(null);
-        }
-
-        Task updatedTask = taskRepository.save(task);
-
-        if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
-            triggerTaskCompletedEvent(updatedTask);
-        }
-
-        return taskMapper.toResponse(updatedTask);
-    }
+		return taskMapper.toResponse(task);
+	}
 
 
-    @Transactional
-    public TaskResponse updateTaskStatus(UUID taskId, String email, TaskStatusUpdateRequest request) {
+	@Transactional
+	public TaskResponse updateTask(UUID taskId, String email, TaskUpdateRequest request) {
 
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
-        Task task = taskRepository.findById(taskId)
-                			.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+		Task task = taskRepository.findById(taskId)
+				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
-        validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to update task status!");
+		UUID workspaceId = task.getWorkspace().getId();
+		validateWorkspaceMembership(workspaceId, email, "You don't have permission to update tasks in this workspace!");
 
-        final TaskStatus oldStatus = task.getStatus();
-        task.setStatus(request.getStatus());
-        
-        Task updatedTask = taskRepository.save(task);
+		final TaskStatus oldStatus = task.getStatus();
+		final User oldAssignee = task.getAssignee();
 
-        if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
-            triggerTaskCompletedEvent(updatedTask);
-        }
+		task.setTitle(request.getTitle());
+		task.setDescription(request.getDescription());
+		task.setPriority(request.getPriority());
+		task.setStatus(request.getStatus());
 
-        return taskMapper.toResponse(updatedTask);
-    }
+		if (request.getAssigneeId() != null) {
+			User assignee = validateAndGetAssignee(workspaceId, request.getAssigneeId());
+			task.setAssignee(assignee);
+		} else {
+			task.setAssignee(null);
+		}
 
-    @Transactional
-    public void deleteTask(UUID taskId, String email) {
+		Task updatedTask = taskRepository.save(task);
+
+		if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
+			triggerTaskCompletedEvent(updatedTask);
+		}
+
+		if (updatedTask.getAssignee() != null
+				&& (oldAssignee == null || !oldAssignee.getId().equals(updatedTask.getAssignee().getId()))) {
+			User updater = userRepository.findByEmail(email).orElse(null);
+			eventPublisher.publishEvent(new TaskAssignedEvent(
+                    this,
+					updatedTask,
+					updatedTask.getAssignee(),
+					updater,
+					true));
+		}
+
+		return taskMapper.toResponse(updatedTask);
+	}
+
+
+	@Transactional
+	public TaskResponse updateTaskStatus(UUID taskId, String email, TaskStatusUpdateRequest request) {
 
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
-        Task task = taskRepository.findById(taskId)
-               			 .orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+		Task task = taskRepository.findById(taskId)
+				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
-        validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to delete tasks from this workspace!");
+		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to update task status!");
 
-        taskRepository.delete(task);
-        log.info("Task ID: {} was successfully deleted by user: {}", taskId, email);
-    }
+		TaskStatus oldStatus = task.getStatus();
+		task.setStatus(request.getStatus());
+
+		Task updatedTask = taskRepository.save(task);
+
+//		if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
+//			triggerTaskCompletedEvent(updatedTask);
+//		}
+
+		return taskMapper.toResponse(updatedTask);
+	}
+
+	@Transactional
+	public void deleteTask(UUID taskId, String email) {
+
+		if (taskId == null)
+			throw new BadRequestException("Task ID cannot be null");
+
+		Task task = taskRepository.findById(taskId)
+				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+
+		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to delete tasks from this workspace!");
+
+		taskRepository.delete(task);
+		log.info("Task ID: {} was successfully deleted by user: {}", taskId, email);
+	}
 
 
-    private void validateWorkspaceMembership(UUID workspaceId, String email, String exceptionMessage) {
-        boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
-        if (!isMember) {
-            throw new UnauthorizedAccessException(exceptionMessage);
-        }
-    }
+	private void validateWorkspaceMembership(UUID workspaceId, String email, String exceptionMessage) {
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
+		if (!isMember) {
+			throw new UnauthorizedAccessException(exceptionMessage);
+		}
+	}
 
-    private User validateAndGetAssignee(UUID workspaceId, UUID assigneeId) {
+	private User validateAndGetAssignee(UUID workspaceId, UUID assigneeId) {
 
 		if (assigneeId == null) {
-        	throw new BadRequestException("Assignee ID cannot be null");
-    }
+			throw new BadRequestException("Assignee ID cannot be null");
+		}
 
-        User assignee = userRepository.findById(assigneeId)
-                			.orElseThrow(() -> new ResourceNotFoundException("Assignee user not found with ID: " + assigneeId));
+		User assignee = userRepository.findById(assigneeId)
+				.orElseThrow(() -> new ResourceNotFoundException("Assignee user not found with ID: " + assigneeId));
 
-        boolean isAssigneeMember = workspaceMemberRepository.existsById(new WorkspaceMemberId(workspaceId, assigneeId));
+		boolean isAssigneeMember = workspaceMemberRepository.existsById(new WorkspaceMemberId(workspaceId, assigneeId));
 
-        if (!isAssigneeMember) {
-            throw new BadRequestException("The assigned user is not a member of this workspace!");
-        }
-        return assignee;
-    }
+		if (!isAssigneeMember) {
+			throw new BadRequestException("The assigned user is not a member of this workspace!");
+		}
+		return assignee;
+	}
 
-    private void triggerTaskCompletedEvent(Task completedTask) {
-        log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED.", completedTask.getId());
+	private void triggerTaskCompletedEvent(Task completedTask) {
+		log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED.", completedTask.getId());
 		eventPublisher.publishEvent(new TaskCompletedEvent(this, completedTask));
-    }
+	}
 }

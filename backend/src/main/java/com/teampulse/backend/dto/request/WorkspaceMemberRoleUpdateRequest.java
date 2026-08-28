@@ -1,6 +1,6 @@
 package com.teampulse.backend.dto.request;
 
-import com.teampulse.backend.model.enums.WorkspaceMemberRole;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
