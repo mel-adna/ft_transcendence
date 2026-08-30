@@ -13,7 +13,7 @@ What has to be running for the app to actually work:
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
 - The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works fine without it.
 
-The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, and Settings uploads a real image file to `POST /users/me/avatar`. Both endpoints are new. Two known backend defects mean they do not fully work yet, and both are written up with their fixes in `backend-issues.md`, issues 5 and 8. The frontend degrades gracefully in each case rather than breaking.
+The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
 Other scripts: `npm run build` produces the production bundle, `npm run lint` runs eslint, `npm test` runs the unit tests (see Testing below).
 
@@ -29,26 +29,45 @@ Read the code in this order:
 
 ## How login works
 
-The login form (`pages/LoginPage.jsx`) posts email and password to `POST /auth/login`. The response's `accessToken` is written to `localStorage` under the key `token` by `setToken()` in `lib/api.js`. From then on, one axios request interceptor, also in `lib/api.js`, reads that key on every outgoing request and attaches `Authorization: Bearer <token>` automatically: no page ever sets that header itself. A matching response interceptor watches every response; if any request comes back `401`, it clears the token and sends the browser to `/login`.
+The login form (`pages/LoginPage.jsx`) posts email and password to `POST /auth/login`. The response carries two tokens. The `accessToken` is written to `localStorage` under the key `token` by `setToken()` in `lib/api.js`, and the `refreshToken` under `refreshToken`. From then on, one axios request interceptor, also in `lib/api.js`, reads the access token on every outgoing request and attaches `Authorization: Bearer <token>` automatically: no page ever sets that header itself.
+
+A matching response interceptor watches every response. When a request comes back `401`, it does not log the user out straight away. It calls `POST /auth/refresh` with the stored refresh token, saves the new tokens, and replays the original request, so a session that has been open longer than the access token's lifetime keeps working without the user noticing. Only if the refresh itself fails are both tokens cleared and the browser sent to `/login`. Three guards keep this from looping: a request is only retried once, `/auth/login`, `/auth/signup` and `/auth/refresh` are never retried, and concurrent 401s share a single in-flight refresh instead of each firing their own. That decision is a pure function, `shouldRefresh()`, which is why it can be tested in `lib/api.test.js`.
 
 The key has to stay named exactly `token`. The vendored chat module (`features/chat/`, `infrastructure/socket/`) reads `localStorage.getItem('token')` directly to authenticate its own REST calls and its socket connection. Renaming the key, even to something more conventional like `accessToken`, would silently break chat login for no visible reason.
 
 ## How the dashboard gets its numbers
 
-There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," a day-by-day completion trend, and the most recently updated tasks for the activity feed. `stats.js` is a pure function (tasks in, numbers out) and has its own tests in `lib/stats.test.js`.
+There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," and a day-by-day completion trend. `stats.js` is a pure function (tasks in, numbers out) and has its own tests in `lib/stats.test.js`.
+
+The Recent Activity panel on the same page is the exception. It is the one part of the dashboard that is not computed from tasks: it reads the real audit trail from `GET /activity-logs/workspace/{id}` through `features/dashboard/useActivityLogs.js`. That endpoint returns a Spring `Slice`, so the rows are under `response.data.content`, not the response body itself. `features/dashboard/activityLog.js` turns each row into something displayable and is where the action types (`TASK_COMPLETED`, `WORKSPACE_MEMBER_ADDED`, and so on) get their labels. An action type the frontend has never seen is humanized automatically rather than dropped, so new backend events show up without a frontend change.
 
 The same is true of the app's two export features: CSV export and import (`lib/csv.js`) and the GDPR data export on the Settings page (`features/settings/dataExport.js`) are both built entirely client-side, because the backend does not expose a CSV endpoint or a personal-data export endpoint either. If asked where a number or a downloaded file comes from, the answer is almost always "computed in the browser from the task list," not "returned by an endpoint."
 
+## Who a new task gets assigned to
+
+`features/tasks/TaskFormModal.jsx` has an "Assign to" picker. Its options come from the same members endpoint the Colleagues page uses, so it only ever offers people who are really in the workspace, which matters because the backend rejects an `assigneeId` that is not a member of that workspace.
+
+The default differs between creating and editing on purpose:
+
+- **Creating.** The picker starts on the signed-in user, and there is no "Nobody" option. A task created without touching the field belongs to its creator rather than to nobody.
+- **Editing.** The picker starts on whoever is currently assigned, and "Nobody" is offered, because clearing an assignee is a real thing to want and the backend supports it (`assigneeId: null` on `PUT /tasks/{id}`).
+
+The signed-in user is always in the list even if the members request failed, so the form still works when that endpoint is down.
+
+
 ## Testing
 
-`npm test` runs vitest against four files, 35 tests total:
+`npm test` runs vitest against seven files, 57 tests total:
 
 - `lib/stats.test.js`
 - `lib/csv.test.js`
+- `lib/api.test.js`
 - `features/colleagues/roster.test.js`
 - `features/settings/dataExport.test.js`
+- `features/tasks/taskFormat.test.js`
+- `features/dashboard/activityLog.test.js`
 
-These four are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `roster.js` turns the members endpoint into the Colleagues list, and can rebuild that list from tasks when the endpoint cannot supply it, and `dataExport.js` assembles the GDPR export payload. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
+These seven are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `api.js` decides when an expired token should be refreshed, `roster.js` turns the members endpoint into the Colleagues list, and can rebuild that list from tasks when the endpoint cannot supply it, `dataExport.js` assembles the GDPR export payload, `taskFormat.js` formats task references and dates, and `activityLog.js` turns an audit row into a label and a tone. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
 
 ## Which code is whose
 

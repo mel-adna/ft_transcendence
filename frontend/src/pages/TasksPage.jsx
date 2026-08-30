@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, ClipboardList, Plus, X } from 'lucide-react';
 import { getErrorMessage } from '../lib/api';
+import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
+import { useMembers } from '../features/colleagues/useMembers';
+import { buildRoster } from '../features/colleagues/roster';
 import TaskCard from '../features/tasks/TaskCard';
 import TaskFormModal from '../features/tasks/TaskFormModal';
 import TaskDetailModal from '../features/tasks/TaskDetailModal';
@@ -17,10 +20,13 @@ const COLUMNS = [
 ];
 
 export default function TasksPage() {
+  const { user } = useAuth();
   const { current } = useWorkspace();
   const workspaceId = current?.id ?? null;
   const { tasks, loading, error, reload, createTask, updateTask, moveTask, removeTask } =
     useTasks(workspaceId);
+  const { members } = useMembers(workspaceId);
+  const roster = useMemo(() => buildRoster(members, current?.owner?.id), [members, current]);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -282,7 +288,14 @@ export default function TasksPage() {
         })}
       </div>
 
-      <TaskFormModal open={modalOpen} onClose={closeModal} onSubmit={handleFormSubmit} task={editingTask} />
+      <TaskFormModal
+        open={modalOpen}
+        onClose={closeModal}
+        onSubmit={handleFormSubmit}
+        task={editingTask}
+        members={roster}
+        currentUser={user}
+      />
 
       <TaskDetailModal
         open={Boolean(detailTask)}

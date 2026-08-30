@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getErrorMessage } from '../../lib/api';
 import { validateRequired } from '../../lib/validation';
+import { personName } from './taskFormat';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
@@ -31,13 +32,39 @@ function validateDescription(value) {
   return null;
 }
 
-export default function TaskFormModal({ open, onClose, onSubmit, task }) {
+export default function TaskFormModal({
+  open,
+  onClose,
+  onSubmit,
+  task,
+  members = [],
+  currentUser = null,
+}) {
+  const currentUserId = currentUser?.id ?? null;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('MEDIUM');
+  const [assigneeId, setAssigneeId] = useState('');
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const assigneeOptions = useMemo(() => {
+    const people = new Map();
+    if (currentUser?.id) people.set(currentUser.id, currentUser);
+    for (const entry of members) {
+      const person = entry?.user ?? entry;
+      if (person?.id) people.set(person.id, person);
+    }
+    if (task?.assignee?.id && !people.has(task.assignee.id)) {
+      people.set(task.assignee.id, task.assignee);
+    }
+    return [...people.values()].sort((left, right) => {
+      if (left.id === currentUserId) return -1;
+      if (right.id === currentUserId) return 1;
+      return personName(left).localeCompare(personName(right));
+    });
+  }, [members, task, currentUser, currentUserId]);
 
   useEffect(() => {
     function sync() {
@@ -45,12 +72,13 @@ export default function TaskFormModal({ open, onClose, onSubmit, task }) {
       setTitle(task?.title ?? '');
       setDescription(task?.description ?? '');
       setPriority(task?.priority ?? 'MEDIUM');
+      setAssigneeId(task ? (task.assignee?.id ?? '') : (currentUserId ?? ''));
       setErrors({});
       setServerError(null);
       setSubmitting(false);
     }
     sync();
-  }, [open, task]);
+  }, [open, task, currentUserId]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -72,7 +100,7 @@ export default function TaskFormModal({ open, onClose, onSubmit, task }) {
         title: title.trim(),
         description: description.trim(),
         priority,
-        assigneeId: task?.assignee?.id ?? null,
+        assigneeId: assigneeId || (task ? null : (currentUserId ?? null)),
       });
     } catch (submitError) {
       setServerError(getErrorMessage(submitError));
@@ -125,6 +153,30 @@ export default function TaskFormModal({ open, onClose, onSubmit, task }) {
             {PRIORITY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field
+          label="Assign to"
+          id="task-assignee"
+          hint={
+            task
+              ? undefined
+              : 'New tasks are assigned to you unless you pick someone else.'
+          }
+        >
+          <select
+            id="task-assignee"
+            value={assigneeId}
+            onChange={(event) => setAssigneeId(event.target.value)}
+            className={inputClass}
+          >
+            {task && <option value="">Nobody</option>}
+            {assigneeOptions.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.id === currentUserId ? `${personName(person)} (you)` : personName(person)}
               </option>
             ))}
           </select>

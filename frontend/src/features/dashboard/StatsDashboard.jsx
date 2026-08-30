@@ -8,26 +8,24 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { List, CheckCircle, Users, Activity } from 'lucide-react';
+import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
+import { useActivityLogs } from './useActivityLogs';
+import { buildActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
 import EmptyState from '../../components/EmptyState';
+import Spinner from '../../components/Spinner';
 
 const RANGE_OPTIONS = [
   { value: 7, label: '7 Days' },
   { value: 30, label: '30 Days' },
 ];
 
-const STATUS_LABEL = {
-  TODO: 'To-Do',
-  DOING: 'Doing',
-  DONE: 'Done',
-};
-
-const STATUS_STYLE = {
-  TODO: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
-  DOING: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
-  DONE: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+const TONE_STYLE = {
+  done: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+  active: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
+  danger: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+  neutral: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
 };
 
 function formatRelativeTime(value) {
@@ -62,9 +60,11 @@ function StatCard({ icon: Icon, label, value }) {
   );
 }
 
-export default function StatsDashboard({ tasks }) {
+export default function StatsDashboard({ tasks, workspaceId }) {
   const [range, setRange] = useState(7);
   const stats = useMemo(() => computeStats(tasks, range), [tasks, range]);
+  const { logs, loading: activityLoading, error: activityError } = useActivityLogs(workspaceId);
+  const activity = useMemo(() => buildActivityFeed(logs), [logs]);
 
   return (
     <div className="space-y-6 text-left md:space-y-7">
@@ -153,31 +153,43 @@ export default function StatsDashboard({ tasks }) {
         <div className="rounded-2xl border border-[#27273a] bg-[#181824] p-6 shadow-lg">
           <h3 className="text-base font-bold text-white">Recent Activity</h3>
 
-          {stats.recentActivity.length === 0 ? (
+          {activityLoading ? (
+            <div className="mt-6 flex min-h-[12rem] items-center justify-center">
+              <Spinner />
+            </div>
+          ) : activityError ? (
+            <div className="mt-6">
+              <EmptyState
+                icon={AlertTriangle}
+                title="Could not load activity"
+                message="The activity trail is unavailable right now."
+              />
+            </div>
+          ) : activity.length === 0 ? (
             <div className="mt-6">
               <EmptyState
                 icon={Activity}
                 title="No activity yet"
-                message="Task updates will show up here once work starts moving."
+                message="Assignments, completions and comments will show up here."
               />
             </div>
           ) : (
             <ul className="mt-6 space-y-5">
-              {stats.recentActivity.map((task) => (
-                <li key={task.id} className="flex items-start gap-3">
-                  <Avatar user={task.assignee ?? task.creator} size={32} />
+              {activity.map((entry) => (
+                <li key={entry.id} className="flex items-start gap-3">
+                  <Avatar user={entry.user} size={32} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-white">{task.title}</p>
+                    <p className="text-xs font-semibold text-white">{entry.description}</p>
                     <div className="mt-1.5 flex items-center gap-2">
                       <span
                         className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${
-                          STATUS_STYLE[task.status] ?? STATUS_STYLE.TODO
+                          TONE_STYLE[entry.tone] ?? TONE_STYLE.neutral
                         }`}
                       >
-                        {STATUS_LABEL[task.status] ?? task.status}
+                        {entry.label}
                       </span>
                       <span className="text-[10px] text-[#71717A]">
-                        {formatRelativeTime(task.updatedAt)}
+                        {formatRelativeTime(entry.createdAt)}
                       </span>
                     </div>
                   </div>
