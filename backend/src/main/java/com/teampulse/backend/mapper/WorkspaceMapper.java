@@ -34,8 +34,8 @@ public interface WorkspaceMapper {
 	@Mapping(target = "updatedAt", ignore = true)
     void updateWorkspaceFromRequest(WorkspaceUpdateRequest request, @MappingTarget Workspace workspace);
 
-
-	
+	@Mapping(target = "member", source = "user")
+	@Mapping(target = "joinedAt", source = "createdAt")
 	WorkspaceMemberResponse toMemberResponse(WorkspaceMember member);
 
 	@Mapping(target = "id", ignore = true)

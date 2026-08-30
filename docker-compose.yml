@@ -75,20 +75,106 @@ services:
 
   # ----------- minio ---------------
   minio:
-      image: minio/minio:latest
-      container_name: teampulse-minio
-      ports:
-        - "9000:9000"
-        - "9001:9001"
-      environment:
-        MINIO_ROOT_USER: minioadmin
-        MINIO_ROOT_PASSWORD: minioadmin
-      command: server /data --console-address ":9001"
-      networks:
-        - teampulse_net
-      restart: always
-      volumes:
-        - minio_data:/data
+    image: minio/minio:latest
+    container_name: teampulse-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    networks:
+      - teampulse_net
+    restart: always
+    volumes:
+      - minio_data:/data
+
+  # # ----------- Prometheus ---------------
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: teampulse-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--storage.tsdb.retention.time=15d'
+  #     - '--web.enable-lifecycle'
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
+  #   healthcheck:
+  #     test: [ "CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # # ----------- Grafana ---------------
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: teampulse-grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+  #     - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #     - GF_SERVER_ROOT_URL=https://localhost/grafana
+  #     - GF_SERVER_SERVE_FROM_SUB_PATH=true
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./grafana/provisioning:/etc/grafana/provisioning:ro
+  #   depends_on:
+  #     prometheus:
+  #       condition: service_healthy
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # # ----------- Postgres Exporter ---------------
+  # postgres-exporter:
+  #   image: prometheuscommunity/postgres-exporter:latest
+  #   container_name: teampulse-postgres-exporter
+  #   environment:
+  #     - DATA_SOURCE_NAME=postgresql://${DB_USERNAME}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}?sslmode=disable
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
+
+  # # ----------- Nginx Exporter ---------------
+  # nginx-exporter:
+  #   image: nginx/nginx-prometheus-exporter:latest
+  #   container_name: teampulse-nginx-exporter
+  #   command:
+  #     - '-nginx.scrape-uri=http://nginx:8081/stub_status'
+  #   depends_on:
+  #     - nginx
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
+
+  # # ----------- cAdvisor ---------------
+  # cadvisor:
+  #   image: gcr.io/cadvisor/cadvisor:latest
+  #   container_name: teampulse-cadvisor
+  #   volumes:
+  #     - /:/rootfs:ro
+  #     - /var/run:/var/run:ro
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker/:/var/lib/docker:ro
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
 
 networks:
   teampulse_net:
@@ -97,4 +183,8 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  # prometheus_data:
+  # grafana_data:
+
+
 

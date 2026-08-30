@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.teampulse.backend.dto.response.NotificationResponse;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.mapper.NotificationMapper;
 import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.User;
-import com.teampulse.backend.model.enums.EntityType;
-import com.teampulse.backend.model.enums.NotificationType;
 import com.teampulse.backend.repository.NotificationRepository;
 import com.teampulse.backend.repository.UserRepository;
 
@@ -36,7 +36,7 @@ public class NotificationService {
         log.info("Persisting new notification in DB for user: {}. Type: {}", recipient.getEmail(), type);
 
         Notification notification = new Notification();
-        notification.setId(UUID.randomUUID());
+        // notification.setId(UUID.randomUUID());
         notification.setRecipient(recipient);
         notification.setType(type);
         notification.setEntityType(entityType);

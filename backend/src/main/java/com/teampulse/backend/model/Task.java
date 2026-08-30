@@ -1,6 +1,6 @@
 package com.teampulse.backend.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -8,8 +8,8 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.teampulse.backend.model.enums.TaskPriority;
-import com.teampulse.backend.model.enums.TaskStatus;
+import com.teampulse.backend.enums.TaskPriority;
+import com.teampulse.backend.enums.TaskStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -71,9 +71,9 @@ public class Task {
 
 	@CreationTimestamp
 	@Column(name="created_at", nullable=false, updatable=false)
-	private LocalDateTime createdAt;
+	private Instant createdAt;
 
 	@UpdateTimestamp
 	@Column(name="updated_at", nullable=false)
-	private LocalDateTime updatedAt;
+	private Instant updatedAt;
 }

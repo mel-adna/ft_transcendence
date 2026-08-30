@@ -7,8 +7,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
 
-import com.teampulse.backend.model.enums.EntityType;
-import com.teampulse.backend.model.enums.NotificationType;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

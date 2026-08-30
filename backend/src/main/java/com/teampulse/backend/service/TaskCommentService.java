@@ -2,29 +2,29 @@ package com.teampulse.backend.service;
 
 import java.util.UUID;
 
+import com.teampulse.backend.event.TaskCommentCreatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import com.teampulse.backend.mapper.TaskCommentMapper;
-import com.teampulse.backend.repository.TaskCommentRepository;
-import com.teampulse.backend.repository.TaskRepository;
-import com.teampulse.backend.repository.UserRepository;
-import com.teampulse.backend.repository.WorkspaceMemberRepository;
-
 import org.springframework.transaction.annotation.Transactional;
 
 import com.teampulse.backend.dto.request.TaskCommentCreateRequest;
 import com.teampulse.backend.dto.request.TaskCommentUpdateRequest;
 import com.teampulse.backend.dto.response.TaskCommentResponse;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
+import com.teampulse.backend.mapper.TaskCommentMapper;
 import com.teampulse.backend.model.Task;
 import com.teampulse.backend.model.TaskComment;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.WorkspaceMember;
-import com.teampulse.backend.model.enums.WorkspaceMemberRole;
+import com.teampulse.backend.repository.TaskCommentRepository;
+import com.teampulse.backend.repository.TaskRepository;
+import com.teampulse.backend.repository.UserRepository;
+import com.teampulse.backend.repository.WorkspaceMemberRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -37,6 +37,7 @@ public class TaskCommentService {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final TaskCommentMapper taskCommentMapper;
 	private final ActivityLogService activityLogService;
+	private final ApplicationEventPublisher eventPublisher;
 
 
 	@Transactional
@@ -58,11 +59,13 @@ public class TaskCommentService {
 
 		TaskComment savedComment = taskCommentRepository.save(comment);
 
+		eventPublisher.publishEvent(new TaskCommentCreatedEvent(this, savedComment));
+
 		String logDescription = String.format("User %s %s added a comment to task: '%s'", author.getFirstName(),
 																							author.getLastName(),
 																							task.getTitle());
 
-		activityLogService.logActivity(workspaceId, author.getId(), savedComment.getId(), "TASK_COMMENT_CREATED", logDescription);
+		activityLogService.logActivity(workspaceId, author.getId(), task.getId(), "TASK_COMMENT_CREATED", logDescription);
 	
 		return taskCommentMapper.toResponse(savedComment);
 	}
@@ -103,7 +106,6 @@ public class TaskCommentService {
 		return taskCommentMapper.toResponse(updatedComment);
 	}
 
-
 	@Transactional
 	public void deleteComment(UUID commentId, String email) {
 		if (commentId == null)
@@ -131,8 +133,6 @@ public class TaskCommentService {
 
 		activityLogService.logActivity(workspaceId, currentUser.getId(), commentId, "TASK_COMMENT_DELETED", logDescription);
 	}
-
-
 
 	private void validateWorkspaceMembership(UUID workspaceId, String email) {
 		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
