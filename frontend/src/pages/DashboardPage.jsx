@@ -179,7 +179,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6">
-        <StatsDashboard tasks={tasks} />
+        <StatsDashboard tasks={tasks} workspaceId={workspaceId} />
       </div>
 
       <Modal open={Boolean(importSummary)} onClose={closeImportSummary} title="Import results">

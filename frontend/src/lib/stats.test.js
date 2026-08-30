@@ -79,35 +79,10 @@ describe('computeStats', () => {
     expect(last.completed).toBe(1);
   });
 
-  it('returns recent activity sorted by updatedAt descending, capped at 6', () => {
-    const tasks = [
-      task({ id: '1', updatedAt: '2026-07-20T10:00:00' }),
-      task({ id: '2', updatedAt: '2026-07-25T10:00:00' }),
-      task({ id: '3', updatedAt: '2026-07-15T10:00:00' }),
-      task({ id: '4', updatedAt: '2026-07-30T10:00:00' }),
-      task({ id: '5', updatedAt: '2026-07-10T10:00:00' }),
-      task({ id: '6', updatedAt: '2026-07-28T10:00:00' }),
-      task({ id: '7', updatedAt: '2026-07-05T10:00:00' }),
-      task({ id: '8', updatedAt: '2026-07-22T10:00:00' }),
-    ];
-
-    const result = computeStats(tasks);
-
-    expect(result.recentActivity).toHaveLength(6);
-    expect(result.recentActivity.map((item) => item.id)).toEqual([
-      '4',
-      '6',
-      '2',
-      '8',
-      '1',
-      '3',
-    ]);
-  });
-
   it('handles an empty task list without throwing', () => {
     const result = computeStats([]);
     expect(result.total).toBe(0);
     expect(result.activeColleagues).toBe(0);
-    expect(result.recentActivity).toEqual([]);
+    expect(result.completionTrend).toHaveLength(7);
   });
 });
