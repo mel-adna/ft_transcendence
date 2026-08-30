@@ -23,7 +23,8 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 13 | No activity log for task created or task deleted | The activity trail cannot show the two most common events | Small |
+| 13 | Activity trail misses task created, completed and self-assigned | A user working their own board produces an empty activity feed | Small |
+| 14 | `Instant` timestamps broke two frontend date helpers | Wrong day on the chart, wrong time on task details | Done here |
 | 11 | Refresh tokens cannot be revoked and never rotate | A leaked token grants 7 days of access that nothing can stop | Design |
 
 ## Fixed since the last review
@@ -155,7 +156,7 @@ app fails with `Schema-validation: missing table [activity_logs]`. Setting
 
 # Not blocking
 
-## 13. Nothing writes an activity log when a task is created or deleted
+## 13. The activity trail misses the two most common actions, and misattributes the rest
 
 `GET /activity-logs/workspace/{id}` works and the frontend now reads it. The gap is in what
 gets written. Grepping every `logActivity` call site gives the complete set of action types
@@ -169,9 +170,45 @@ the API can ever return:
 | `WORKSPACE_MEMBER_ADDED` | `WorkspaceEventListener` |
 
 `TASK_CREATED` and `TASK_DELETED` are missing. `NotificationType` already declares
-`TASK_DELETED`, so the enum expects it. The practical effect: creating a task with no
-assignee produces no activity at all, and deleting one leaves no trace. Those are the two
-most common things a user does, so the trail reads as though nothing happened.
+`TASK_DELETED`, so the enum expects it.
+
+Two further gaps make this worse than a missing row here and there.
+
+**Completing a task from the board logs nothing.** The completion trigger is commented out in
+the only status endpoint the frontend calls:
+
+```java
+// TaskService.updateTaskStatus
+//		if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
+//			triggerTaskCompletedEvent(updatedTask);
+//		}
+```
+
+The live `PUT /tasks/{id}` path does still have it, but the frontend always resends the task's
+current status on edit, so `oldStatus != DONE` is never true there. Dragging a card to Done
+therefore never writes `TASK_COMPLETED`.
+
+**Assigning a task to yourself logs nothing.** `TaskEventListener.handleTaskAssignedEvent`
+returns before `logActivity` when assigner and assignee are the same person. Skipping the
+*notification* is right, nobody wants to be emailed about their own action, but the early
+return also skips the activity log and the audit trail, which are not notifications.
+
+Measured against the running backend. Starting from 2 activity rows: create a task assigned
+to yourself, move it to DOING, then to DONE.
+
+```
+activity rows BEFORE: 2
+created self-assigned task 180557e5-7b4f-40a6-816f-02f38cd9f6fd
+dragged TODO -> DOING -> DONE
+activity rows AFTER:  2
+```
+
+Zero rows for the single most common workflow in the product. A user working their own board
+sees an empty activity feed no matter how much they get done.
+
+**The rows that do get written name the wrong person.** `TASK_COMPLETED` is logged with
+`task.getCreator().getId()` as the actor, not whoever completed it, so the feed credits the
+creator for someone else's work.
 
 `TaskService.createTask` and `deleteTask` already have everything the call needs. Two calls
 in the shape of the ones that are already there:
@@ -181,9 +218,15 @@ activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(),
         "TASK_CREATED", "Created the task: " + savedTask.getTitle());
 ```
 
-The frontend does not need a change for this. `activityLog.js` humanizes any unknown action
-type, so `TASK_CREATED` renders as "Task created" the moment the backend starts sending it,
-and gets its proper label once it is added to the map.
+The frontend does not need a change to display new action types. `activityLog.js` humanizes
+any unknown one, so `TASK_CREATED` renders as "Task created" the moment the backend starts
+sending it, and gets its proper label once it is added to the map.
+
+It does need a workaround for the emptiness, and has one: when the API trail comes back empty
+the dashboard falls back to deriving recent activity from the task list, which is what the
+panel did before it was wired to this endpoint. That keeps the panel useful, but it is a
+patch over the gap, not a fix. Once the three cases above are logged, the fallback stops
+being reached on its own.
 
 ### Smaller point: the descriptions are written for one reader
 
@@ -197,6 +240,38 @@ A real row from the running API:
 In a workspace-wide feed every other member reads a sentence addressed to somebody else.
 Naming the person ("... to Jhone Doe") makes the same string correct for every reader. The
 notification body can stay second person, since that one really does have a single reader.
+
+## 14. Switching the date fields to `Instant` changed the wire format
+
+This one is already fixed on the frontend and needs nothing from the backend. It is recorded
+because the cause is worth knowing before the next type change.
+
+`Task.createdAt` / `updatedAt` and the activity log timestamps are now `java.time.Instant`
+rather than `LocalDateTime`. Jackson serializes an `Instant` with a `Z`:
+
+```
+before   2026-08-24T09:16:00.044954
+after    2026-08-24T09:16:00.044954Z
+```
+
+That is the correct choice, an absolute instant is better than a naive local one. But it is a
+breaking change to the API contract, and it silently broke two things on the frontend that
+had been written against the old format:
+
+- `lib/stats.js` bucketed completions by the first 10 characters of the string, which is now
+  the **UTC** date, while the chart's day columns are built from the browser's **local**
+  calendar. In UTC+1 a task completed after local midnight was counted on the previous day or
+  dropped from the chart entirely.
+- `features/tasks/taskFormat.js` trimmed the string to 19 characters before parsing, which
+  removed the `Z` and made the browser read the value as local time. Every task date in the
+  detail modal was displayed shifted by the UTC offset.
+
+Both now parse the value as a real instant. There are regression tests for both, and they
+were checked by running them against the old code to confirm they fail there.
+
+Nothing is asked of the backend here. The point for next time: a type change like this is a
+contract change even when no field name moves, so it is worth a message to whoever consumes
+the API.
 
 ## 11. Refresh tokens cannot be revoked, and never rotate
 

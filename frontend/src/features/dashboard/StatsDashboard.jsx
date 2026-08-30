@@ -10,8 +10,8 @@ import {
 } from 'recharts';
 import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
-import { useActivityLogs } from './useActivityLogs';
-import { buildActivityFeed } from './activityLog';
+import { getErrorMessage } from '../../lib/api';
+import { buildActivityFeed, deriveActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
 import EmptyState from '../../components/EmptyState';
 import Spinner from '../../components/Spinner';
@@ -33,12 +33,12 @@ function formatRelativeTime(value) {
   const then = new Date(value).getTime();
   if (Number.isNaN(then)) return '';
   const diffMs = Math.max(0, Date.now() - then);
-  const minutes = Math.round(diffMs / 60000);
+  const minutes = Math.floor(diffMs / 60000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
-  const hours = Math.round(minutes / 60);
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  const days = Math.round(hours / 24);
+  const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
@@ -60,11 +60,19 @@ function StatCard({ icon: Icon, label, value }) {
   );
 }
 
-export default function StatsDashboard({ tasks, workspaceId }) {
+export default function StatsDashboard({
+  tasks,
+  activityLogs,
+  activityLoading,
+  activityError,
+  onRetryActivity,
+}) {
   const [range, setRange] = useState(7);
   const stats = useMemo(() => computeStats(tasks, range), [tasks, range]);
-  const { logs, loading: activityLoading, error: activityError } = useActivityLogs(workspaceId);
-  const activity = useMemo(() => buildActivityFeed(logs), [logs]);
+  const activity = useMemo(() => {
+    const fromApi = buildActivityFeed(activityLogs);
+    return fromApi.length > 0 ? fromApi : deriveActivityFeed(tasks);
+  }, [activityLogs, tasks]);
 
   return (
     <div className="space-y-6 text-left md:space-y-7">
@@ -162,7 +170,16 @@ export default function StatsDashboard({ tasks, workspaceId }) {
               <EmptyState
                 icon={AlertTriangle}
                 title="Could not load activity"
-                message="The activity trail is unavailable right now."
+                message={getErrorMessage(activityError)}
+                action={
+                  <button
+                    type="button"
+                    onClick={onRetryActivity}
+                    className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  >
+                    Retry
+                  </button>
+                }
               />
             </div>
           ) : activity.length === 0 ? (
@@ -170,7 +187,7 @@ export default function StatsDashboard({ tasks, workspaceId }) {
               <EmptyState
                 icon={Activity}
                 title="No activity yet"
-                message="Assignments, completions and comments will show up here."
+                message="Task updates and comments will show up here once work starts moving."
               />
             </div>
           ) : (
@@ -179,7 +196,11 @@ export default function StatsDashboard({ tasks, workspaceId }) {
                 <li key={entry.id} className="flex items-start gap-3">
                   <Avatar user={entry.user} size={32} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-white">{entry.description}</p>
+                    {entry.description && (
+                      <p className="break-words text-xs font-semibold text-white">
+                        {entry.description}
+                      </p>
+                    )}
                     <div className="mt-1.5 flex items-center gap-2">
                       <span
                         className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${

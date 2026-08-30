@@ -38,6 +38,7 @@ export default function TaskFormModal({
   onSubmit,
   task,
   members = [],
+  membersError = null,
   currentUser = null,
 }) {
   const currentUserId = currentUser?.id ?? null;
@@ -100,7 +101,7 @@ export default function TaskFormModal({
         title: title.trim(),
         description: description.trim(),
         priority,
-        assigneeId: assigneeId || (task ? null : (currentUserId ?? null)),
+        assigneeId: assigneeId || null,
       });
     } catch (submitError) {
       setServerError(getErrorMessage(submitError));
@@ -162,9 +163,11 @@ export default function TaskFormModal({
           label="Assign to"
           id="task-assignee"
           hint={
-            task
-              ? undefined
-              : 'New tasks are assigned to you unless you pick someone else.'
+            membersError
+              ? 'Your teammates could not be loaded, so only you are listed.'
+              : task
+                ? undefined
+                : 'New tasks are assigned to you unless you pick someone else.'
           }
         >
           <select
@@ -173,7 +176,7 @@ export default function TaskFormModal({
             onChange={(event) => setAssigneeId(event.target.value)}
             className={inputClass}
           >
-            {task && <option value="">Nobody</option>}
+            <option value="">Nobody</option>
             {assigneeOptions.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.id === currentUserId ? `${personName(person)} (you)` : personName(person)}

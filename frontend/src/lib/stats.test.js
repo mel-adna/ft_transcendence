@@ -79,6 +79,26 @@ describe('computeStats', () => {
     expect(last.completed).toBe(1);
   });
 
+  it('buckets a completion by the local day, not the UTC day', () => {
+    const offsetMinutes = new Date().getTimezoneOffset();
+    const edge = new Date();
+    edge.setHours(offsetMinutes > 0 ? 23 : 0, 30, 0, 0);
+
+    const result = computeStats(
+      [task({ id: 'edge', status: 'DONE', updatedAt: edge.toISOString() })],
+      7,
+    );
+
+    const expectedKey = `${edge.getFullYear()}-${String(edge.getMonth() + 1).padStart(2, '0')}-${String(
+      edge.getDate(),
+    ).padStart(2, '0')}`;
+    const bucket = result.completionTrend.find((item) => item.key === expectedKey);
+
+    expect(bucket).toBeDefined();
+    expect(bucket.completed).toBe(1);
+    expect(result.completionTrend.reduce((sum, item) => sum + item.completed, 0)).toBe(1);
+  });
+
   it('handles an empty task list without throwing', () => {
     const result = computeStats([]);
     expect(result.total).toBe(0);

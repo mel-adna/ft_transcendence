@@ -8,7 +8,13 @@ export function useMembers(workspaceId) {
   const currentRequestRef = useRef(null);
 
   const reload = useCallback(async () => {
-    if (!workspaceId) return;
+    if (!workspaceId) {
+      currentRequestRef.current = null;
+      setMembers([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     const requestToken = {};
     currentRequestRef.current = requestToken;
     setLoading(true);
@@ -20,6 +26,7 @@ export function useMembers(workspaceId) {
     } catch (requestError) {
       if (currentRequestRef.current !== requestToken) return;
       setError(requestError);
+      setMembers([]);
     } finally {
       if (currentRequestRef.current === requestToken) setLoading(false);
     }

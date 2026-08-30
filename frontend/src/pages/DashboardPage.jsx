@@ -8,6 +8,8 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import Modal from '../components/Modal';
 import StatsDashboard from '../features/dashboard/StatsDashboard';
+import { useActivityLogs } from '../features/dashboard/useActivityLogs';
+import { ACTIVITY_FEED_LIMIT } from '../features/dashboard/activityLog';
 
 const CSV_FILENAME = 'team-pulse-tasks.csv';
 
@@ -18,6 +20,12 @@ export default function DashboardPage() {
   const { current } = useWorkspace();
   const workspaceId = current?.id ?? null;
   const { tasks, loading, error, reload, createTask, moveTask } = useTasks(workspaceId);
+  const {
+    logs: activityLogs,
+    loading: activityLoading,
+    error: activityError,
+    reload: reloadActivity,
+  } = useActivityLogs(workspaceId, ACTIVITY_FEED_LIMIT);
 
   const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
@@ -89,7 +97,7 @@ export default function DashboardPage() {
 
     setImportProgress(null);
     if (created > 0) {
-      await reload();
+      await Promise.all([reload(), reloadActivity()]);
     }
 
     setImporting(false);
@@ -179,7 +187,13 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6">
-        <StatsDashboard tasks={tasks} workspaceId={workspaceId} />
+        <StatsDashboard
+          tasks={tasks}
+          activityLogs={activityLogs}
+          activityLoading={activityLoading}
+          activityError={activityError}
+          onRetryActivity={reloadActivity}
+        />
       </div>
 
       <Modal open={Boolean(importSummary)} onClose={closeImportSummary} title="Import results">

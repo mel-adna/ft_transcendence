@@ -9,7 +9,9 @@ export function useActivityLogs(workspaceId, size = 20) {
 
   const reload = useCallback(async () => {
     if (!workspaceId) {
+      currentRequestRef.current = null;
       setLogs([]);
+      setError(null);
       setLoading(false);
       return;
     }
