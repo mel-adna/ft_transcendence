@@ -1,5 +1,7 @@
 function dayKey(value) {
-  return String(value).slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return localDayKey(date);
 }
 
 function pad(value) {

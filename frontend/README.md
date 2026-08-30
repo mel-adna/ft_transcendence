@@ -39,7 +39,11 @@ The key has to stay named exactly `token`. The vendored chat module (`features/c
 
 There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," and a day-by-day completion trend. `stats.js` is a pure function (tasks in, numbers out) and has its own tests in `lib/stats.test.js`.
 
-The Recent Activity panel on the same page is the exception. It is the one part of the dashboard that is not computed from tasks: it reads the real audit trail from `GET /activity-logs/workspace/{id}` through `features/dashboard/useActivityLogs.js`. That endpoint returns a Spring `Slice`, so the rows are under `response.data.content`, not the response body itself. `features/dashboard/activityLog.js` turns each row into something displayable and is where the action types (`TASK_COMPLETED`, `WORKSPACE_MEMBER_ADDED`, and so on) get their labels. An action type the frontend has never seen is humanized automatically rather than dropped, so new backend events show up without a frontend change.
+The Recent Activity panel on the same page is the exception. It reads the real audit trail from `GET /activity-logs/workspace/{id}`, fetched in `DashboardPage` through `features/dashboard/useActivityLogs.js`. That endpoint returns a Spring `Slice`, so the rows are under `response.data.content`, not the response body itself. `features/dashboard/activityLog.js` turns each row into something displayable and is where the action types (`TASK_COMPLETED`, `WORKSPACE_MEMBER_ADDED`, and so on) get their labels. An action type the frontend has never seen is humanized automatically rather than dropped, so new backend events show up without a frontend change.
+
+The panel has a fallback, and it is worth knowing why. The backend does not currently log task creation, and it skips logging when you assign a task to yourself, and the completion trigger is commented out in the endpoint the board uses. The measured result is that creating a task and dragging it to Done writes zero rows. So when the API trail comes back empty, `deriveActivityFeed` builds the list from the task list instead, which is what this panel did before it was wired to the endpoint. Real audit rows win whenever there are any; the derived list only fills the gap. All three backend gaps are written up in `backend-issues.md` issue 13, and once they are logged the fallback stops being reached.
+
+The fetch lives in `DashboardPage` rather than inside `StatsDashboard` for two reasons: the page returns a spinner while tasks load, so a fetch inside the chart component could not start until the task request had finished, and the CSV import needs to refresh the activity trail along with the task list when it is done.
 
 The same is true of the app's two export features: CSV export and import (`lib/csv.js`) and the GDPR data export on the Settings page (`features/settings/dataExport.js`) are both built entirely client-side, because the backend does not expose a CSV endpoint or a personal-data export endpoint either. If asked where a number or a downloaded file comes from, the answer is almost always "computed in the browser from the task list," not "returned by an endpoint."
 
@@ -49,8 +53,10 @@ The same is true of the app's two export features: CSV export and import (`lib/c
 
 The default differs between creating and editing on purpose:
 
-- **Creating.** The picker starts on the signed-in user, and there is no "Nobody" option. A task created without touching the field belongs to its creator rather than to nobody.
-- **Editing.** The picker starts on whoever is currently assigned, and "Nobody" is offered, because clearing an assignee is a real thing to want and the backend supports it (`assigneeId: null` on `PUT /tasks/{id}`).
+- **Creating.** The picker starts on the signed-in user, so a task created without touching the field belongs to its creator rather than to nobody.
+- **Editing.** The picker starts on whoever is currently assigned.
+
+"Nobody" is offered in both cases. Clearing an assignee is a real thing to want, the backend supports it (`assigneeId: null`), and the CSV import already creates unassigned tasks, so hiding the option on create would have made the two creation paths disagree.
 
 The signed-in user is always in the list even if the members request failed, so the form still works when that endpoint is down.
 

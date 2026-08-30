@@ -25,7 +25,7 @@ export default function TasksPage() {
   const workspaceId = current?.id ?? null;
   const { tasks, loading, error, reload, createTask, updateTask, moveTask, removeTask } =
     useTasks(workspaceId);
-  const { members } = useMembers(workspaceId);
+  const { members, error: membersError } = useMembers(workspaceId);
   const roster = useMemo(() => buildRoster(members, current?.owner?.id), [members, current]);
 
   const location = useLocation();
@@ -294,6 +294,7 @@ export default function TasksPage() {
         onSubmit={handleFormSubmit}
         task={editingTask}
         members={roster}
+        membersError={membersError}
         currentUser={user}
       />
 

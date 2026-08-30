@@ -1,46 +1,51 @@
 const ACTION_LABEL = {
   TASK_ASSIGNED: 'Assigned',
-  TASK_STATUS_CHANGED: 'Status changed',
-  TASK_COMMENTED: 'Commented',
-  TASK_UPDATED: 'Updated',
+  TASK_UPDATED: 'Reassigned',
   TASK_COMPLETED: 'Completed',
-  TASK_DELETED: 'Deleted',
   TASK_COMMENT_CREATED: 'New comment',
   TASK_COMMENT_UPDATED: 'Comment edited',
   TASK_COMMENT_DELETED: 'Comment removed',
   WORKSPACE_MEMBER_ADDED: 'Member added',
-  WORKSPACE_MEMBER_REMOVED: 'Member removed',
-  WORKSPACE_ROLE_CHANGED: 'Role changed',
-  WORKSPACE_DELETED: 'Team deleted',
 };
 
 const ACTION_TONE = {
   TASK_COMPLETED: 'done',
   TASK_ASSIGNED: 'active',
-  TASK_STATUS_CHANGED: 'active',
   TASK_UPDATED: 'active',
-  TASK_DELETED: 'danger',
   TASK_COMMENT_DELETED: 'danger',
-  WORKSPACE_MEMBER_REMOVED: 'danger',
-  WORKSPACE_DELETED: 'danger',
 };
+
+const STATUS_LABEL = {
+  TODO: 'To do',
+  DOING: 'In progress',
+  DONE: 'Completed',
+};
+
+const STATUS_TONE = {
+  TODO: 'neutral',
+  DOING: 'active',
+  DONE: 'done',
+};
+
+export const ACTIVITY_FEED_LIMIT = 8;
 
 export function humanizeAction(actionType) {
   if (!actionType) return 'Activity';
-  const known = ACTION_LABEL[actionType];
-  if (known) return known;
+  if (Object.hasOwn(ACTION_LABEL, actionType)) return ACTION_LABEL[actionType];
   const words = String(actionType).toLowerCase().split('_').filter(Boolean);
   if (words.length === 0) return 'Activity';
   return words.join(' ').replace(/^./, (first) => first.toUpperCase());
 }
 
 export function actionTone(actionType) {
-  return ACTION_TONE[actionType] ?? 'neutral';
+  if (!actionType) return 'neutral';
+  return Object.hasOwn(ACTION_TONE, actionType) ? ACTION_TONE[actionType] : 'neutral';
 }
 
-export function buildActivityFeed(logs, limit = 8) {
+export function buildActivityFeed(logs, limit = ACTIVITY_FEED_LIMIT) {
   return (logs ?? [])
     .filter((log) => log?.id)
+    .slice(0, limit)
     .map((log) => ({
       id: log.id,
       user: log.user ?? null,
@@ -48,6 +53,21 @@ export function buildActivityFeed(logs, limit = 8) {
       tone: actionTone(log.actionType),
       description: log.description ?? '',
       createdAt: log.createdAt ?? null,
-    }))
-    .slice(0, limit);
+    }));
+}
+
+export function deriveActivityFeed(tasks, limit = ACTIVITY_FEED_LIMIT) {
+  return (tasks ?? [])
+    .filter((task) => task?.id && task.updatedAt)
+    .slice()
+    .sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))
+    .slice(0, limit)
+    .map((task) => ({
+      id: `task-${task.id}`,
+      user: task.assignee ?? task.creator ?? null,
+      label: STATUS_LABEL[task.status] ?? 'Updated',
+      tone: STATUS_TONE[task.status] ?? 'neutral',
+      description: task.title ?? '',
+      createdAt: task.updatedAt,
+    }));
 }

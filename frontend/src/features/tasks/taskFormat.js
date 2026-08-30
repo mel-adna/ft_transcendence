@@ -6,14 +6,14 @@ export function taskRef(task) {
 
 export function shortDate(value) {
   if (!value) return '';
-  const date = new Date(String(value).slice(0, 19));
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 export function fullDateTime(value) {
   if (!value) return '';
-  const date = new Date(String(value).slice(0, 19));
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString(undefined, {
     month: 'short',

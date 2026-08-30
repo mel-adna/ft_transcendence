@@ -49,3 +49,23 @@ describe('personName', () => {
     expect(personName(null)).toBe('Unassigned');
   });
 });
+
+describe('date parsing honors the UTC marker', () => {
+  it('reads an instant with Z as UTC, not as local time', () => {
+    const instant = '2026-08-30T23:30:00Z';
+    const expected = new Date(instant);
+
+    expect(fullDateTime(instant)).toBe(
+      expected.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    );
+    expect(shortDate(instant)).toBe(
+      expected.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    );
+  });
+});
