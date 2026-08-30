@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import com.teampulse.backend.model.enums.WorkspaceMemberRole;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;

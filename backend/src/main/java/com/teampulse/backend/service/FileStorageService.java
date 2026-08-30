@@ -13,6 +13,7 @@ import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.SetBucketPolicyArgs;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -40,6 +41,26 @@ public class FileStorageService {
 			boolean found = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
 			if (!found)
 				minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+
+			String policy = """
+						{
+							"Version": "2012-10-17",
+							"Statement": [
+					              {
+					                "Effect": "Allow",
+					                "Principal": "*",
+					                "Action": ["s3:GetObject"],
+					                "Resource": ["arn:aws:s3:::%s/*"]
+					              }
+					            ]
+						}
+					""".formatted(bucketName);
+
+			minioClient.setBucketPolicy(
+					SetBucketPolicyArgs.builder()
+							.bucket(bucketName)
+							.config(policy)
+							.build());
 
 			String originalFileName = file.getOriginalFilename();
 			String extention = originalFileName != null && originalFileName.contains(".")
