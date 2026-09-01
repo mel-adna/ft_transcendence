@@ -10,12 +10,11 @@ feature comes first.
 
 ## Blocking
 
-Something does not work, or does not run, until these land.
+Something does not work until this lands.
 
 | # | Issue | What breaks | Effort |
 |---|---|---|---|
 | 12 | Live secrets committed to a public repo | JWT signing key, DB and Grafana passwords, Google client secret are public | Urgent |
-| 9 | `V1__init_schema.sql` edited again, this time adding columns | Backend will not start on any existing database, and the new columns never get created | Config |
 
 ## Not blocking
 
@@ -73,66 +72,6 @@ secrets stay readable in the history at `f0066cd` and `27d6610`.
    that teammates already have, so it needs a heads-up first.
 
 Rotating the JWT secret logs everyone out, which is expected and harmless.
-
-## 9. Editing `V1__init_schema.sql` breaks existing databases
-
-The comments in `V1__init_schema.sql` were reworded (for example `-- PERSONAL, ORGANIZATION`
-became `-- Enum: PERSONAL, ORGANIZATION`). Flyway checksums the whole file, comments included,
-so any database that already ran V1 now refuses to start:
-
-```
-Migration checksum mismatch for migration version 1
--> Applied to database : -662914434
--> Resolved locally    : 626826728
-```
-
-The schema itself is unchanged, so this is safe to repair rather than rebuild. Recovery
-used on a local database:
-
-```bash
-docker exec teampulse-postgres psql -U med -d teampulsedb \
-  -c "UPDATE flyway_schema_history SET checksum = 626826728 WHERE version = '1';"
-```
-
-**Going forward:** treat an applied migration file as immutable, comments included. Anything
-that needs to change belongs in a new `V2__...sql`. Everyone on the team who already has a
-database will hit this, so it is worth a message rather than letting each person debug it.
-
-### What changed this round, and why it is now worse
-
-The second edit to `V1__init_schema.sql` is not a comment change. It adds two columns:
-
-```sql
-provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL',    -- Enum: LOCAL, GOOGLE
-provider_id VARCHAR(255),
-```
-
-That creates two separate problems on any database that already ran V1:
-
-1. **Flyway refuses to start**, same checksum mismatch as before.
-2. **Repairing the checksum is no longer enough.** Flyway records V1 as applied, so it will
-   never run the file again, so `provider` and `provider_id` are never created. The `User`
-   entity maps `provider` as non-null, so Hibernate's schema validation then fails on a
-   missing column, and if validation is off the first insert fails instead.
-
-The fix is a new migration, which is also the only thing that works for teammates who
-already have data:
-
-```sql
--- V2__add_auth_provider.sql
-ALTER TABLE users ADD COLUMN provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL';
-ALTER TABLE users ADD COLUMN provider_id VARCHAR(255);
-```
-
-Then revert `V1__init_schema.sql` to its applied contents so its checksum matches again.
-
-### Separately: `baseline-version` is back to 1
-
-`application.yaml` has `baseline-on-migrate: true` with `baseline-version: 1`. On a database
-that is not empty but has no `flyway_schema_history`, Flyway baselines at version 1, which
-marks V1 as already applied and skips it. The tables in V1 are then never created, and the
-app fails with `Schema-validation: missing table [activity_logs]`. Setting
-`baseline-version: 0` makes V1 run as it should.
 
 ---
 
