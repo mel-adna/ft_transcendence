@@ -1,8 +1,8 @@
 # Backend issues
 
 Status verified 2026-08-30 against `origin/mdbentaleb` at `27d6610`, by reading the merged
-source. Seven of the ten issues in the previous version of this file are fixed and have been
-removed. Two new ones are added.
+source. Everything already fixed has been removed, so the numbering has gaps. What is left
+is what still needs doing.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a
 given issue stays valid. The order of this file is by priority: everything that blocks a
@@ -24,7 +24,6 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
 | 13 | Activity trail misses task created, completed and self-assigned | A user working their own board produces an empty activity feed | Small |
-| 14 | `Instant` timestamps broke two frontend date helpers | Wrong day on the chart, wrong time on task details | Done here |
 | 11 | Refresh tokens cannot be revoked and never rotate | A leaked token grants 7 days of access that nothing can stop | Design |
 
 ---
@@ -223,38 +222,6 @@ A real row from the running API:
 In a workspace-wide feed every other member reads a sentence addressed to somebody else.
 Naming the person ("... to Jhone Doe") makes the same string correct for every reader. The
 notification body can stay second person, since that one really does have a single reader.
-
-## 14. Switching the date fields to `Instant` changed the wire format
-
-This one is already fixed on the frontend and needs nothing from the backend. It is recorded
-because the cause is worth knowing before the next type change.
-
-`Task.createdAt` / `updatedAt` and the activity log timestamps are now `java.time.Instant`
-rather than `LocalDateTime`. Jackson serializes an `Instant` with a `Z`:
-
-```
-before   2026-08-24T09:16:00.044954
-after    2026-08-24T09:16:00.044954Z
-```
-
-That is the correct choice, an absolute instant is better than a naive local one. But it is a
-breaking change to the API contract, and it silently broke two things on the frontend that
-had been written against the old format:
-
-- `lib/stats.js` bucketed completions by the first 10 characters of the string, which is now
-  the **UTC** date, while the chart's day columns are built from the browser's **local**
-  calendar. In UTC+1 a task completed after local midnight was counted on the previous day or
-  dropped from the chart entirely.
-- `features/tasks/taskFormat.js` trimmed the string to 19 characters before parsing, which
-  removed the `Z` and made the browser read the value as local time. Every task date in the
-  detail modal was displayed shifted by the UTC offset.
-
-Both now parse the value as a real instant. There are regression tests for both, and they
-were checked by running them against the old code to confirm they fail there.
-
-Nothing is asked of the backend here. The point for next time: a type change like this is a
-contract change even when no field name moves, so it is worth a message to whoever consumes
-the API.
 
 ## 11. Refresh tokens cannot be revoked, and never rotate
 
