@@ -27,23 +27,6 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 | 14 | `Instant` timestamps broke two frontend date helpers | Wrong day on the chart, wrong time on task details | Done here |
 | 11 | Refresh tokens cannot be revoked and never rotate | A leaked token grants 7 days of access that nothing can stop | Design |
 
-## Fixed since the last review
-
-Verified in the merged source. Listed so nobody re-reports them.
-
-| # | Was | Fixed by |
-|---|---|---|
-| 1 | JWT carried no `id` claim, chat was dead | `JwtUtils.generateToken` now puts `id` in `extraClaims` |
-| 2 | Notifications were never saved | Listeners moved to `@Async @TransactionalEventListener(AFTER_COMMIT)` |
-| 3 | Activity logs were never written | `logActivity` now runs in `Propagation.REQUIRES_NEW` |
-| 4 | `TaskCommentController` path was doubled | `@RequestMapping("/tasks/")` with `{taskId}/comments`, no leading slash |
-| 5 | Members endpoint returned `member: null` | `@Mapping(target = "member", source = "user")` in `WorkspaceMapper` |
-| 6 | `TaskResponse.workspaceId` was always null | `@Mapping(source = "workspace.id", target = "workspaceId")` |
-| 8 | Avatar bucket was private, images 403 | `FileStorageService` sets a public read bucket policy |
-| 10 | `/auth/refresh` returned 500 on a bad token | `GlobalExceptionHandler` now handles `JwtException` and `ExpiredJwtException` |
-
-CORS was fixed in an earlier round and was already removed from this file.
-
 ---
 
 # Blocking issues
