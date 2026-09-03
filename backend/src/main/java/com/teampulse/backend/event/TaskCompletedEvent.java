@@ -3,6 +3,7 @@ package com.teampulse.backend.event;
 import java.time.Clock;
 import java.time.Instant;
 
+import com.teampulse.backend.model.User;
 import org.springframework.context.ApplicationEvent;
 
 import com.teampulse.backend.model.Task;
@@ -13,9 +14,10 @@ import lombok.Getter;
 public class TaskCompletedEvent extends ApplicationEvent{
 
 	private final Task task;
+	private final User completedBy;
 	private final Instant timeAt;
 
-	public TaskCompletedEvent(Object source, Task task) {
+	public TaskCompletedEvent(Object source, Task task, User completedBy) {
 		super(source);
 
 		if (task == null) {
@@ -23,6 +25,7 @@ public class TaskCompletedEvent extends ApplicationEvent{
         }
 
 		this.task = task;
+		this.completedBy = completedBy;
         this.timeAt = Instant.now(Clock.systemUTC());
 	}
 }

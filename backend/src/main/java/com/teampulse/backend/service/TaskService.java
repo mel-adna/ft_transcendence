@@ -3,7 +3,6 @@ package com.teampulse.backend.service;
 import java.util.List;
 import java.util.UUID;
 
-import com.teampulse.backend.event.TaskAssignedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +12,7 @@ import com.teampulse.backend.dto.request.TaskStatusUpdateRequest;
 import com.teampulse.backend.dto.request.TaskUpdateRequest;
 import com.teampulse.backend.dto.response.TaskResponse;
 import com.teampulse.backend.enums.TaskStatus;
+import com.teampulse.backend.event.TaskAssignedEvent;
 import com.teampulse.backend.event.TaskCompletedEvent;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
@@ -40,6 +40,7 @@ public class TaskService {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final UserRepository userRepository;
 	private final TaskMapper taskMapper;
+	private final ActivityLogService activityLogService;
 	private final ApplicationEventPublisher eventPublisher;
 
 
@@ -72,6 +73,9 @@ public class TaskService {
 		}
 
 		Task savedTask = taskRepository.save(task);
+
+		String logDescription = String.format("%s %s created task '%s'", creator.getFirstName(), creator.getLastName(), savedTask.getTitle());
+		activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(), "TASK_CREATED", logDescription);
 
 		if (savedTask.getAssignee() != null)
 			eventPublisher.publishEvent(new TaskAssignedEvent(this, savedTask, savedTask.getAssignee(), creator, false));
@@ -118,6 +122,9 @@ public class TaskService {
 		UUID workspaceId = task.getWorkspace().getId();
 		validateWorkspaceMembership(workspaceId, email, "You don't have permission to update tasks in this workspace!");
 
+		User currentUser = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
 		final TaskStatus oldStatus = task.getStatus();
 		final User oldAssignee = task.getAssignee();
 
@@ -135,9 +142,7 @@ public class TaskService {
 
 		Task updatedTask = taskRepository.save(task);
 
-		if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
-			triggerTaskCompletedEvent(updatedTask);
-		}
+		checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser);
 
 		if (updatedTask.getAssignee() != null
 				&& (oldAssignee == null || !oldAssignee.getId().equals(updatedTask.getAssignee().getId()))) {
@@ -165,14 +170,15 @@ public class TaskService {
 
 		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to update task status!");
 
+		User currentUser = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
 		TaskStatus oldStatus = task.getStatus();
 		task.setStatus(request.getStatus());
 
 		Task updatedTask = taskRepository.save(task);
 
-//		if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
-//			triggerTaskCompletedEvent(updatedTask);
-//		}
+		checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser);
 
 		return taskMapper.toResponse(updatedTask);
 	}
@@ -188,7 +194,13 @@ public class TaskService {
 
 		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to delete tasks from this workspace!");
 
+		User currentUser = userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
 		taskRepository.delete(task);
+
+		String logDescription = String.format("%s %s deleted task '%s'", currentUser.getFirstName(), currentUser.getLastName(), task.getTitle());
+		activityLogService.logActivity(task.getWorkspace().getId(), currentUser.getId(), taskId, "TASK_DELETED", logDescription);
+
 		log.info("Task ID: {} was successfully deleted by user: {}", taskId, email);
 	}
 
@@ -217,8 +229,13 @@ public class TaskService {
 		return assignee;
 	}
 
-	private void triggerTaskCompletedEvent(Task completedTask) {
-		log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED.", completedTask.getId());
-		eventPublisher.publishEvent(new TaskCompletedEvent(this, completedTask));
+	private void checkAndTriggerStatusEvents(Task task, TaskStatus oldStatus, User actor) {
+		if (task.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE)
+			triggerTaskCompletedEvent(task, actor);
+	}
+
+	private void triggerTaskCompletedEvent(Task completedTask, User actor) {
+		log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED by user Id {}.", completedTask.getId(), actor.getId());
+		eventPublisher.publishEvent(new TaskCompletedEvent(this, completedTask, actor));
 	}
 }
