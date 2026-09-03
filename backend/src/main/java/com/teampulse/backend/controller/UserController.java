@@ -40,8 +40,6 @@ public class UserController {
 
 	private final UserService userService;
 
-
-
 	@Operation(
 		summary = "Get currently authenticated user details",
 		description = "Fetches the profile info of the user identified by the current JWT token. Essential for Frontend initialization."

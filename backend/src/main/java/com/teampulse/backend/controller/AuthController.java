@@ -1,33 +1,20 @@
 package com.teampulse.backend.controller;
 
-import java.security.Principal;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import com.teampulse.backend.dto.request.ForgotPasswordRequest;
-import com.teampulse.backend.dto.request.GoogleLoginRequest;
-import com.teampulse.backend.dto.request.LoginRequest;
-import com.teampulse.backend.dto.request.PasswordChangeRequest;
-import com.teampulse.backend.dto.request.ProfileUpdateRequest;
-import com.teampulse.backend.dto.request.RefreshTokenRequest;
-import com.teampulse.backend.dto.request.ResetPasswordRequest;
-import com.teampulse.backend.dto.request.SignupRequest;
+import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.service.UserService;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/auth")
@@ -46,7 +33,7 @@ public class AuthController {
 		return new ResponseEntity<>(userService.signup(request), HttpStatus.CREATED);
 	}
 
-	
+
 	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Authentication successful"),
@@ -76,7 +63,7 @@ public class AuthController {
 	})
 	@PutMapping("/profile")
 	public ResponseEntity<UserResponse> updateProfile(Principal principal,
-			@Valid @RequestBody ProfileUpdateRequest request) {
+	                                                  @Valid @RequestBody ProfileUpdateRequest request) {
 		return ResponseEntity.ok(userService.updateProfile(principal.getName(), request));
 	}
 
@@ -89,9 +76,21 @@ public class AuthController {
 	})
 	@PostMapping("/change-password")
 	public ResponseEntity<String> changePassword(Principal principal,
-			@Valid @RequestBody PasswordChangeRequest request) {
+	                                             @Valid @RequestBody PasswordChangeRequest request) {
 		userService.changePassword(principal.getName(), request);
 		return ResponseEntity.ok("Password changed successfully");
+	}
+
+
+	@Operation(summary = "Logout user", description = "Revokes and deletes the provided Refresh Token from the database to invalidate the session.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "204", description = "Logged out successfully"),
+			@ApiResponse(responseCode = "400", description = "Invalid request payload")
+	})
+	@PostMapping("/logout")
+	public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
+		userService.logout(request.getRefreshToken());
+		return ResponseEntity.noContent().build();
 	}
 
 
