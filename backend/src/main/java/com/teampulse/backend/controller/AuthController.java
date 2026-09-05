@@ -16,6 +16,7 @@ import com.teampulse.backend.dto.request.PasswordChangeRequest;
 import com.teampulse.backend.dto.request.RefreshTokenRequest;
 import com.teampulse.backend.dto.request.ResetPasswordRequest;
 import com.teampulse.backend.dto.request.SignupRequest;
+import com.teampulse.backend.dto.request.VerifyEmailRequest;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.service.UserService;
 
@@ -33,15 +34,27 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 	private final UserService userService;
 
-	@Operation(summary = "Register a new user", description = "Creates a new user account in Team-Pulse and returns access/refresh tokens.")
+	@Operation(summary = "Register a new user", description = "Creates an inactive user account and sends a 6-digit verification code to email.")
 	@ApiResponses({
-			@ApiResponse(responseCode = "201", description = "User registered successfully"),
-			@ApiResponse(responseCode = "400", description = "Email already exists or validation constraints failed")
+			@ApiResponse(responseCode = "201", description = "User registered successfully, verification code sent"),
+			@ApiResponse(responseCode = "400", description = "Email already exists")
 	})
 	@PostMapping("/signup")
-	public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest request) {
+	public ResponseEntity<String> signup(@Valid @RequestBody SignupRequest request) {
 		return new ResponseEntity<>(userService.signup(request), HttpStatus.CREATED);
 	}
+
+	@Operation(summary = "Verify account email", description = "Validates the 6-digit code sent via email and activates the user account.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Account verified successfully, returns JWT tokens"),
+			@ApiResponse(responseCode = "400", description = "Invalid or expired verification code")
+	})
+	@PostMapping("/verify-email")
+	public ResponseEntity<AuthResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+		return ResponseEntity.ok(userService.verifyEmail(request));
+	}
+
+
 
 	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")
 	@ApiResponses({
@@ -62,7 +75,6 @@ public class AuthController {
 	public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
 		return ResponseEntity.ok(userService.refreshToken(request));
 	}
-
 
 	@Operation(summary = "Change account password", description = "Allows the logged-in user to change their password after validating the old one.")
 	@ApiResponses({
