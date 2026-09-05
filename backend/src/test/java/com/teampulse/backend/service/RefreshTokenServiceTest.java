@@ -1,4 +1,4 @@
-package com.teampulse.backend;
+package com.teampulse.backend.service;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -27,7 +27,6 @@ import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.model.RefreshToken;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.repository.RefreshTokenRepository;
-import com.teampulse.backend.service.RefreshTokenService;
 
 @ExtendWith(MockitoExtension.class)
 public class RefreshTokenServiceTest {
@@ -37,7 +36,6 @@ public class RefreshTokenServiceTest {
 
 	@InjectMocks
 	public RefreshTokenService refreshTokenService;
-	// private RefreshTokenService refreshTokenService;
 
 	private User testUser;
 
