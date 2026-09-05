@@ -28,6 +28,7 @@ services:
     environment:
       # - VITE_API_URL=/api/v1
       - VITE_CORE_API_URL=/api/v1
+      - CORE_API_PROXY_TARGET=http://backend:8080
     networks:
       - teampulse_net
     restart: always
