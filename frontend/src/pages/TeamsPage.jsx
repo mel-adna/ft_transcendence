@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, AlertTriangle } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import Modal from '../components/Modal';
+import EditTeamModal from '../features/teams/EditTeamModal';
 import EmptyState from '../components/EmptyState';
 
 const TYPE_LABEL = {
@@ -19,7 +20,7 @@ function ownerName(owner) {
   return name || owner?.email || 'Unknown owner';
 }
 
-function TeamCard({ workspace, canDelete, onOpen, onDelete }) {
+function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
   const isOrganization = workspace.type === 'ORGANIZATION';
 
   return (
@@ -57,7 +58,17 @@ function TeamCard({ workspace, canDelete, onOpen, onDelete }) {
         >
           Open
         </button>
-        {canDelete && (
+        {canManage && (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={`Edit ${workspace.name}`}
+            className="rounded-lg border border-[#71717A]/25 p-2 text-[#71717A] transition-colors hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
+        {canManage && (
           <button
             type="button"
             onClick={onDelete}
@@ -78,6 +89,7 @@ export default function TeamsPage() {
   const navigate = useNavigate();
 
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
@@ -164,8 +176,9 @@ export default function TeamsPage() {
           <TeamCard
             key={workspace.id}
             workspace={workspace}
-            canDelete={workspace.owner?.id === user?.id}
+            canManage={workspace.owner?.id === user?.id}
             onOpen={() => openTeam(workspace)}
+            onEdit={() => setEditing(workspace)}
             onDelete={() => requestDelete(workspace)}
           />
         ))}
@@ -193,6 +206,13 @@ export default function TeamsPage() {
       </div>
 
       <div className="mt-6">{renderBody()}</div>
+
+      <EditTeamModal
+        open={Boolean(editing)}
+        onClose={() => setEditing(null)}
+        workspace={editing}
+        onSaved={refresh}
+      />
 
       <Modal open={Boolean(pendingDelete)} onClose={closeDeleteModal} title="Delete team">
         <p className="text-sm text-[#71717A]">

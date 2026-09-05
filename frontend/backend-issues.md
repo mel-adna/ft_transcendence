@@ -15,6 +15,7 @@ Something does not work until this lands.
 | # | Issue | What breaks | Effort |
 |---|---|---|---|
 | 12 | Live secrets committed to a public repo | JWT signing key, DB and Grafana passwords, Google client secret are public | Urgent |
+| 17 | The hardened public API in the spec does not exist | A mandatory MVP requirement with nothing implemented behind it | Real work |
 
 ## Not blocking
 
@@ -24,6 +25,7 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 |---|---|---|---|
 | 13 | No activity log for task created or task deleted | Creating a task leaves no trace in the feed | Small |
 | 15 | Two controllers register the same two operations | Duplicate endpoints in Swagger, and one documents a status it does not return | Small |
+| 16 | `WorkspaceResponse` omits `description` | Editing a team silently wipes its description, and no client can prevent it | 1 line |
 
 ---
 
@@ -72,6 +74,26 @@ secrets stay readable in the history at `f0066cd` and `27d6610`.
    that teammates already have, so it needs a heads-up first.
 
 Rotating the JWT secret logs everyone out, which is expected and harmless.
+
+## 17. The hardened public API from the spec is not implemented
+
+`README.md` section 2E lists this under **Core Features (MVP, Mandatory Part)**:
+
+> **Hardened Public API**: Exposes five secure, rate-limited endpoints requiring API keys:
+> `/api/tasks`, `/api/users`, `/api/organizations`, `/api/stats`, `/api/chat`
+
+None of it exists. Searching the whole backend and the nginx config finds no rate limiting of any
+kind (no bucket4j, no resilience4j, no `@RateLimiter`, no `limit_req` in nginx) and no API key
+handling (no `X-API-KEY`, no api key filter, no key storage). The five paths are not registered
+either; the real API lives under `/api/v1/...` with JWT authentication, which is a different
+thing from a keyed public API.
+
+This is worth raising early because it is the one gap that is mandatory rather than optional, and
+it is trivially checkable by an evaluator with `curl`: hammer any endpoint in a loop and nothing
+throttles.
+
+The smallest honest implementation is an `X-API-KEY` filter in front of the five paths plus
+`limit_req` zones in nginx, which is where rate limiting is cheapest to add.
 
 ---
 
@@ -147,6 +169,30 @@ A real row from the running API:
 In a workspace-wide feed every other member reads a sentence addressed to somebody else.
 Naming the person ("... to Jhone Doe") makes the same string correct for every reader. The
 notification body can stay second person, since that one really does have a single reader.
+
+## 16. `WorkspaceResponse` does not return `description`, so editing a team erases it
+
+`Workspace` stores a description and `WorkspaceCreateRequest` and `WorkspaceUpdateRequest` both
+accept one, but `WorkspaceResponse` exposes only `id`, `name`, `type` and `owner`. The field is
+write-only from a client's point of view: you can set it and never read it back.
+
+That turns into data loss on update. `WorkspaceUpdateRequest.description` is not annotated
+`@NotNull`, and MapStruct's `updateWorkspaceFromRequest` maps it straight onto the entity, so
+leaving it out sets it to null. Measured on the running backend:
+
+```
+description in DB before:                            after
+PUT /workspaces/{id} with only name and type
+description in DB after:                             <NULL>
+```
+
+No frontend can avoid this. Preserving a value requires reading it first, and the API never
+returns it. The Edit team form therefore says plainly that the field starts empty and that
+whatever is left in it replaces what was stored.
+
+**Fix:** add `private String description;` to `WorkspaceResponse`. The mapper already copies
+matching field names, so nothing else needs changing. Then the form can prefill it and the data
+loss disappears.
 
 ## 15. Change password and update profile are each registered twice
 

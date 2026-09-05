@@ -19,9 +19,11 @@ const ROLE_STYLE = {
   VIEWER: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
 };
 
-function MemberCard({ member, isSelf, onRemove }) {
+const ROLE_OPTIONS = ['ADMIN', 'MEMBER', 'VIEWER'];
+
+function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
   const { user, role } = member;
-  const canRemove = role !== 'OWNER' && !isSelf;
+  const canManage = role !== 'OWNER' && !isSelf;
   const name = fullName(user);
 
   return (
@@ -32,17 +34,35 @@ function MemberCard({ member, isSelf, onRemove }) {
           <p className="truncate text-sm font-bold text-white">{name}</p>
           <p className="truncate text-xs text-[#71717A]">{user.email}</p>
         </div>
-        <span
-          className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-            ROLE_STYLE[role] ?? ROLE_STYLE.MEMBER
-          }`}
-        >
-          {role}
-        </span>
+        {canManage ? (
+          <select
+            value={role}
+            onChange={(event) => onRoleChange(event.target.value)}
+            disabled={roleSaving}
+            aria-label={`Role for ${name}`}
+            className={`shrink-0 cursor-pointer rounded-full border bg-transparent px-2.5 py-1 text-[11px] font-semibold focus:border-[#3B82F6] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+              ROLE_STYLE[role] ?? ROLE_STYLE.MEMBER
+            }`}
+          >
+            {ROLE_OPTIONS.map((option) => (
+              <option key={option} value={option} className="bg-[#181824] text-white">
+                {option}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+              ROLE_STYLE[role] ?? ROLE_STYLE.MEMBER
+            }`}
+          >
+            {role}
+          </span>
+        )}
       </div>
 
       <div className="mt-5 flex items-center justify-end border-t border-[#27273a] pt-4">
-        {canRemove ? (
+        {canManage ? (
           <button
             type="button"
             onClick={onRemove}
@@ -73,6 +93,8 @@ export default function ColleaguesPage() {
   const [pendingRemove, setPendingRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(null);
+  const [roleSavingId, setRoleSavingId] = useState(null);
+  const [roleError, setRoleError] = useState(null);
 
   const roster = useMemo(() => {
     const fromApi = buildRoster(members, current?.owner?.id);
@@ -86,6 +108,23 @@ export default function ColleaguesPage() {
 
   function closeAddModal() {
     setAddModalOpen(false);
+  }
+
+  async function changeRole(member, role) {
+    if (!workspaceId || role === member.role) return;
+    setRoleSavingId(member.user.id);
+    setRoleError(null);
+    try {
+      await api.put(`/workspaces/${workspaceId}/members/role`, {
+        email: member.user.email,
+        role,
+      });
+      await reload();
+    } catch (requestError) {
+      setRoleError(getErrorMessage(requestError));
+    } finally {
+      setRoleSavingId(null);
+    }
   }
 
   function requestRemove(member) {
@@ -170,6 +209,8 @@ export default function ColleaguesPage() {
             key={member.user.id}
             member={member}
             isSelf={member.user.id === user?.id}
+            roleSaving={roleSavingId === member.user.id}
+            onRoleChange={(role) => changeRole(member, role)}
             onRemove={() => requestRemove(member)}
           />
         ))}
@@ -195,6 +236,15 @@ export default function ColleaguesPage() {
           Add Member
         </button>
       </div>
+
+      {roleError && (
+        <div
+          role="alert"
+          className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
+        >
+          {roleError}
+        </div>
+      )}
 
       <div className="mt-6">{renderBody()}</div>
 
