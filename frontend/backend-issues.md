@@ -23,7 +23,6 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
 | 13 | No activity log for task created or task deleted | Creating a task leaves no trace in the feed | Small |
-| 15 | Two controllers register the same two operations | Duplicate endpoints in Swagger, and one documents a status it does not return | Small |
 | 16 | `WorkspaceResponse` omits `description` | Editing a team silently wipes its description, and no client can prevent it | 1 line |
 
 ---
@@ -148,45 +147,3 @@ whatever is left in it replaces what was stored.
 **Fix:** add `private String description;` to `WorkspaceResponse`. The mapper already copies
 matching field names, so nothing else needs changing. Then the form can prefill it and the data
 loss disappears.
-
-## 15. Change password and update profile are each registered twice
-
-`AuthController` (`@RequestMapping("/auth")`) and `UserController` (`@RequestMapping("/users")`)
-both declare the same two operations, so four endpoints exist where two would do:
-
-| Endpoint | Calls | Returns |
-|---|---|---|
-| `POST /auth/change-password` | `userService.changePassword` | `200` with `"Password changed successfully"` |
-| `POST /users/change-password` | `userService.changePassword` | `204` with no body |
-| `PUT /auth/profile` | `userService.updateProfile` | `200` with `UserResponse` |
-| `PUT /users/profile` | `userService.updateProfile` | `200` with `UserResponse` |
-
-The profile pair is identical down to the response. The password pair differs only in the
-status code. Both were confirmed against the running backend by changing one account's password
-twice, once through each endpoint, then logging in with the final password:
-
-```
-POST /users/change-password   ->  204 No Content
-POST /auth/change-password    ->  200 OK
-login with the new password   ->  200 OK
-```
-
-The frontend calls the `/users/*` pair for both operations, which is the better home: changing
-your own password or name while signed in is a profile operation. `/auth/*` is for the things
-you do when you are not authenticated yet, which is where signup, login, refresh, and the
-forgot and reset pair belong.
-
-**Also: `/users/change-password` documents a status it does not return.** The method is
-declared `ResponseEntity<String>` and annotated `@ApiResponse(responseCode = "200")`, but the
-body is `return ResponseEntity.noContent().build()`, which is `204` and carries no string. The
-annotation is what Swagger publishes, so the docs promise `200` and the endpoint answers `204`.
-Anyone who clicks "Try it out" sees the mismatch.
-
-Nothing is broken. The frontend ignores the response body on both calls and only checks that the
-request succeeded, so `204` and `200` behave the same there. This is worth fixing because two
-endpoints for one operation is the kind of thing a reader notices immediately in Swagger, and
-because the two copies can drift: the password pair already has.
-
-**Suggested fix:** delete `changePassword` and `updateProfile` from `AuthController`, and correct
-the annotation on the surviving `/users/change-password` to `204`, or return `200` with the
-message and keep the annotation. Either is fine as long as the code and the annotation agree.
