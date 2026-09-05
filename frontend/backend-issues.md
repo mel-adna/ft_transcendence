@@ -10,11 +10,10 @@ feature comes first.
 
 ## Blocking
 
-Something does not work until this lands.
+A mandatory requirement with nothing behind it.
 
 | # | Issue | What breaks | Effort |
 |---|---|---|---|
-| 12 | Live secrets committed to a public repo | JWT signing key, DB and Grafana passwords, Google client secret are public | Urgent |
 | 17 | The hardened public API in the spec does not exist | A mandatory MVP requirement with nothing implemented behind it | Real work |
 
 ## Not blocking
@@ -30,50 +29,6 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 ---
 
 # Blocking issues
-
-## 12. Live secrets are committed to a public repository
-
-`.gitignore` was changed to stop ignoring `.env`, and two env files were then committed:
-
-```
-.gitignore        the five .env lines are now commented out
-backend/.gitignore  the .env line was deleted
-.env              committed, 29 lines
-backend/.env      committed, 20 lines
-```
-
-Between them they contain the real `JWT_SECRET`, the database password, the Grafana admin
-password, and the Google OAuth client secret. The repository is public, so anyone can read
-them. The JWT secret is the serious one: with it, anybody can mint a valid token for any
-account and the backend will accept it, because a signature check is the only thing standing
-between a request and a user's data.
-
-There is a second copy of the same problem that predates the `.env` commits.
-`application.yaml:95` hardcodes a real JWT secret as the default value:
-
-```yaml
-secret: ${JWT_SECRET:fe22c88271a103b33bdbe9cfc3d1e714c75850c44e1603463179ecac81eb0564}
-```
-
-That default is what runs whenever `JWT_SECRET` is not set, which includes the `backend`
-service in `docker-compose.yml`. So the tokens the app issues today are signed with a key
-that is published in the repository. The default needs to be removed so the app fails loudly
-on a missing secret rather than quietly using a public one.
-
-Deleting the files in a new commit is not enough. Git keeps every earlier version, so the
-secrets stay readable in the history at `f0066cd` and `27d6610`.
-
-**What needs to happen, in order:**
-
-1. Rotate every value in both files: new `JWT_SECRET`, new database password, new Grafana
-   password, and revoke the Google client secret in the Google Cloud console and issue a new
-   one. Rotating is what actually ends the exposure. Everything else is cleanup.
-2. Restore the `.gitignore` entries and `git rm --cached .env backend/.env`.
-3. Keep `.env.example` with empty values as the checked-in template.
-4. Optionally scrub the history with `git filter-repo`, after step 1. This rewrites commits
-   that teammates already have, so it needs a heads-up first.
-
-Rotating the JWT secret logs everyone out, which is expected and harmless.
 
 ## 17. The hardened public API from the spec is not implemented
 
