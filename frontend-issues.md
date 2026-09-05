@@ -2,6 +2,6 @@
 
 ### 1.  Missing Email Verification page after sginup
 
-- After the user signup (`/api/v1/auth/signup`), email verification is required.
+- After a successful signup (`/api/v1/auth/signup`), redirect the user to a new Email Verification page instead of the login or dashboard page.
 
-- The user must be redirected to the verification page after logging in (`/api/v1/auth/verify-email`).
+- Do not send an Authorization header with this request (ensure `Bearer` token is omitted).
