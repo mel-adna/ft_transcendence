@@ -1,5 +1,7 @@
 # Frontend Action Items
 
 ### 1.  Missing Email Verification page after sginup
-- After user signs up (`/api/v1/auth/signup`), should verifying the email
-- need create verification page after sign app (`/api/v1/auth/verify-email`)
+
+- After the user registers (`/api/v1/auth/signup`), email verification is required.
+
+- The user must be redirected to the verification page after logging in (`/api/v1/auth/verify-email`).
