@@ -1,11 +1,27 @@
 package com.teampulse.backend.service;
 
-import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import com.teampulse.backend.dto.request.*;
+import com.teampulse.backend.dto.response.AuthResponse;
+import com.teampulse.backend.dto.response.UserResponse;
+import com.teampulse.backend.enums.AuthProvider;
+import com.teampulse.backend.exception.BadRequestException;
+import com.teampulse.backend.exception.ResourceAlreadyExistsException;
+import com.teampulse.backend.exception.ResourceNotFoundException;
+import com.teampulse.backend.exception.UnauthorizedAccessException;
+import com.teampulse.backend.mapper.UserMapper;
+import com.teampulse.backend.model.PasswordResetToken;
+import com.teampulse.backend.model.RefreshToken;
+import com.teampulse.backend.model.User;
+import com.teampulse.backend.repository.PasswordResetTokenRepository;
+import com.teampulse.backend.repository.UserRepository;
+import com.teampulse.backend.security.JwtUtils;
+import com.teampulse.backend.security.UserPrincipal;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -16,35 +32,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
-import com.teampulse.backend.dto.request.ForgotPasswordRequest;
-import com.teampulse.backend.dto.request.GoogleLoginRequest;
-import com.teampulse.backend.dto.request.LoginRequest;
-import com.teampulse.backend.dto.request.PasswordChangeRequest;
-import com.teampulse.backend.dto.request.ProfileUpdateRequest;
-import com.teampulse.backend.dto.request.RefreshTokenRequest;
-import com.teampulse.backend.dto.request.ResetPasswordRequest;
-import com.teampulse.backend.dto.request.SignupRequest;
-import com.teampulse.backend.dto.response.AuthResponse;
-import com.teampulse.backend.dto.response.UserResponse;
-import com.teampulse.backend.enums.AuthProvider;
-import com.teampulse.backend.exception.BadRequestException;
-import com.teampulse.backend.exception.ResourceAlreadyExistsException;
-import com.teampulse.backend.exception.ResourceNotFoundException;
-import com.teampulse.backend.exception.UnauthorizedAccessException;
-import com.teampulse.backend.mapper.UserMapper;
-import com.teampulse.backend.model.PasswordResetToken;
-import com.teampulse.backend.model.User;
-import com.teampulse.backend.repository.PasswordResetTokenRepository;
-import com.teampulse.backend.repository.UserRepository;
-import com.teampulse.backend.security.JwtUtils;
-import com.teampulse.backend.security.UserPrincipal;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -54,6 +46,7 @@ public class UserService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final JwtUtils jwtUtils;
+	private final RefreshTokenService refreshTokenService;
 	private final AuthenticationManager authenticationManager;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final EmailService emailService;
@@ -81,16 +74,16 @@ public class UserService {
 		UserPrincipal userPrincipal = new UserPrincipal(savedUser);
 
 		String accessToken = jwtUtils.generateToken(userPrincipal);
-		String refreshToken = jwtUtils.generateRefreshToken(userPrincipal);
+		RefreshToken refreshToken = refreshTokenService.createRefreshToken(savedUser);
 
 		return AuthResponse.builder()
 				.accessToken(accessToken)
-				.refreshToken(refreshToken)
+				.refreshToken(refreshToken.getToken())
 				.user(userMapper.toResponse(savedUser))
 				.build();
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public AuthResponse login(LoginRequest request) {
 		try {
 			Authentication authentication = authenticationManager.authenticate(
@@ -100,11 +93,13 @@ public class UserService {
 			User user = userPrincipal.getUser();
 
 			String accessToken = jwtUtils.generateToken(userPrincipal);
-			String refreshToken = jwtUtils.generateRefreshToken(userPrincipal);
+
+			refreshTokenService.deleteByUserId(user);
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
-					.refreshToken(refreshToken)
+					.refreshToken(refreshToken.getToken())
 					.user(userMapper.toResponse(user))
 					.build();
 
@@ -113,28 +108,30 @@ public class UserService {
 		}
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
-		String refreshToken = request.getRefreshToken();
-		String email = jwtUtils.extractUsername(refreshToken);
+		String tokenStr = request.getRefreshToken();
 
-		if (email != null) {
-			User user = userRepository.findByEmail(email)
-					.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(tokenStr);
+		User user = verifiedToken.getUser();
 
-			UserPrincipal userPrincipal = new UserPrincipal(user);
+		refreshTokenService.deleteByToken(tokenStr);
+		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
 
-			if (jwtUtils.isTokenValid(refreshToken, userPrincipal)) {
-				String newAccessToken = jwtUtils.generateToken(userPrincipal);
+		UserPrincipal userPrincipal = new UserPrincipal(user);
+		String newAccessToken = jwtUtils.generateToken(userPrincipal);
 
-				return AuthResponse.builder()
-						.accessToken(newAccessToken)
-						.refreshToken(refreshToken)
-						.user(userMapper.toResponse(user))
-						.build();
-			}
-		}
-		throw new BadRequestException("Invalid or expired refresh token!");
+		return AuthResponse.builder()
+				.accessToken(newAccessToken)
+				.refreshToken(newRefreshToken.getToken())
+				.user(userMapper.toResponse(user))
+				.build();
+	}
+
+	@Transactional
+	public void logout(String refreshToken) {
+		if (refreshToken != null && !refreshToken.isBlank())
+			refreshTokenService.deleteByToken(refreshToken);
 	}
 
 	@Transactional
@@ -164,6 +161,8 @@ public class UserService {
 
 		user.setPasswordHashed(passwordEncoder.encode(request.getNewPassword()));
 		userRepository.save(user);
+
+		refreshTokenService.deleteByUserId(user);
 	}
 
 	@Transactional(readOnly = true)
@@ -236,6 +235,9 @@ public class UserService {
 		userRepository.save(user);
 
 		passwordResetTokenRepository.delete(resetToken);
+
+		refreshTokenService.deleteByUserId(user);
+
 		log.info("Password successfully updated and token revoked for user ID: {}", user.getId());
 	}
 
@@ -307,11 +309,13 @@ public class UserService {
 
 			UserPrincipal userPrincipal = new UserPrincipal(user);
 			String accessToken = jwtUtils.generateToken(userPrincipal);
-			String refreshToken = jwtUtils.generateRefreshToken(userPrincipal);
+
+			refreshTokenService.deleteByUserId(user);
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
-					.refreshToken(refreshToken)
+					.refreshToken(refreshToken.getToken())
 					.user(userMapper.toResponse(user))
 					.build();
 

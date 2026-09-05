@@ -1,20 +1,18 @@
 package com.teampulse.backend.security;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-
-import javax.crypto.SecretKey;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 @Component
 public class JwtUtils {
@@ -25,9 +23,6 @@ public class JwtUtils {
 	@Value("${app.jwt.access-expiration-ms}")
 	private long jwtExpiration;
 
-	@Value("${app.jwt.refresh-expiration-ms}")
-	private long refreshExpiration;
-
 	public String extractUsername(String token) {
 		return extractClaim(token, claims -> claims.getSubject());
 	}
@@ -36,10 +31,6 @@ public class JwtUtils {
 		final Claims claims = extractAllClaims(token);
 		return claimsResolver.apply(claims);
 	}
-
-	// public String generateToken(UserDetails userDetails) {
-	// return generateToken(new HashMap<>(), userDetails);
-	// }
 
 	public String generateToken(UserDetails userDetails) {
 		Map<String, Object> extraClaims = new HashMap<>();
@@ -61,15 +52,6 @@ public class JwtUtils {
 				.compact();
 	}
 
-	public String generateRefreshToken(UserDetails userDetails) {
-		return Jwts.builder()
-				.subject(userDetails.getUsername())
-				.issuedAt(new Date(System.currentTimeMillis()))
-				.expiration(new Date(System.currentTimeMillis() + refreshExpiration))
-				.signWith(getSignInKey())
-				.compact();
-	}
-
 	public boolean isTokenValid(String token, UserDetails userDetails) {
 		final String username = extractUsername(token);
 		return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
@@ -80,7 +62,7 @@ public class JwtUtils {
 	}
 
 	private Date extractExpiration(String token) {
-		return extractClaim(token, claims -> claims.getExpiration());
+		return extractClaim(token, Claims::getExpiration);
 	}
 
 	private Claims extractAllClaims(String token) {
