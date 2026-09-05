@@ -37,8 +37,8 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/login', { replace: true });
   }
 

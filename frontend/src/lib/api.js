@@ -5,7 +5,7 @@ const REFRESH_TOKEN_KEY = 'refreshToken';
 
 const baseURL = import.meta.env.VITE_CORE_API_URL ?? 'http://localhost:8080/api/v1';
 
-const AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/refresh'];
+const AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/refresh', '/auth/logout'];
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -26,6 +26,16 @@ export function setRefreshToken(value) {
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export async function revokeRefreshToken() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return;
+  try {
+    await axios.post(`${baseURL}/auth/logout`, { refreshToken });
+  } catch {
+    return;
+  }
 }
 
 const api = axios.create({

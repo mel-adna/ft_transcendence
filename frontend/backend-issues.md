@@ -22,9 +22,8 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 13 | Activity trail misses task created, completed and self-assigned | A user working their own board produces an empty activity feed | Small |
+| 13 | No activity log for task created or task deleted | Creating a task leaves no trace in the feed | Small |
 | 15 | Two controllers register the same two operations | Duplicate endpoints in Swagger, and one documents a status it does not return | Small |
-| 11 | Refresh tokens cannot be revoked and never rotate | A leaked token grants 7 days of access that nothing can stop | Design |
 
 ---
 
@@ -78,7 +77,7 @@ Rotating the JWT secret logs everyone out, which is expected and harmless.
 
 # Not blocking
 
-## 13. The activity trail misses the two most common actions, and misattributes the rest
+## 13. The activity trail still misses task created and task deleted
 
 `GET /activity-logs/workspace/{id}` works and the frontend now reads it. The gap is in what
 gets written. Grepping every `logActivity` call site gives the complete set of action types
@@ -96,19 +95,10 @@ the API can ever return:
 
 Two further gaps make this worse than a missing row here and there.
 
-**Completing a task from the board logs nothing.** The completion trigger is commented out in
-the only status endpoint the frontend calls:
-
-```java
-// TaskService.updateTaskStatus
-//		if (updatedTask.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE) {
-//			triggerTaskCompletedEvent(updatedTask);
-//		}
-```
-
-The live `PUT /tasks/{id}` path does still have it, but the frontend always resends the task's
-current status on edit, so `oldStatus != DONE` is never true there. Dragging a card to Done
-therefore never writes `TASK_COMPLETED`.
+**Completing a task from the board is now logged.** Fixed in `a3e40f4`. `updateTaskStatus`
+calls `checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser)`, so dragging a card to
+Done writes `TASK_COMPLETED`. The same commit gave `triggerTaskCompletedEvent` an `actor`
+parameter, which also fixes the misattribution below.
 
 **Assigning a task to yourself logs nothing.** `TaskEventListener.handleTaskAssignedEvent`
 returns before `logActivity` when assigner and assignee are the same person. Skipping the
@@ -118,19 +108,14 @@ return also skips the activity log and the audit trail, which are not notificati
 Measured against the running backend. Starting from 2 activity rows: create a task assigned
 to yourself, move it to DOING, then to DONE.
 
-```
-activity rows BEFORE: 2
-created self-assigned task 180557e5-7b4f-40a6-816f-02f38cd9f6fd
-dragged TODO -> DOING -> DONE
-activity rows AFTER:  2
-```
+That measurement was taken before `a3e40f4`. Completions now log, so the remaining gap is
+narrower: creating a task still writes nothing, and neither does deleting one.
 
-Zero rows for the single most common workflow in the product. A user working their own board
-sees an empty activity feed no matter how much they get done.
+**Misattribution is fixed too.** `TASK_COMPLETED` used to be logged against
+`task.getCreator()` rather than whoever finished the task. `a3e40f4` passes the acting user
+through, so the feed now credits the right person.
 
-**The rows that do get written name the wrong person.** `TASK_COMPLETED` is logged with
-`task.getCreator().getId()` as the actor, not whoever completed it, so the feed credits the
-creator for someone else's work.
+What is still missing is `TASK_CREATED` and `TASK_DELETED`, and the self-assignment skip.
 
 `TaskService.createTask` and `deleteTask` already have everything the call needs. Two calls
 in the shape of the ones that are already there:
@@ -204,45 +189,3 @@ because the two copies can drift: the password pair already has.
 **Suggested fix:** delete `changePassword` and `updateProfile` from `AuthController`, and correct
 the annotation on the surviving `/users/change-password` to `204`, or return `200` with the
 message and keep the annotation. Either is fine as long as the code and the annotation agree.
-
-## 11. Refresh tokens cannot be revoked, and never rotate
-
-This is a design weakness rather than a defect. Nothing is broken, but it is the security
-question most likely to be asked about the auth flow, so it is written down.
-
-Refresh tokens are stateless JWTs. There is no `refresh_tokens` table and no store of any
-kind: `UserService.refreshToken` validates the signature and the expiry and nothing else.
-Three consequences follow.
-
-- **No revocation.** Once issued, a refresh token is valid for its full 7 days. Logging out
-  only clears the browser's copy. Changing the password does not help either, because
-  validation checks the signature, the expiry, and the username, none of which change.
-- **No rotation.** `refreshToken()` returns the same refresh token it was given, so a single
-  stolen token keeps minting access tokens for the whole window.
-- **Long window.** `refresh-expiration-ms` is 7 days. `access-expiration-ms` defaults to
-  1 hour in `application.yaml:97`. The committed `.env` overrides it to 15 minutes, but the
-  `backend` service in `docker-compose.yml` does not pass `JWT_ACCESS_EXPIRATION`, so the
-  container still runs on the 1 hour default. Either set the default to 900000 or add the
-  variable to the compose service.
-
-The frontend stores the refresh token in `localStorage`, which is readable by any script on
-the origin. This is a common pattern and the app has no XSS vector today (no
-`dangerouslySetInnerHTML`, no `innerHTML`, no `eval` in the codebase, and React escapes by
-default), and traffic is HTTPS through nginx, so this is about XSS specifically rather than
-interception. The combination above is what makes the consequences of an XSS bug severe:
-the token can be exfiltrated and replayed from another machine for a week, and nobody can
-stop it.
-
-**Cheapest improvements, in order:**
-
-1. Lower `JWT_REFRESH_EXPIRATION`. Seven days is generous for this app. One config line.
-2. Make the 15 minute access token actually apply in Docker, either by changing the default
-   at `application.yaml:97` or by adding `JWT_ACCESS_EXPIRATION` to the `backend` service in
-   `docker-compose.yml`. The frontend refreshes automatically now, so a short access token
-   costs the user nothing.
-3. Rotate the refresh token on every use and persist the current one, so a replayed old token
-   can be detected and rejected.
-4. Move the refresh token to an httpOnly, Secure, SameSite cookie. This is the real fix, and
-   it is a backend change: the frontend cannot do it alone.
-
-Steps 1 and 2 are free and meaningfully reduce the blast radius.

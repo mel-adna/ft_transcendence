@@ -469,13 +469,13 @@ export default function SettingsPage() {
   const { workspaces } = useWorkspace();
   const navigate = useNavigate();
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate('/login', { replace: true });
   }
 
-  function handleAccountDeleted() {
-    logout();
+  async function handleAccountDeleted() {
+    await logout();
     navigate('/login', { replace: true });
   }
 

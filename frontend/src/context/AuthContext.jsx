@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import api, { setToken, setRefreshToken, getToken, clearToken } from '../lib/api';
+import api, { setToken, setRefreshToken, getToken, clearToken, revokeRefreshToken } from '../lib/api';
 import { AuthContext } from './useAuth';
 
 export function AuthProvider({ children }) {
@@ -39,7 +39,8 @@ export function AuthProvider({ children }) {
     setUser(response.data.user);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await revokeRefreshToken();
     clearToken();
     localStorage.removeItem('workspaceId');
     setUser(null);
