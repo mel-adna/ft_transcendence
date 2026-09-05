@@ -63,6 +63,10 @@ public class User {
 	private String providerId;
 
 	@Builder.Default
+	@Column(nullable=false)
+	private boolean enabled = false;
+
+	@Builder.Default
 	@Column(name="deleted", nullable=false)
 	private boolean deleted = false;
 
