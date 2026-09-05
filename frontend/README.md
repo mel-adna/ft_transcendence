@@ -63,6 +63,17 @@ The default differs between creating and editing on purpose:
 The signed-in user is always in the list even if the members request failed, so the form still works when that endpoint is down.
 
 
+## Editing a team, and changing a role
+
+Two controls close gaps in screens that were otherwise read-only.
+
+**Teams** has a pencil next to the delete button, on teams you own. It opens `EditTeamModal` and sends `PUT /workspaces/{id}`. That request needs `type` as well as `name`: the DTO marks it `@NotNull`, so a rename that omits it comes back 400.
+
+The description field in that form starts empty and says so. This is not an oversight: `WorkspaceResponse` returns only `id`, `name`, `type` and `owner`, so there is no way to read the current description and prefill it, and because the update maps a missing description straight onto the entity, saving replaces whatever was there. The form states that plainly rather than hiding it. `backend-issues.md` issue 16 has the one-line backend fix.
+
+**Colleagues** turns the role badge into a select, sending `PUT /workspaces/{id}/members/role` with the member's email and the new role. It stays a plain badge for the workspace owner and for yourself, matching the rule the Remove button already used, so you cannot lock yourself out of your own team. Only admins may call it; anyone else gets refused by the backend.
+
+
 ## Testing
 
 `npm test` runs vitest against seven files, 57 tests total:
