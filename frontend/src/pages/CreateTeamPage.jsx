@@ -10,6 +10,9 @@ import Spinner from '../components/Spinner';
 const inputClass =
   'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] px-3 py-2.5 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
 
+const NAME_MAX = 100;
+const DESCRIPTION_MAX = 500;
+
 const TYPE_OPTIONS = [
   {
     value: 'ORGANIZATION',
@@ -23,10 +26,25 @@ const TYPE_OPTIONS = [
   },
 ];
 
+function CharCount({ value, max }) {
+  return (
+    <span className="text-[11px] tabular-nums text-[#71717A]">
+      {value.length}/{max}
+    </span>
+  );
+}
+
 function validateName(value) {
   const requiredError = validateRequired(value, 'Team name');
   if (requiredError) return requiredError;
-  if (value.trim().length > 100) return 'Team name must be 100 characters or fewer.';
+  if (value.trim().length > NAME_MAX) return `Team name must be ${NAME_MAX} characters or fewer.`;
+  return null;
+}
+
+function validateDescription(value) {
+  if (value.trim().length > DESCRIPTION_MAX) {
+    return `Description must be ${DESCRIPTION_MAX} characters or fewer.`;
+  }
   return null;
 }
 
@@ -52,6 +70,8 @@ export default function CreateTeamPage() {
     const nextErrors = {};
     const nameError = validateName(name);
     if (nameError) nextErrors.name = nameError;
+    const descriptionError = validateDescription(description);
+    if (descriptionError) nextErrors.description = descriptionError;
 
     setErrors(nextErrors);
     setServerError(null);
@@ -98,14 +118,19 @@ export default function CreateTeamPage() {
         </div>
 
         <form className="mt-6 space-y-5" onSubmit={handleSubmit} noValidate>
-          <Field label="Team Name" id="name" error={errors.name}>
+          <Field
+            label="Team Name"
+            id="name"
+            error={errors.name}
+            action={<CharCount value={name} max={NAME_MAX} />}
+          >
             <input
               id="name"
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Design Systems"
-              maxLength={100}
+              maxLength={NAME_MAX}
               className={inputClass}
             />
           </Field>
@@ -117,6 +142,8 @@ export default function CreateTeamPage() {
               </>
             }
             id="description"
+            error={errors.description}
+            action={<CharCount value={description} max={DESCRIPTION_MAX} />}
           >
             <textarea
               id="description"
@@ -124,6 +151,7 @@ export default function CreateTeamPage() {
               onChange={(event) => setDescription(event.target.value)}
               placeholder="What is the primary objective of this team?"
               rows={4}
+              maxLength={DESCRIPTION_MAX}
               className={`${inputClass} resize-none`}
             />
           </Field>

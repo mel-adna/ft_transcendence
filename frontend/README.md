@@ -11,7 +11,10 @@ Team Pulse is a task and team collaboration app: workspaces, a kanban task board
 What has to be running for the app to actually work:
 
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
-- The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works fine without it.
+- The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works
+  fine without it. That service is not in this branch: it lives in `backend/` on `origin/aarab`, which is
+  an Express + socket.io + Prisma app, not the Java one. With nothing listening on 5005 the chat screen
+  shows `Failed to fetch`, which is the browser's own message for a refused connection, not an app error.
 
 The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
