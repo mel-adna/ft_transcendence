@@ -24,6 +24,7 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 |---|---|---|---|
 | 13 | No activity log for task created or task deleted | Creating a task leaves no trace in the feed | Small |
 | 16 | `WorkspaceResponse` omits `description` | Editing a team silently wipes its description, and no client can prevent it | 1 line |
+| 18 | `POST /workspaces` returns 500 on a long description | A description over 500 characters crashes team creation instead of being rejected | 1 line |
 
 ---
 
@@ -147,3 +148,53 @@ whatever is left in it replaces what was stored.
 **Fix:** add `private String description;` to `WorkspaceResponse`. The mapper already copies
 matching field names, so nothing else needs changing. Then the form can prefill it and the data
 loss disappears.
+
+## 18. `POST /workspaces` returns 500 for a description over 500 characters
+
+`WorkspaceUpdateRequest.description` is annotated `@Size(max=500)`. `WorkspaceCreateRequest.description`
+is not annotated at all. The column is `varchar(500)`. So the create path lets an oversized value
+through bean validation and Postgres rejects it at insert time.
+
+Measured on the running backend, same payload, same field, two endpoints:
+
+```
+POST /workspaces   description = 500 chars  ->  201 Created
+POST /workspaces   description = 501 chars  ->  500 Internal Server Error
+PUT  /workspaces/{id}  description = 501 chars  ->  400 Bad Request
+                       {"description":"Workspace description must not exceed 500 characters"}
+```
+
+The 500 body is the generic `An unexpected server error occurred. Please try again later.`, so the
+user is told nothing about which field was wrong. The backend log shows the real cause:
+
+```
+PSQLException: ERROR: value too long for type character varying(500)
+DataIntegrityViolationException: could not execute batch [insert into workspaces ...]
+```
+
+Reproduced from the Create Team screen by pasting a long paragraph into Description.
+
+**Fix:** copy the annotation that `WorkspaceUpdateRequest` already has onto
+`WorkspaceCreateRequest.description`:
+
+```java
+@Size(max=500, message="Workspace description must not exceed 500 characters")
+private String description;
+```
+
+The frontend now caps the field at 500 characters, so this is no longer reachable from the Create
+Team screen. It stays reachable from Swagger and from any other client.
+
+### The wider point
+
+`GlobalExceptionHandler` has handlers for `MethodArgumentNotValidException`, `BadRequestException`,
+`ResourceNotFoundException`, `UnauthorizedAccessException`, `ResourceAlreadyExistsException`,
+`ExpiredJwtException`, `JwtException` and `BadCredentialsException`, then a catch-all
+`@ExceptionHandler(Exception.class)` that returns 500. There is no handler for
+`DataIntegrityViolationException`.
+
+So any constraint the database enforces but bean validation does not, length, a not-null column, a
+foreign key, surfaces as a 500 rather than a 4xx. Duplicates are the exception: the service layer
+checks those itself and throws `ResourceAlreadyExistsException`, which is handled. The missing `@Size` is one instance of
+that. Adding a `DataIntegrityViolationException` handler that returns 409 or 400 would stop the
+whole class of them from being reported as server crashes.
