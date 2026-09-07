@@ -64,9 +64,10 @@ export default function LoginPage() {
     try {
       if (mode === 'signup') {
         await signup({ firstName, lastName, email, password });
-      } else {
-        await login(email, password);
+        navigate('/verify-email', { replace: true, state: { email } });
+        return;
       }
+      await login(email, password);
       navigate('/', { replace: true });
     } catch (error) {
       setServerError(getErrorMessage(error));

@@ -33,7 +33,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signup = useCallback(async (payload) => {
-    const response = await api.post('/auth/signup', payload);
+    await api.post('/auth/signup', payload);
+  }, []);
+
+  const verifyEmail = useCallback(async (email, code) => {
+    const response = await api.post('/auth/verify-email', { email, code });
     setToken(response.data.accessToken);
     setRefreshToken(response.data.refreshToken);
     setUser(response.data.user);
@@ -52,7 +56,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, signup, verifyEmail, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );
