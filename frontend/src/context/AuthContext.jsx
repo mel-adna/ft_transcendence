@@ -1,5 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import api, { setToken, setRefreshToken, getToken, clearToken, revokeRefreshToken } from '../lib/api';
+import api, {
+  setToken,
+  setRefreshToken,
+  getToken,
+  clearToken,
+  revokeRefreshToken,
+  postWithoutSession,
+} from '../lib/api';
 import { AuthContext } from './useAuth';
 
 export function AuthProvider({ children }) {
@@ -33,11 +40,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signup = useCallback(async (payload) => {
-    await api.post('/auth/signup', payload);
+    await postWithoutSession('/auth/signup', payload);
   }, []);
 
   const verifyEmail = useCallback(async (email, code) => {
-    const response = await api.post('/auth/verify-email', { email, code });
+    const response = await postWithoutSession('/auth/verify-email', { email, code });
     setToken(response.data.accessToken);
     setRefreshToken(response.data.refreshToken);
     setUser(response.data.user);

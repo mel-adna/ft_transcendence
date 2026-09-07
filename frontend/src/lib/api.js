@@ -34,6 +34,12 @@ export function clearToken() {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
+export function postWithoutSession(path, body) {
+  return axios.post(`${baseURL}${path}`, body, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 export async function revokeRefreshToken() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return;
