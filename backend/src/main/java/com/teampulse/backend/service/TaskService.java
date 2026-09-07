@@ -1,12 +1,5 @@
 package com.teampulse.backend.service;
 
-import java.util.List;
-import java.util.UUID;
-
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.teampulse.backend.dto.request.TaskCreateRequest;
 import com.teampulse.backend.dto.request.TaskStatusUpdateRequest;
 import com.teampulse.backend.dto.request.TaskUpdateRequest;
@@ -26,9 +19,14 @@ import com.teampulse.backend.repository.TaskRepository;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -148,7 +146,7 @@ public class TaskService {
 				&& (oldAssignee == null || !oldAssignee.getId().equals(updatedTask.getAssignee().getId()))) {
 			User updater = userRepository.findByEmail(email).orElse(null);
 			eventPublisher.publishEvent(new TaskAssignedEvent(
-                    this,
+					this,
 					updatedTask,
 					updatedTask.getAssignee(),
 					updater,
@@ -230,8 +228,20 @@ public class TaskService {
 	}
 
 	private void checkAndTriggerStatusEvents(Task task, TaskStatus oldStatus, User actor) {
-		if (task.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE)
-			triggerTaskCompletedEvent(task, actor);
+		if (task.getStatus() != oldStatus) {
+			if (task.getStatus() == TaskStatus.DONE)
+				triggerTaskCompletedEvent(task, actor);
+			else {
+				activityLogService.logActivity(
+						task.getWorkspace().getId(),
+						actor.getId(),
+						task.getId(),
+						"TASK_STATUS_CHANGED",
+						String.format("%s %s moved task '%s' from %s to %s",
+								actor.getFirstName(), actor.getLastName(), task.getTitle(), oldStatus, task.getStatus())
+				);
+			}
+		}
 	}
 
 	private void triggerTaskCompletedEvent(Task completedTask, User actor) {

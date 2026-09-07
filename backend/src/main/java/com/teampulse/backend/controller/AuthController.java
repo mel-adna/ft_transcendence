@@ -1,7 +1,9 @@
 package com.teampulse.backend.controller;
 
 import java.security.Principal;
+import java.util.Map;
 
+import com.teampulse.backend.dto.request.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,14 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.teampulse.backend.dto.request.ForgotPasswordRequest;
-import com.teampulse.backend.dto.request.GoogleLoginRequest;
-import com.teampulse.backend.dto.request.LoginRequest;
-import com.teampulse.backend.dto.request.PasswordChangeRequest;
-import com.teampulse.backend.dto.request.RefreshTokenRequest;
-import com.teampulse.backend.dto.request.ResetPasswordRequest;
-import com.teampulse.backend.dto.request.SignupRequest;
-import com.teampulse.backend.dto.request.VerifyEmailRequest;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.service.UserService;
 
@@ -54,6 +48,18 @@ public class AuthController {
 		return ResponseEntity.ok(userService.verifyEmail(request));
 	}
 
+
+	@Operation(summary = "Resend verification code", description = "Generates a new 6-digit verification code and emails it to the user if the account is unverified.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Verification code resent successfully"),
+			@ApiResponse(responseCode = "400", description = "Account is already verified or request invalid"),
+			@ApiResponse(responseCode = "404", description = "User not found")
+	})
+	@PostMapping("/resend-verification")
+	public ResponseEntity<Map<String, String>> resendVerificationCode(@Valid @RequestBody ResendVerificationRequest request) {
+		userService.resendVerificationCode(request);
+		return ResponseEntity.ok(Map.of("message", "Verification code has been resent to your email."));
+	}
 
 
 	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")

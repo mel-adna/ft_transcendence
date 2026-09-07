@@ -18,6 +18,7 @@ public class WorkspaceCreateRequest {
 	@Size(max=100, message="Workspace name must not exceed 100 characters")
 	private String name;
 
+	@Size(max = 500, message = "Workspace description must not exceed 500 characters")
 	private String description;
 
 	@NotNull(message="Workspace type is required (PERSONAL or ORGANIZATION)")

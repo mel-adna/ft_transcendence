@@ -1,5 +1,6 @@
 package com.teampulse.backend.config;
 
+import com.teampulse.backend.security.ApiKeyAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -27,6 +28,7 @@ public class SecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthFilter;
 	private final UserDetailsService customUserDetailsService;
+	private final ApiKeyAuthFilter apiKeyAuthFilter;
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -42,8 +44,15 @@ public class SecurityConfig {
 								"/auth/forgot-password",
 								"/auth/reset-password",
 								"/auth/verify-email",
+								"/auth/resend-verification",
 								"/auth/refresh",
 								"/auth/logout",
+
+								"/public/tasks/**",
+								"/public/users/**",
+								"/public/organizations/**",
+								"/public/stats/**",
+								"/public/chat/**",
 
 								"/actuator/**",
 								"/v3/api-docs/**",
@@ -55,6 +64,7 @@ public class SecurityConfig {
 
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authenticationProvider(authenticationProvider())
+				.addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
 		return http.build();

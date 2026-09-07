@@ -68,10 +68,12 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+    
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <version>1.18.48</version>
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
