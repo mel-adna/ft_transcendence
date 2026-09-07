@@ -6,7 +6,7 @@ Everything already fixed has been removed, so the numbering has gaps. What is le
 needs doing.
 
 Issues 13 and 15 are gone because they are fixed. Issues 16, 17, 18 and 19 were each re-measured
-after the merge and are all still open. Issues 20 to 24 are new, and all five come from the email
+after the merge and are all still open. Issues 20 to 23 are new, and all four come from the email
 verification work.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a
@@ -34,7 +34,6 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 | 20 | Signing in before verifying returns 500 | The one error every new user will hit says nothing about verifying | Small |
 | 22 | A failed verification email is swallowed | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 23 | Unknown URLs return 500 instead of 404 | Any client typo reads as a server crash, and a 404 is currently impossible | Small |
-| 24 | `V1__init_schema.sql` was edited in place again | Every teammate has to wipe or hand-repair their database on each pull | Process |
 
 ---
 
@@ -294,26 +293,3 @@ decision: the catch-all is too wide. `NoResourceFoundException` should map to 40
 `DataIntegrityViolationException` to 409 or 400, `DisabledException` to 403. The catch-all should
 be the last resort for genuinely unexpected failures, which is what makes its log line
 `CRITICAL ERROR internal server crash` accurate.
-
-## 24. `V1__init_schema.sql` was edited in place a second time
-
-The email verification work added `enabled` to `users` and a whole `verification_codes` table by
-editing `V1__init_schema.sql` rather than adding `V2__email_verification.sql`.
-
-Flyway stores a checksum of every applied migration. Editing an applied file makes that checksum
-stop matching, and the backend refuses to start with a validation error on any database that
-already ran the old V1. The first time this happened it was `provider` and `provider_id`; this is
-the second.
-
-Every teammate who pulls now has to either drop their database and lose their local data, or
-hand-repair the `flyway_schema_history` checksum and hand-write the `ALTER TABLE` statements the
-edit implies. Neither is something a migration tool should require, and both get more expensive as
-more people hold real local data.
-
-There is a further trap in this particular edit. `enabled BOOLEAN NOT NULL DEFAULT FALSE` means
-that anyone who hand-repairs instead of wiping ends up with every pre-existing account disabled,
-and with no resend endpoint (issue 21) none of those accounts can be recovered. Wiping is
-currently the only clean path.
-
-**Fix:** treat applied migrations as immutable. New schema goes in a new numbered file. `V1`
-should not change again now that more than one person has run it.
