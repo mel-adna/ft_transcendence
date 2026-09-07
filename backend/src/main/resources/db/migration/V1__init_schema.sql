@@ -9,6 +9,7 @@ CREATE TABLE users
     avatar_url    VARCHAR(255),
     provider      VARCHAR(20)  NOT NULL DEFAULT 'LOCAL', -- Enum: LOCAL, GOOGLE
     provider_id   VARCHAR(255),
+	enabled		BOOLEAN NOT NULL DEFAULT FALSE,
     deleted       BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -139,6 +140,18 @@ CREATE TABLE refresh_tokens
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 11. Verification Codes
+CREATE TABLE verification_codes (
+	id UUID PRIMARY KEY,
+	code        VARCHAR(50)	NOT NULL,
+	user_id     UUID		NOT NULL,
+	expiry_date TIMESTAMP	NOT NULL,
+	enabled		BOOLEAN		NOT NULL	DEFAULT FALSE,
+    created_at  TIMESTAMP	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT uk_verification_codes_user UNIQUE (user_id),
+	CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
@@ -153,3 +166,5 @@ CREATE INDEX idx_notifications_recipient ON notifications (recipient_id, created
 CREATE INDEX idx_notifications_unread ON notifications (recipient_id) WHERE is_read = FALSE;
 CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens (token);
 CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens (user_id);
+CREATE INDEX idx_verification_codes_code ON verification_codes (code);
+CREATE INDEX idx_verification_codes_user ON verification_codes (user_id);

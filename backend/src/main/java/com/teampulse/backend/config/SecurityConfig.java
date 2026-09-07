@@ -41,6 +41,7 @@ public class SecurityConfig {
 								"/auth/google",
 								"/auth/forgot-password",
 								"/auth/reset-password",
+								"/auth/verify-email",
 								"/auth/refresh",
 								"/auth/logout",
 
