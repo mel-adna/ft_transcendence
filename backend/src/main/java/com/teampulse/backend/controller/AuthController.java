@@ -1,20 +1,31 @@
 package com.teampulse.backend.controller;
 
-import com.teampulse.backend.dto.request.*;
+import java.security.Principal;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.teampulse.backend.dto.request.ForgotPasswordRequest;
+import com.teampulse.backend.dto.request.GoogleLoginRequest;
+import com.teampulse.backend.dto.request.LoginRequest;
+import com.teampulse.backend.dto.request.PasswordChangeRequest;
+import com.teampulse.backend.dto.request.RefreshTokenRequest;
+import com.teampulse.backend.dto.request.ResetPasswordRequest;
+import com.teampulse.backend.dto.request.SignupRequest;
+import com.teampulse.backend.dto.request.VerifyEmailRequest;
 import com.teampulse.backend.dto.response.AuthResponse;
-import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.service.UserService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.security.Principal;
 
 @RestController
 @RequestMapping("/auth")
@@ -23,15 +34,26 @@ import java.security.Principal;
 public class AuthController {
 	private final UserService userService;
 
-	@Operation(summary = "Register a new user", description = "Creates a new user account in Team-Pulse and returns access/refresh tokens.")
+	@Operation(summary = "Register a new user", description = "Creates an inactive user account and sends a 6-digit verification code to email.")
 	@ApiResponses({
-			@ApiResponse(responseCode = "201", description = "User registered successfully"),
-			@ApiResponse(responseCode = "400", description = "Email already exists or validation constraints failed")
+			@ApiResponse(responseCode = "201", description = "User registered successfully, verification code sent"),
+			@ApiResponse(responseCode = "400", description = "Email already exists")
 	})
 	@PostMapping("/signup")
-	public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest request) {
+	public ResponseEntity<String> signup(@Valid @RequestBody SignupRequest request) {
 		return new ResponseEntity<>(userService.signup(request), HttpStatus.CREATED);
 	}
+
+	@Operation(summary = "Verify account email", description = "Validates the 6-digit code sent via email and activates the user account.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Account verified successfully, returns JWT tokens"),
+			@ApiResponse(responseCode = "400", description = "Invalid or expired verification code")
+	})
+	@PostMapping("/verify-email")
+	public ResponseEntity<AuthResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+		return ResponseEntity.ok(userService.verifyEmail(request));
+	}
+
 
 
 	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")
@@ -44,7 +66,6 @@ public class AuthController {
 		return ResponseEntity.ok(userService.login(request));
 	}
 
-
 	@Operation(summary = "Refresh access token", description = "Provides a new, valid Access Token using a non-expired Refresh Token.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
@@ -55,19 +76,6 @@ public class AuthController {
 		return ResponseEntity.ok(userService.refreshToken(request));
 	}
 
-
-	@Operation(summary = "Update user profile", description = "Updates basic profile metadata (e.g. display name) for the currently logged-in user.")
-	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Profile updated successfully"),
-			@ApiResponse(responseCode = "401", description = "Unauthorized - Valid JWT token is required")
-	})
-	@PutMapping("/profile")
-	public ResponseEntity<UserResponse> updateProfile(Principal principal,
-	                                                  @Valid @RequestBody ProfileUpdateRequest request) {
-		return ResponseEntity.ok(userService.updateProfile(principal.getName(), request));
-	}
-
-
 	@Operation(summary = "Change account password", description = "Allows the logged-in user to change their password after validating the old one.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Password changed successfully"),
@@ -76,11 +84,10 @@ public class AuthController {
 	})
 	@PostMapping("/change-password")
 	public ResponseEntity<String> changePassword(Principal principal,
-	                                             @Valid @RequestBody PasswordChangeRequest request) {
+			@Valid @RequestBody PasswordChangeRequest request) {
 		userService.changePassword(principal.getName(), request);
 		return ResponseEntity.ok("Password changed successfully");
 	}
-
 
 	@Operation(summary = "Logout user", description = "Revokes and deletes the provided Refresh Token from the database to invalidate the session.")
 	@ApiResponses({
@@ -93,7 +100,6 @@ public class AuthController {
 		return ResponseEntity.noContent().build();
 	}
 
-
 	@Operation(summary = "Initiate password reset sequence", description = "Generates a secure token and sends a recovery link to the user's email if the account exists.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "If the email exists, a password reset link has been dispatched.")
@@ -103,7 +109,6 @@ public class AuthController {
 		userService.processForgotPassword(request);
 		return ResponseEntity.ok("If the email is registered, a password reset link has been sent successfully.");
 	}
-
 
 	@Operation(summary = "Execute password reset", description = "Validates the security token and updates the user's account password.")
 	@ApiResponses({
@@ -116,7 +121,6 @@ public class AuthController {
 		userService.processResetPassword(request);
 		return ResponseEntity.ok("Your password has been successfully reset. You can now log in.");
 	}
-
 
 	@Operation(summary = "Authenticate with Google", description = "Validates Google ID Token and issues access/refresh tokens.")
 	@ApiResponses({
