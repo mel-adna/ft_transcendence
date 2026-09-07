@@ -146,7 +146,7 @@ export default function AppLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="hidden h-20 items-center justify-end gap-4 border-b border-[#27273a] px-8 md:flex">
+        <header className="hidden h-20 items-center justify-end border-b border-[#27273a] px-8 md:flex">
           <Link
             to="/tasks"
             state={{ newTask: true }}
@@ -154,7 +154,6 @@ export default function AppLayout() {
           >
             Add Task
           </Link>
-          <Avatar user={user} size={36} />
         </header>
 
         <header className="grid h-16 shrink-0 grid-cols-3 items-center border-b border-[#27273a] px-4 md:hidden">
