@@ -5,7 +5,13 @@ const REFRESH_TOKEN_KEY = 'refreshToken';
 
 const baseURL = import.meta.env.VITE_CORE_API_URL ?? 'http://localhost:8080/api/v1';
 
-const AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/refresh', '/auth/logout'];
+const AUTH_PATHS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/verify-email',
+  '/auth/refresh',
+  '/auth/logout',
+];
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);

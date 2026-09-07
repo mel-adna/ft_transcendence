@@ -113,7 +113,7 @@ function ProfileCard({ user, onSaved }) {
 
     setSubmitting(true);
     try {
-      await api.put('/users/profile', {
+      await api.put('/users/me', {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         avatarUrl: user?.avatarUrl ?? null,
@@ -249,7 +249,7 @@ function PasswordCard() {
 
     setSubmitting(true);
     try {
-      await api.post('/users/change-password', { currentPassword, newPassword });
+      await api.post('/auth/change-password', { currentPassword, newPassword });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
