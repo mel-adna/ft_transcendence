@@ -91,10 +91,11 @@ management:
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:8080}
   jwt:
-#    secret: ${JWT_SECRET:fe22c88271a103b33bdbe9cfc3d1e714c75850c44e1603463179ecac81eb0564}
     secret: ${JWT_SECRET:eb44fd25026958f973cf6a447902fbc44d9689d095b27db5cadf55d8f3077177}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}       # 15min
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:259200000}  # 3 days
+  api:
+    public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
 
 
 logging:
