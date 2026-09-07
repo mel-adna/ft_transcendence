@@ -13,8 +13,9 @@ What has to be running for the app to actually work:
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
 - The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works
   fine without it. That service is not in this branch: it lives in `backend/` on `origin/aarab`, which is
-  an Express + socket.io + Prisma app, not the Java one. With nothing listening on 5005 the chat screen
-  shows `Failed to fetch`, which is the browser's own message for a refused connection, not an app error.
+  an Express + socket.io + Prisma app, not the Java one. With nothing listening on 5005 the Chat page
+  detects it and shows an offline panel with a retry, rather than the browser's raw `Failed to fetch`.
+  How that check works, and why it lives outside the vendored components, is under "Which code is whose".
 
 The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
@@ -46,7 +47,9 @@ There is no backend endpoint that returns dashboard statistics. The Analytics Ov
 
 The Recent Activity panel on the same page is the exception. It reads the real audit trail from `GET /activity-logs/workspace/{id}`, fetched in `DashboardPage` through `features/dashboard/useActivityLogs.js`. That endpoint returns a Spring `Slice`, so the rows are under `response.data.content`, not the response body itself. `features/dashboard/activityLog.js` turns each row into something displayable and is where the action types (`TASK_COMPLETED`, `WORKSPACE_MEMBER_ADDED`, and so on) get their labels. An action type the frontend has never seen is humanized automatically rather than dropped, so new backend events show up without a frontend change.
 
-The panel has a fallback, and it is worth knowing why. The backend does not currently log task creation, and it skips logging when you assign a task to yourself, and the completion trigger is commented out in the endpoint the board uses. The measured result is that creating a task and dragging it to Done writes zero rows. So when the API trail comes back empty, `deriveActivityFeed` builds the list from the task list instead, which is what this panel did before it was wired to the endpoint. Real audit rows win whenever there are any; the derived list only fills the gap. All three backend gaps are written up in `backend-issues.md` issue 13, and once they are logged the fallback stops being reached.
+The panel has a fallback, and it is worth knowing why. It was added when the backend logged almost nothing, so creating a task and dragging it to Done wrote zero rows. Those gaps are fixed: creating, deleting, assigning (including assigning to yourself) and completing a task all write real rows now, re-measured on 2026-09-07. When the API trail still comes back empty, `deriveActivityFeed` builds the list from the task list instead, which is what this panel did before it was wired to the endpoint. Real audit rows win whenever there are any; the derived list only fills the gap.
+
+One gap is left, and it is visible on the dashboard. Only the move *into* Done is logged, so dragging a card back out of Done writes nothing and the feed does not change, while finishing the same task twice writes two identical `completed` rows with no `reopened` row between them. That is `backend-issues.md` issue 19, and it is a backend fix: an activity log is append-only history, so the answer is a new row saying the task was reopened, not the removal of the completion that really did happen.
 
 The fetch lives in `DashboardPage` rather than inside `StatsDashboard` for two reasons: the page returns a spinner while tasks load, so a fetch inside the chart component could not start until the task request had finished, and the CSV import needs to refresh the activity trail along with the task list when it is done.
 
@@ -94,6 +97,8 @@ These seven are the only modules that are pure logic, decoupled from React and t
 ## Which code is whose
 
 `features/chat/` and `infrastructure/socket/` are copied unchanged from a teammate's branch (aarab). They are vendored byte for byte so they merge cleanly with his work later, and they are never edited here, including the no-comments and no-console rules that apply to the rest of the app. `eslint.config.js` explicitly ignores both paths for the same reason.
+
+`pages/ChatPage.jsx` is the exception, and it is ours. Because the vendored components cannot be edited, the check for whether the chat service is even up has to live outside them. `ChatPage` probes the same base URL `chatApi.js` uses, and only mounts `SocketProvider` and `ChatLayout` once something answers. If nothing does, it shows an offline panel with a retry instead. Any HTTP reply counts as up, including a 401 or a 404; only a network-level failure counts as down, which is the same failure the vendored client would hit. Gating the provider also stops socket.io from retrying a dead port forever in the background. The base URL is duplicated rather than imported, so it has to stay identical to the one in `chatApi.js`.
 
 Everything else under `frontend/src` was written for this task list.
 

@@ -1,8 +1,11 @@
 # Backend issues
 
-Status verified 2026-08-30 against `origin/mdbentaleb` at `27d6610`, by reading the merged
-source. Everything already fixed has been removed, so the numbering has gaps. What is left
-is what still needs doing.
+Status verified 2026-09-07 against the merged backend at `a3e40f4`, by reading the source and
+measuring against the running API. Everything already fixed has been removed, so the numbering
+has gaps. What is left is what still needs doing.
+
+Issue 13 was removed on 2026-09-07: `TASK_CREATED`, `TASK_DELETED`, the self-assignment skip and
+the second-person descriptions are all fixed and were re-measured against the running backend.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a
 given issue stays valid. The order of this file is by priority: everything that blocks a
@@ -22,7 +25,7 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 13 | No activity log for task created or task deleted | Creating a task leaves no trace in the feed | Small |
+| 19 | Only the move into Done is logged | Moving a card out of Done, or between To do and Doing, leaves no trace | Small |
 | 16 | `WorkspaceResponse` omits `description` | Editing a team silently wipes its description, and no client can prevent it | 1 line |
 | 18 | `POST /workspaces` returns 500 on a long description | A description over 500 characters crashes team creation instead of being rejected | 1 line |
 
@@ -53,77 +56,6 @@ The smallest honest implementation is an `X-API-KEY` filter in front of the five
 ---
 
 # Not blocking
-
-## 13. The activity trail still misses task created and task deleted
-
-`GET /activity-logs/workspace/{id}` works and the frontend now reads it. The gap is in what
-gets written. Grepping every `logActivity` call site gives the complete set of action types
-the API can ever return:
-
-| Action type | Written by |
-|---|---|
-| `TASK_ASSIGNED` / `TASK_UPDATED` | `TaskEventListener.onTaskAssigned` |
-| `TASK_COMPLETED` | `TaskEventListener` |
-| `TASK_COMMENT_CREATED` / `_UPDATED` / `_DELETED` | `TaskCommentService` |
-| `WORKSPACE_MEMBER_ADDED` | `WorkspaceEventListener` |
-
-`TASK_CREATED` and `TASK_DELETED` are missing. `NotificationType` already declares
-`TASK_DELETED`, so the enum expects it.
-
-Two further gaps make this worse than a missing row here and there.
-
-**Completing a task from the board is now logged.** Fixed in `a3e40f4`. `updateTaskStatus`
-calls `checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser)`, so dragging a card to
-Done writes `TASK_COMPLETED`. The same commit gave `triggerTaskCompletedEvent` an `actor`
-parameter, which also fixes the misattribution below.
-
-**Assigning a task to yourself logs nothing.** `TaskEventListener.handleTaskAssignedEvent`
-returns before `logActivity` when assigner and assignee are the same person. Skipping the
-*notification* is right, nobody wants to be emailed about their own action, but the early
-return also skips the activity log and the audit trail, which are not notifications.
-
-Measured against the running backend. Starting from 2 activity rows: create a task assigned
-to yourself, move it to DOING, then to DONE.
-
-That measurement was taken before `a3e40f4`. Completions now log, so the remaining gap is
-narrower: creating a task still writes nothing, and neither does deleting one.
-
-**Misattribution is fixed too.** `TASK_COMPLETED` used to be logged against
-`task.getCreator()` rather than whoever finished the task. `a3e40f4` passes the acting user
-through, so the feed now credits the right person.
-
-What is still missing is `TASK_CREATED` and `TASK_DELETED`, and the self-assignment skip.
-
-`TaskService.createTask` and `deleteTask` already have everything the call needs. Two calls
-in the shape of the ones that are already there:
-
-```java
-activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(),
-        "TASK_CREATED", "Created the task: " + savedTask.getTitle());
-```
-
-The frontend does not need a change to display new action types. `activityLog.js` humanizes
-any unknown one, so `TASK_CREATED` renders as "Task created" the moment the backend starts
-sending it, and gets its proper label once it is added to the map.
-
-It does need a workaround for the emptiness, and has one: when the API trail comes back empty
-the dashboard falls back to deriving recent activity from the task list, which is what the
-panel did before it was wired to this endpoint. That keeps the panel useful, but it is a
-patch over the gap, not a fix. Once the three cases above are logged, the fallback stops
-being reached on its own.
-
-### Smaller point: the descriptions are written for one reader
-
-A real row from the running API:
-
-```
-"Said Test reassigned task 'Verify assignee default' to you."
-```
-
-`description` is the same string for everyone, but "to you" only makes sense to the assignee.
-In a workspace-wide feed every other member reads a sentence addressed to somebody else.
-Naming the person ("... to Jhone Doe") makes the same string correct for every reader. The
-notification body can stay second person, since that one really does have a single reader.
 
 ## 16. `WorkspaceResponse` does not return `description`, so editing a team erases it
 
@@ -198,3 +130,63 @@ foreign key, surfaces as a 500 rather than a 4xx. Duplicates are the exception: 
 checks those itself and throws `ResourceAlreadyExistsException`, which is handled. The missing `@Size` is one instance of
 that. Adding a `DataIntegrityViolationException` handler that returns 409 or 400 would stop the
 whole class of them from being reported as server crashes.
+
+## 19. Only the move into Done is logged, so the board's other transitions leave no trace
+
+`updateTaskStatus` records the old status and hands it to one check:
+
+```java
+private void checkAndTriggerStatusEvents(Task task, TaskStatus oldStatus, User actor) {
+    if (task.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE)
+        triggerTaskCompletedEvent(task, actor);
+}
+```
+
+That fires on exactly one transition. `oldStatus` is computed and then used for nothing else, so
+every other move writes no activity row at all.
+
+Measured on the running backend, one task, five moves, counting rows after each:
+
+| Move | Rows written |
+|---|---|
+| create | `TASK_CREATED` |
+| TODO to DONE | `TASK_COMPLETED` |
+| DONE to TODO | nothing |
+| TODO to DOING | nothing |
+| DOING to DONE | `TASK_COMPLETED` again |
+
+Two consequences, both visible on the dashboard. Moving a card back out of Done looks like
+nothing happened, because as far as the log is concerned nothing did. And because a completion is
+written every time the task re-enters Done, a task finished three times shows three identical
+`completed` lines with no `reopened` line between them, which reads as a duplication bug rather
+than as real history.
+
+**Fix:** log whenever the status actually changed, not only when it becomes DONE. Keep
+`TASK_COMPLETED` for the move into Done and write the generic row only for the other transitions,
+otherwise a TODO to DONE move writes two rows and trades one duplicate for another.
+
+```java
+if (task.getStatus() != oldStatus) {
+    if (task.getStatus() == TaskStatus.DONE) {
+        triggerTaskCompletedEvent(task, actor);
+    } else {
+        activityLogService.logActivity(task.getWorkspace().getId(), actor.getId(), task.getId(),
+                "TASK_STATUS_CHANGED",
+                String.format("%s %s moved task '%s' from %s to %s",
+                        actor.getFirstName(), actor.getLastName(), task.getTitle(), oldStatus, task.getStatus()));
+    }
+}
+```
+
+**Do not reuse `TASK_UPDATED` for this.** `TaskEventListener.handleTaskAssignedEvent` already
+emits `TASK_UPDATED` for a reassignment, and the frontend maps that action type to the label
+`Reassigned`. A DONE to TODO move logged as `TASK_UPDATED` would render in the feed with a
+"Reassigned" badge. A new action type avoids the collision.
+
+The frontend needs no change to display it. `activityLog.js` humanizes any action type it does
+not recognise, so `TASK_STATUS_CHANGED` renders as "Task status changed" the moment the backend
+starts sending it, and gets a nicer label once it is added to the map.
+
+Worth deciding at the same time: a completion currently also sends a notification. Whether
+reopening somebody's finished task deserves the same notification is a product call, not a
+technical one.
