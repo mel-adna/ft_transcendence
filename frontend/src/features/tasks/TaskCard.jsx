@@ -80,7 +80,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
           onOpen();
         }
       }}
-      className="cursor-grab rounded-xl border border-[#27273a] bg-[#181824] p-4 shadow-sm transition-colors hover:border-[#3B82F6]/40 focus:border-[#3B82F6] focus:outline-none active:cursor-grabbing"
+      className="cursor-grab rounded-xl border border-card bg-panel p-4 shadow-sm transition-colors hover:border-primary/40 focus:border-primary focus:outline-none active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-2">
         <span
@@ -98,7 +98,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
             aria-label="Task actions"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            className="rounded-md p-1 text-[#71717A] transition-colors hover:bg-white/5 hover:text-white"
+            className="rounded-md p-1 text-muted transition-colors hover:bg-white/5 hover:text-white"
           >
             <MoreVertical size={16} />
           </button>
@@ -106,7 +106,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-0 top-7 z-10 w-44 overflow-hidden rounded-lg border border-[#27273a] bg-[#0c0c14] py-1 shadow-xl"
+              className="absolute right-0 top-7 z-10 w-44 overflow-hidden rounded-lg border border-card bg-canvas py-1 shadow-xl"
             >
               <button
                 type="button"
@@ -131,7 +131,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
                 </button>
               ))}
 
-              <div className="my-1 border-t border-[#27273a]" />
+              <div className="my-1 border-t border-card" />
 
               <button
                 type="button"
@@ -148,21 +148,21 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
       </div>
 
       <h3
-        className={`mt-3 text-sm font-bold ${isDone ? 'text-[#71717A] line-through' : 'text-white'}`}
+        className={`mt-3 text-sm font-bold ${isDone ? 'text-muted line-through' : 'text-white'}`}
       >
         {task.title}
       </h3>
 
       {task.description && (
-        <p className="mt-1.5 line-clamp-2 text-xs text-[#71717A]">{task.description}</p>
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted">{task.description}</p>
       )}
 
-      <div className="mt-4 flex items-center gap-3 border-t border-[#27273a] pt-3">
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-[#71717A]">
+      <div className="mt-4 flex items-center gap-3 border-t border-card pt-3">
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
           <CalendarDays size={13} />
           {shortDate(task.createdAt)}
         </span>
-        <span className="ml-auto font-mono text-[11px] text-[#71717A]">{taskRef(task)}</span>
+        <span className="ml-auto font-mono text-[11px] text-muted">{taskRef(task)}</span>
         {task.assignee && (
           <>
             <Avatar user={task.assignee} size={26} />

@@ -8,7 +8,7 @@ import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 
 const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] px-3 py-2.5 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
+  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 500;
@@ -28,7 +28,7 @@ const TYPE_OPTIONS = [
 
 function CharCount({ value, max }) {
   return (
-    <span className="text-[11px] tabular-nums text-[#71717A]">
+    <span className="text-[11px] tabular-nums text-muted">
       {value.length}/{max}
     </span>
   );
@@ -97,11 +97,11 @@ export default function CreateTeamPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl border border-[#27273a] bg-[#181824] p-6 sm:p-8">
-        <div className="flex items-center justify-between gap-4 border-b border-[#27273a] pb-5">
+      <div className="mx-auto w-full max-w-2xl rounded-2xl border border-card bg-panel p-6 sm:p-8">
+        <div className="flex items-center justify-between gap-4 border-b border-card pb-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#3B82F6]/20">
-              <UserPlus size={20} className="text-[#3B82F6]" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20">
+              <UserPlus size={20} className="text-primary" />
             </div>
             <h1 className="text-lg font-bold text-white">Create New Team</h1>
           </div>
@@ -110,7 +110,7 @@ export default function CreateTeamPage() {
               type="button"
               onClick={goToTeams}
               aria-label="Close"
-              className="text-[#71717A] transition-colors hover:text-white"
+              className="text-muted transition-colors hover:text-white"
             >
               <X size={20} />
             </button>
@@ -138,7 +138,7 @@ export default function CreateTeamPage() {
           <Field
             label={
               <>
-                Description <span className="font-normal text-[#71717A]">(Optional)</span>
+                Description <span className="font-normal text-muted">(Optional)</span>
               </>
             }
             id="description"
@@ -157,17 +157,17 @@ export default function CreateTeamPage() {
           </Field>
 
           <fieldset>
-            <legend className="mb-1.5 block text-xs font-semibold text-[#71717A]">
+            <legend className="mb-1.5 block text-xs font-semibold text-muted">
               Team Type
             </legend>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {TYPE_OPTIONS.map((option) => (
                 <label
                   key={option.value}
-                  className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-4 py-3 text-sm transition-colors focus-within:border-[#3B82F6] ${
+                  className={`flex cursor-pointer flex-col gap-1 rounded-lg border px-4 py-3 text-sm transition-colors focus-within:border-primary ${
                     type === option.value
-                      ? 'border-[#3B82F6] bg-[#3B82F6]/10'
-                      : 'border-[#71717A]/25 bg-[#0c0c14] hover:border-[#71717A]/50'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-muted/25 bg-canvas hover:border-muted/50'
                   }`}
                 >
                   <input
@@ -179,7 +179,7 @@ export default function CreateTeamPage() {
                     className="sr-only"
                   />
                   <span className="font-semibold text-white">{option.label}</span>
-                  <span className="text-xs text-[#71717A]">{option.hint}</span>
+                  <span className="text-xs text-muted">{option.hint}</span>
                 </label>
               ))}
             </div>
@@ -194,13 +194,13 @@ export default function CreateTeamPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 border-t border-[#27273a] pt-5">
+          <div className="flex items-center justify-end gap-3 border-t border-card pt-5">
             {canCancel && (
               <button
                 type="button"
                 onClick={goToTeams}
                 disabled={submitting}
-                className="rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg border border-muted/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -208,7 +208,7 @@ export default function CreateTeamPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? (
                 <Spinner />

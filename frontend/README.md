@@ -84,6 +84,30 @@ The description field in that form starts empty and says so. This is not an over
 **Colleagues** turns the role badge into a select, sending `PUT /workspaces/{id}/members/role` with the member's email and the new role. It stays a plain badge for the workspace owner and for yourself, matching the rule the Remove button already used, so you cannot lock yourself out of your own team. Only admins may call it; anyone else gets refused by the backend.
 
 
+## Colours come from tokens, not from the markup
+
+Tailwind v4 is configured in CSS, so there is no `tailwind.config.js` and its absence is correct. The palette lives in the `@theme` block at the top of `src/index.css`, and that block is the only place a hex value for a UI colour is written:
+
+| Token | Value | Reads as |
+|---|---|---|
+| `--color-primary` | `#3B82F6` | `bg-primary`, `text-primary`, `focus:border-primary` |
+| `--color-canvas` | `#0c0c14` | `bg-canvas`, the page behind everything |
+| `--color-panel` | `#181824` | `bg-panel`, cards and modals |
+| `--color-sidebar` | `#0e0e17` | `bg-sidebar` |
+| `--color-card` | `#27273a` | `border-card`, the hairline between surfaces |
+| `--color-body` | `#c2c6d6` | `text-body`, long-form text |
+| `--color-muted` | `#71717A` | `text-muted`, secondary text and icons |
+
+This used to be written out by hand: 334 arbitrary values like `bg-[#181824]` and `text-[#71717A]/50` across 26 files, while the `@theme` block sat there unreferenced. Changing one colour meant 334 edits. It is now one line.
+
+Two details worth knowing before adding a token:
+
+**Do not name a colour token after a built-in utility.** The first pass called the page background `--color-base`, which generated a `text-base` colour utility that silently replaced Tailwind's built-in `text-base` font size. Nine places that were sizing text would have started painting near-black text on a near-black background instead. The token is `--color-canvas` for that reason. The `text-*` namespace already holds every font size, so a colour token must not collide with one.
+
+**Charts are the exception, and they have to be.** `StatsDashboard` passes colours to recharts as SVG presentation attributes (`stroke`, `stopColor`) and inline styles, which are not class names, so no utility can reach them. `var()` in an SVG presentation attribute is not reliable across browsers either. Those eight values live in a single `CHART` constant at the top of that file, and it has to be kept in step with `@theme` by hand.
+
+The vendored chat under `features/chat/` still uses arbitrary values. That is deliberate: those files are never edited here, for the reason under "Which code is whose".
+
 ## Testing
 
 `npm test` runs vitest against seven files, 57 tests total:

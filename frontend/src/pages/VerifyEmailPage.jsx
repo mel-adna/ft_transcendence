@@ -10,7 +10,7 @@ import Spinner from '../components/Spinner';
 const CODE_LENGTH = 6;
 
 const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
+  'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 function validateCode(value) {
   if (!value.trim()) return 'Verification code is required.';
@@ -55,14 +55,14 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0c0c14] px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-[#71717A]/20 bg-[#181824] p-8 shadow-2xl">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
+      <div className="w-full max-w-md rounded-2xl border border-muted/20 bg-panel p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3B82F6]/20">
-            <MailCheck size={24} className="text-[#3B82F6]" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
+            <MailCheck size={24} className="text-primary" />
           </div>
           <h1 className="mt-4 text-xl font-bold text-white">Confirm your email</h1>
-          <p className="mt-2 text-xs text-[#71717A]">
+          <p className="mt-2 text-xs text-muted">
             {emailFromSignup
               ? `We sent a ${CODE_LENGTH} digit code to ${emailFromSignup}. Enter it below to finish setting up your account.`
               : `Enter the email you signed up with and the ${CODE_LENGTH} digit code we sent you.`}
@@ -75,7 +75,7 @@ export default function VerifyEmailPage() {
               <div className="relative">
                 <Mail
                   size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                 />
                 <input
                   id="verify-email"
@@ -99,7 +99,7 @@ export default function VerifyEmailPage() {
             <div className="relative">
               <KeyRound
                 size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
               />
               <input
                 id="verify-code"
@@ -128,16 +128,16 @@ export default function VerifyEmailPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#3B82F6] py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? <Spinner /> : 'Confirm email'}
           </button>
         </form>
 
-        <div className="mt-6 border-t border-[#27273a] pt-4 text-center">
+        <div className="mt-6 border-t border-card pt-4 text-center">
           <Link
             to="/login"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#71717A] transition-colors hover:text-white"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-white"
           >
             <ArrowLeft size={14} />
             Back to sign in
