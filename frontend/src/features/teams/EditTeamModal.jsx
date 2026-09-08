@@ -35,7 +35,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
     function sync() {
       if (!open) return;
       setName(workspace?.name ?? '');
-      setDescription('');
+      setDescription(workspace?.description ?? '');
       setType(workspace?.type ?? 'ORGANIZATION');
       setError(null);
       setServerError(null);
@@ -84,7 +84,6 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
         <Field
           label="Description"
           id="edit-team-description"
-          hint="The API does not return the current description, so this starts empty. Whatever you leave here replaces it."
         >
           <textarea
             id="edit-team-description"
