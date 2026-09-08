@@ -8,7 +8,7 @@ import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 
 const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
+  'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 const passwordHint =
   'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
@@ -77,22 +77,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0c0c14] px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-[#71717A]/20 bg-[#181824] p-8 shadow-2xl">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
+      <div className="w-full max-w-md rounded-2xl border border-muted/20 bg-panel p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#3B82F6]/20">
-            <LayoutGrid size={26} className="text-[#3B82F6]" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
+            <LayoutGrid size={26} className="text-primary" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-white">Team Pulse</h1>
-          <p className="mt-1 text-sm text-[#71717A]">SaaS Workspace</p>
+          <p className="mt-1 text-sm text-muted">SaaS Workspace</p>
         </div>
 
-        <div className="mt-6 flex rounded-lg border border-[#71717A]/20 bg-[#0c0c14] p-1">
+        <div className="mt-6 flex rounded-lg border border-muted/20 bg-canvas p-1">
           <button
             type="button"
             onClick={() => switchMode('login')}
             className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-              mode === 'login' ? 'bg-[#27273a] text-white' : 'text-[#71717A] hover:text-white'
+              mode === 'login' ? 'bg-card text-white' : 'text-muted hover:text-white'
             }`}
           >
             Log In
@@ -101,7 +101,7 @@ export default function LoginPage() {
             type="button"
             onClick={() => switchMode('signup')}
             className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-              mode === 'signup' ? 'bg-[#27273a] text-white' : 'text-[#71717A] hover:text-white'
+              mode === 'signup' ? 'bg-card text-white' : 'text-muted hover:text-white'
             }`}
           >
             Sign Up
@@ -115,7 +115,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <User
                     size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                   />
                   <input
                     id="firstName"
@@ -132,7 +132,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <User
                     size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                   />
                   <input
                     id="lastName"
@@ -152,7 +152,7 @@ export default function LoginPage() {
             <div className="relative">
               <Mail
                 size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
               />
               <input
                 id="email"
@@ -175,7 +175,7 @@ export default function LoginPage() {
               mode === 'login' ? (
                 <Link
                   to="/forgot-password"
-                  className="text-[11px] font-semibold text-[#3B82F6] transition-opacity hover:opacity-80"
+                  className="text-[11px] font-semibold text-primary transition-opacity hover:opacity-80"
                 >
                   Forgot?
                 </Link>
@@ -185,7 +185,7 @@ export default function LoginPage() {
             <div className="relative">
               <Lock
                 size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
               />
               <input
                 id="password"
@@ -210,7 +210,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#3B82F6] py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? (
               <Spinner />
@@ -223,7 +223,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-[#71717A]">
+        <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-muted">
           <Link to="/privacy" className="transition-colors hover:text-white">
             Privacy Policy
           </Link>

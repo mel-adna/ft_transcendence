@@ -14,7 +14,7 @@ const TYPE_OPTIONS = [
 ];
 
 const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] px-3 py-2.5 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
+  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 function validateName(value) {
   const requiredError = validateRequired(value, 'Team name');
@@ -121,19 +121,19 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
           </div>
         )}
 
-        <div className="flex justify-end gap-3 border-t border-[#27273a] pt-5">
+        <div className="flex justify-end gap-3 border-t border-card pt-5">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-muted/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="flex min-w-[7rem] items-center justify-center rounded-lg bg-[#3B82F6] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex min-w-[7rem] items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? <Spinner /> : 'Save changes'}
           </button>

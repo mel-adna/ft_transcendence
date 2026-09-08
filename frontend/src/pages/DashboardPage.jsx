@@ -14,7 +14,7 @@ import { ACTIVITY_FEED_LIMIT } from '../features/dashboard/activityLog';
 const CSV_FILENAME = 'team-pulse-tasks.csv';
 
 const outlineButtonClass =
-  'inline-flex items-center gap-2 rounded-lg border border-[#71717A]/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center gap-2 rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60';
 
 export default function DashboardPage() {
   const { current } = useWorkspace();
@@ -123,7 +123,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={reload}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Retry
             </button>
@@ -145,7 +145,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white sm:text-3xl">Analytics Overview</h1>
-          <p className="mt-2 text-sm text-[#71717A]">
+          <p className="mt-2 text-sm text-muted">
             Track your team's performance and activity.
           </p>
         </div>
@@ -178,7 +178,7 @@ export default function DashboardPage() {
             </button>
           </div>
           {importing && importProgress && (
-            <span aria-live="polite" className="text-xs font-medium text-[#71717A]">
+            <span aria-live="polite" className="text-xs font-medium text-muted">
               Importing {Math.min(importProgress.done + 1, importProgress.total)} of{' '}
               {importProgress.total}...
             </span>
@@ -208,11 +208,11 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-          <div className="flex justify-end border-t border-[#27273a] pt-4">
+          <div className="flex justify-end border-t border-card pt-4">
             <button
               type="button"
               onClick={closeImportSummary}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Done
             </button>

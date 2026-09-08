@@ -2,27 +2,21 @@
 
 @theme {
   --color-primary: #3B82F6;
-  --color-secondary: #0EA5E9;
-  --color-tertiary: #D16900;
-  --color-neutral: #71717A;
-  
-  --color-bg-base: #0c0c14;
-  --color-bg-panel: #181824;
-  --color-bg-sidebar: #0e0e17;
-  --color-border-card: #27273a;
+
+  --color-canvas: #0c0c14;
+  --color-panel: #181824;
+  --color-sidebar: #0e0e17;
+  --color-card: #27273a;
+
+  --color-body: #c2c6d6;
+  --color-muted: #71717A;
 }
 
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   font-family: var(--font-sans);
-  background-color: var(--color-bg-base);
+  background-color: var(--color-canvas);
   color: #f8fafc;
-}
-
-/* Glassmorphism styling using exact panel colors */
-.glass {
-  background: rgba(24, 24, 36, 0.95);
-  border: 1px solid rgba(113, 113, 122, 0.2);
 }
 
 /* Custom chart styles and grids */

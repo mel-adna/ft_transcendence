@@ -22,7 +22,7 @@ export default function Modal({ open, onClose, title, children }) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-lg rounded-2xl border border-[#71717A]/25 bg-[#181824] p-6 shadow-xl"
+        className="w-full max-w-lg rounded-2xl border border-muted/25 bg-panel p-6 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
@@ -31,7 +31,7 @@ export default function Modal({ open, onClose, title, children }) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-[#71717A] transition-colors hover:text-white"
+            className="text-muted transition-colors hover:text-white"
           >
             <X size={18} />
           </button>

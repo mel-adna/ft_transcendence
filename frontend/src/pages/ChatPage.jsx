@@ -56,7 +56,7 @@ export default function ChatPage() {
     <div className="px-5 py-6 md:px-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-white md:text-[28px]">Team Chat</h1>
-        <p className="mt-2 text-sm font-medium text-[#71717A]">
+        <p className="mt-2 text-sm font-medium text-muted">
           Talk with your colleagues in real time.
         </p>
       </div>
@@ -78,7 +78,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={retryProbe}
-                  className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                 >
                   Try again
                 </button>

@@ -13,10 +13,10 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 
 const ROLE_STYLE = {
-  OWNER: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
+  OWNER: 'border-primary/30 bg-primary/10 text-primary',
   ADMIN: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  MEMBER: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
-  VIEWER: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
+  MEMBER: 'border-muted/30 bg-muted/10 text-muted',
+  VIEWER: 'border-muted/30 bg-muted/10 text-muted',
 };
 
 const ROLE_OPTIONS = ['ADMIN', 'MEMBER', 'VIEWER'];
@@ -27,12 +27,12 @@ function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
   const name = fullName(user);
 
   return (
-    <div className="flex flex-col justify-between rounded-2xl border border-[#27273a] bg-[#181824] p-5">
+    <div className="flex flex-col justify-between rounded-2xl border border-card bg-panel p-5">
       <div className="flex items-start gap-3">
         <Avatar user={user} size={40} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-white">{name}</p>
-          <p className="truncate text-xs text-[#71717A]">{user.email}</p>
+          <p className="truncate text-xs text-muted">{user.email}</p>
         </div>
         {canManage ? (
           <select
@@ -40,12 +40,12 @@ function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
             onChange={(event) => onRoleChange(event.target.value)}
             disabled={roleSaving}
             aria-label={`Role for ${name}`}
-            className={`shrink-0 cursor-pointer rounded-full border bg-transparent px-2.5 py-1 text-[11px] font-semibold focus:border-[#3B82F6] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`shrink-0 cursor-pointer rounded-full border bg-transparent px-2.5 py-1 text-[11px] font-semibold focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
               ROLE_STYLE[role] ?? ROLE_STYLE.MEMBER
             }`}
           >
             {ROLE_OPTIONS.map((option) => (
-              <option key={option} value={option} className="bg-[#181824] text-white">
+              <option key={option} value={option} className="bg-panel text-white">
                 {option}
               </option>
             ))}
@@ -61,19 +61,19 @@ function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
         )}
       </div>
 
-      <div className="mt-5 flex items-center justify-end border-t border-[#27273a] pt-4">
+      <div className="mt-5 flex items-center justify-end border-t border-card pt-4">
         {canManage ? (
           <button
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#71717A]/25 px-3 py-1.5 text-xs font-semibold text-[#71717A] transition-colors hover:border-rose-500/40 hover:text-rose-400"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-muted/25 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-rose-500/40 hover:text-rose-400"
           >
             <UserMinus size={14} />
             Remove
           </button>
         ) : (
-          <span className="text-[11px] text-[#71717A]">
+          <span className="text-[11px] text-muted">
             {role === 'OWNER' ? 'Workspace owner' : 'This is you'}
           </span>
         )}
@@ -174,7 +174,7 @@ export default function ColleaguesPage() {
             <button
               type="button"
               onClick={reload}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Try again
             </button>
@@ -193,7 +193,7 @@ export default function ColleaguesPage() {
             <button
               type="button"
               onClick={openAddModal}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Add Member
             </button>
@@ -223,14 +223,14 @@ export default function ColleaguesPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white sm:text-3xl">Colleagues</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#71717A]">
+          <p className="mt-2 max-w-2xl text-sm text-muted">
             Everyone who belongs to this team, and what they can do here.
           </p>
         </div>
         <button
           type="button"
           onClick={openAddModal}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <UserPlus size={16} />
           Add Member
@@ -257,7 +257,7 @@ export default function ColleaguesPage() {
       />
 
       <Modal open={Boolean(pendingRemove)} onClose={closeRemoveModal} title="Remove member">
-        <p className="text-sm text-[#71717A]">
+        <p className="text-sm text-muted">
           Are you sure you want to remove{' '}
           <span className="font-semibold text-white">
             {pendingRemove ? fullName(pendingRemove.user) : ''}
@@ -279,7 +279,7 @@ export default function ColleaguesPage() {
             type="button"
             onClick={closeRemoveModal}
             disabled={removing}
-            className="rounded-lg border border-[#71717A]/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancel
           </button>
