@@ -9,7 +9,7 @@ CREATE TABLE users
     avatar_url    VARCHAR(255),
     provider      VARCHAR(20)  NOT NULL DEFAULT 'LOCAL', -- Enum: LOCAL, GOOGLE
     provider_id   VARCHAR(255),
-	enabled		BOOLEAN NOT NULL DEFAULT FALSE,
+    enabled       BOOLEAN      NOT NULL DEFAULT FALSE,
     deleted       BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -141,15 +141,31 @@ CREATE TABLE refresh_tokens
 );
 
 -- 11. Verification Codes
-CREATE TABLE verification_codes (
-	id UUID PRIMARY KEY,
-	code        VARCHAR(50)	NOT NULL,
-	user_id     UUID		NOT NULL,
-	expiry_date TIMESTAMP	NOT NULL,
-	enabled		BOOLEAN		NOT NULL	DEFAULT FALSE,
-    created_at  TIMESTAMP	NOT NULL	DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT uk_verification_codes_user UNIQUE (user_id),
-	CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+CREATE TABLE verification_codes
+(
+    id          UUID PRIMARY KEY,
+    code        VARCHAR(50) NOT NULL,
+    user_id     UUID        NOT NULL,
+    expiry_date TIMESTAMP   NOT NULL,
+    enabled     BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_verification_codes_user UNIQUE (user_id),
+    CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+-- 12. Api keys
+CREATE TABLE api_keys
+(
+    id           UUID PRIMARY KEY,
+    hash_key     VARCHAR(64)  NOT NULL UNIQUE,
+    key_prefix   varchar(100) NOT NULL,
+    user_id      UUID         NOT NULL,
+    active       BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_used_at TIMESTAMP,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_api_key_user UNIQUE (user_id),
+    CONSTRAINT fk_api_key_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 

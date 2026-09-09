@@ -7,8 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.VerificationCode;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface VerificationCodeRepository extends JpaRepository<VerificationCode, UUID> {
 	Optional<VerificationCode> findByCodeAndUser(String code, User user);
 	void deleteByUser(User user);

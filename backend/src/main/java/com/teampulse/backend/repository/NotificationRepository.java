@@ -11,8 +11,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.teampulse.backend.model.Notification;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
     Slice<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);

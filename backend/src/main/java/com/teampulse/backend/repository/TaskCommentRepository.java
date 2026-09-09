@@ -7,8 +7,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.TaskComment;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface TaskCommentRepository extends JpaRepository<TaskComment, UUID> {
 	Page<TaskComment> findByTaskIdOrderByCreatedAtDesc(UUID taskId, Pageable pageable);
 }

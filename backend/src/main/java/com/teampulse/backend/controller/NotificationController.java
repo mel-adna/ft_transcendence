@@ -75,7 +75,6 @@ public class NotificationController {
     }
 
 
-
     @Operation(
         summary = "Get unread count badge counter", 
         description = "Executes an optimized, ultra-lightweight direct database count query to return the total number of unread items for immediate UI badge updating."
@@ -91,7 +90,6 @@ public class NotificationController {
         long count = notificationService.getUnreadCount(principal.getName());
         return ResponseEntity.ok(count);
     }
-
 
 
     @Operation(
@@ -113,7 +111,6 @@ public class NotificationController {
         notificationService.markAsRead(id, principal.getName());
         return ResponseEntity.noContent().build(); // HTTP standard 204 No Content for successful void mutations
     }
-
 
 
     @Operation(

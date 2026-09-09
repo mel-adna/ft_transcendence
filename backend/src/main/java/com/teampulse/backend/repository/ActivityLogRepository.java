@@ -7,8 +7,10 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.ActivityLog;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface ActivityLogRepository extends JpaRepository<ActivityLog, UUID> {
 	Slice<ActivityLog> findByWorkspaceIdOrderByCreatedAtDesc(UUID workspaceId, Pageable pageable);
 	Slice<ActivityLog> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);

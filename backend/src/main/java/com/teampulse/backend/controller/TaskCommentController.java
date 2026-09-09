@@ -33,7 +33,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/tasks/")
+@RequestMapping("/tasks")
 @RequiredArgsConstructor
 @Tag(name = "Task Comments", description = "Endpoints for managing task comments within a workspace. Requires workspace membership.")
 public class TaskCommentController {
@@ -53,7 +53,7 @@ public class TaskCommentController {
         @ApiResponse(responseCode = "403", description = "Forbidden - User is not a member of the workspace", content = @Content),
         @ApiResponse(responseCode = "404", description = "Task not found", content = @Content)
     })
-	@PostMapping("{taskId}/comments")
+	@PostMapping("/{taskId}/comments")
 	public ResponseEntity<TaskCommentResponse> createComment(@Parameter(description="UUID of the task to add a comment to", required=true)
 															@PathVariable UUID taskId, @Valid @RequestBody TaskCommentCreateRequest request,
 															@Parameter(hidden=true) Principal principal) {
@@ -73,7 +73,7 @@ public class TaskCommentController {
         @ApiResponse(responseCode = "403", description = "Forbidden - User is not a member of the workspace", content = @Content),
         @ApiResponse(responseCode = "404", description = "Task not found", content = @Content)
     })
-	@GetMapping("{taskId}/comments")
+	@GetMapping("/{taskId}/comments")
 	public ResponseEntity<Page<TaskCommentResponse>> getComments(@Parameter(description = "UUID of the task to fetch comments for", required = true)
 																			@PathVariable UUID taskId, @PageableDefault(size = 10, sort = "createdAt")
 																			Pageable pageable, @Parameter(hidden = true)
