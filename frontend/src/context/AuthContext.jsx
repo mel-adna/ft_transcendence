@@ -1,5 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
-import api, { setToken, getToken, clearToken } from '../lib/api';
+import api, {
+  setToken,
+  setRefreshToken,
+  getToken,
+  clearToken,
+  revokeRefreshToken,
+  postWithoutSession,
+} from '../lib/api';
 import { AuthContext } from './useAuth';
 
 export function AuthProvider({ children }) {
@@ -28,16 +35,23 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     setToken(response.data.accessToken);
+    setRefreshToken(response.data.refreshToken);
     setUser(response.data.user);
   }, []);
 
   const signup = useCallback(async (payload) => {
-    const response = await api.post('/auth/signup', payload);
+    await postWithoutSession('/auth/signup', payload);
+  }, []);
+
+  const verifyEmail = useCallback(async (email, code) => {
+    const response = await postWithoutSession('/auth/verify-email', { email, code });
     setToken(response.data.accessToken);
+    setRefreshToken(response.data.refreshToken);
     setUser(response.data.user);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await revokeRefreshToken();
     clearToken();
     localStorage.removeItem('workspaceId');
     setUser(null);
@@ -49,7 +63,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, signup, verifyEmail, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

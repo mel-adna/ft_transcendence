@@ -8,26 +8,24 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { List, CheckCircle, Users, Activity } from 'lucide-react';
+import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
+import { getErrorMessage } from '../../lib/api';
+import { buildActivityFeed, deriveActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
 import EmptyState from '../../components/EmptyState';
+import Spinner from '../../components/Spinner';
 
 const RANGE_OPTIONS = [
   { value: 7, label: '7 Days' },
   { value: 30, label: '30 Days' },
 ];
 
-const STATUS_LABEL = {
-  TODO: 'To-Do',
-  DOING: 'Doing',
-  DONE: 'Done',
-};
-
-const STATUS_STYLE = {
-  TODO: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
-  DOING: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
-  DONE: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+const TONE_STYLE = {
+  done: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+  active: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
+  danger: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
+  neutral: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
 };
 
 function formatRelativeTime(value) {
@@ -35,12 +33,12 @@ function formatRelativeTime(value) {
   const then = new Date(value).getTime();
   if (Number.isNaN(then)) return '';
   const diffMs = Math.max(0, Date.now() - then);
-  const minutes = Math.round(diffMs / 60000);
+  const minutes = Math.floor(diffMs / 60000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
-  const hours = Math.round(minutes / 60);
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  const days = Math.round(hours / 24);
+  const days = Math.floor(hours / 24);
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
@@ -62,9 +60,19 @@ function StatCard({ icon: Icon, label, value }) {
   );
 }
 
-export default function StatsDashboard({ tasks }) {
+export default function StatsDashboard({
+  tasks,
+  activityLogs,
+  activityLoading,
+  activityError,
+  onRetryActivity,
+}) {
   const [range, setRange] = useState(7);
   const stats = useMemo(() => computeStats(tasks, range), [tasks, range]);
+  const activity = useMemo(() => {
+    const fromApi = buildActivityFeed(activityLogs);
+    return fromApi.length > 0 ? fromApi : deriveActivityFeed(tasks);
+  }, [activityLogs, tasks]);
 
   return (
     <div className="space-y-6 text-left md:space-y-7">
@@ -153,31 +161,56 @@ export default function StatsDashboard({ tasks }) {
         <div className="rounded-2xl border border-[#27273a] bg-[#181824] p-6 shadow-lg">
           <h3 className="text-base font-bold text-white">Recent Activity</h3>
 
-          {stats.recentActivity.length === 0 ? (
+          {activityLoading ? (
+            <div className="mt-6 flex min-h-[12rem] items-center justify-center">
+              <Spinner />
+            </div>
+          ) : activityError ? (
+            <div className="mt-6">
+              <EmptyState
+                icon={AlertTriangle}
+                title="Could not load activity"
+                message={getErrorMessage(activityError)}
+                action={
+                  <button
+                    type="button"
+                    onClick={onRetryActivity}
+                    className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  >
+                    Retry
+                  </button>
+                }
+              />
+            </div>
+          ) : activity.length === 0 ? (
             <div className="mt-6">
               <EmptyState
                 icon={Activity}
                 title="No activity yet"
-                message="Task updates will show up here once work starts moving."
+                message="Task updates and comments will show up here once work starts moving."
               />
             </div>
           ) : (
             <ul className="mt-6 space-y-5">
-              {stats.recentActivity.map((task) => (
-                <li key={task.id} className="flex items-start gap-3">
-                  <Avatar user={task.assignee ?? task.creator} size={32} />
+              {activity.map((entry) => (
+                <li key={entry.id} className="flex items-start gap-3">
+                  <Avatar user={entry.user} size={32} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-white">{task.title}</p>
+                    {entry.description && (
+                      <p className="break-words text-xs font-semibold text-white">
+                        {entry.description}
+                      </p>
+                    )}
                     <div className="mt-1.5 flex items-center gap-2">
                       <span
                         className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${
-                          STATUS_STYLE[task.status] ?? STATUS_STYLE.TODO
+                          TONE_STYLE[entry.tone] ?? TONE_STYLE.neutral
                         }`}
                       >
-                        {STATUS_LABEL[task.status] ?? task.status}
+                        {entry.label}
                       </span>
                       <span className="text-[10px] text-[#71717A]">
-                        {formatRelativeTime(task.updatedAt)}
+                        {formatRelativeTime(entry.createdAt)}
                       </span>
                     </div>
                   </div>

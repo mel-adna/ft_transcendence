@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreVertical, Pencil, Trash2, ArrowRight } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2, ArrowRight, CalendarDays } from 'lucide-react';
 import Avatar from '../../components/Avatar';
+import { taskRef, shortDate } from './taskFormat';
 
 const PRIORITY_STYLE = {
   HIGH: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
@@ -27,7 +28,7 @@ function assigneeName(user) {
   return name || user?.email || 'Unassigned';
 }
 
-export default function TaskCard({ task, onEdit, onDelete, onMove }) {
+export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -69,7 +70,17 @@ export default function TaskCard({ task, onEdit, onDelete, onMove }) {
     <div
       draggable
       onDragStart={handleDragStart}
-      className="cursor-grab rounded-xl border border-[#27273a] bg-[#181824] p-4 shadow-sm active:cursor-grabbing"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${task.title}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className="cursor-grab rounded-xl border border-[#27273a] bg-[#181824] p-4 shadow-sm transition-colors hover:border-[#3B82F6]/40 focus:border-[#3B82F6] focus:outline-none active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-2">
         <span
@@ -80,7 +91,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove }) {
           {PRIORITY_LABEL[task.priority] ?? task.priority}
         </span>
 
-        <div className="relative shrink-0" ref={menuRef}>
+        <div className="relative shrink-0" ref={menuRef} onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
@@ -146,9 +157,18 @@ export default function TaskCard({ task, onEdit, onDelete, onMove }) {
         <p className="mt-1.5 line-clamp-2 text-xs text-[#71717A]">{task.description}</p>
       )}
 
-      <div className="mt-4 flex items-center justify-end border-t border-[#27273a] pt-3">
-        <Avatar user={task.assignee} size={26} />
-        <span className="sr-only">{assigneeName(task.assignee)}</span>
+      <div className="mt-4 flex items-center gap-3 border-t border-[#27273a] pt-3">
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-[#71717A]">
+          <CalendarDays size={13} />
+          {shortDate(task.createdAt)}
+        </span>
+        <span className="ml-auto font-mono text-[11px] text-[#71717A]">{taskRef(task)}</span>
+        {task.assignee && (
+          <>
+            <Avatar user={task.assignee} size={26} />
+            <span className="sr-only">{assigneeName(task.assignee)}</span>
+          </>
+        )}
       </div>
     </div>
   );
