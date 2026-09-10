@@ -11,7 +11,13 @@ Team Pulse is a task and team collaboration app: workspaces, a kanban task board
 What has to be running for the app to actually work:
 
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
-- The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works fine without it.
+- The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works
+  fine without it. That service is not in this branch: it lives in `backend/` on `origin/aarab`, which is
+  an Express + socket.io + Prisma app, not the Java one. With nothing listening on 5005 the Chat page
+  detects it and shows an offline panel with a retry, rather than the browser's raw `Failed to fetch`.
+  How that check works, and why it lives outside the vendored components, is under "Which code is whose".
+
+The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
 Other scripts: `npm run build` produces the production bundle, `npm run lint` runs eslint, `npm test` runs the unit tests (see Testing below).
 
@@ -27,30 +33,76 @@ Read the code in this order:
 
 ## How login works
 
-The login form (`pages/LoginPage.jsx`) posts email and password to `POST /auth/login`. The response's `accessToken` is written to `localStorage` under the key `token` by `setToken()` in `lib/api.js`. From then on, one axios request interceptor, also in `lib/api.js`, reads that key on every outgoing request and attaches `Authorization: Bearer <token>` automatically: no page ever sets that header itself. A matching response interceptor watches every response; if any request comes back `401`, it clears the token and sends the browser to `/login`.
+Signing up takes two steps, and it is worth knowing why the code looks the way it does. `POST /auth/signup` does not return tokens. It creates the account disabled, emails a 6 digit code that expires in 15 minutes, and answers with a plain string. So `signup()` in `AuthContext` no longer stores anything; it just makes the call, and `LoginPage` sends the person to `/verify-email` with their address in router state. `pages/VerifyEmailPage.jsx` posts that address and the code to `POST /auth/verify-email`, and *that* is the call that returns the two tokens and completes the session. The page also carries its own email field, used when there is no router state, so refreshing the page or arriving by URL is not a dead end.
+
+Two rough edges there belong to the backend and are tracked in `backend-issues.md`. Signing in before verifying returns a 500 rather than something that says "confirm your email first" (issue 20), so the message shown on the sign in form is unhelpful in the one case every new user hits. And there is no resend endpoint (issue 21), which is why this page promises nothing about sending another code: it could not keep that promise.
+
+The login form (`pages/LoginPage.jsx`) posts email and password to `POST /auth/login`. The response carries two tokens. The `accessToken` is written to `localStorage` under the key `token` by `setToken()` in `lib/api.js`, and the `refreshToken` under `refreshToken`. From then on, one axios request interceptor, also in `lib/api.js`, reads the access token on every outgoing request and attaches `Authorization: Bearer <token>` automatically: no page ever sets that header itself.
+
+A matching response interceptor watches every response. When a request comes back `401`, it does not log the user out straight away. It calls `POST /auth/refresh` with the stored refresh token, saves the new tokens, and replays the original request, so a session that has been open longer than the access token's lifetime keeps working without the user noticing. Only if the refresh itself fails are both tokens cleared and the browser sent to `/login`.
+
+Refresh tokens rotate: the backend deletes the one you present and returns a new one, so an old token stops working the moment it is used. `setRefreshToken` saves the replacement on every refresh, which is what keeps a session alive. Signing out calls `POST /auth/logout` through `revokeRefreshToken()` so the token is destroyed on the server too, not just forgotten by the browser. That call is wrapped so a failure cannot leave someone stuck signed in: the local session is cleared either way. Three guards keep this from looping: a request is only retried once, `/auth/login`, `/auth/signup`, `/auth/verify-email` and `/auth/refresh` are never retried, and concurrent 401s share a single in-flight refresh instead of each firing their own. That decision is a pure function, `shouldRefresh()`, which is why it can be tested in `lib/api.test.js`.
 
 The key has to stay named exactly `token`. The vendored chat module (`features/chat/`, `infrastructure/socket/`) reads `localStorage.getItem('token')` directly to authenticate its own REST calls and its socket connection. Renaming the key, even to something more conventional like `accessToken`, would silently break chat login for no visible reason.
 
 ## How the dashboard gets its numbers
 
-There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," a day-by-day completion trend, and the most recently updated tasks for the activity feed. `stats.js` is a pure function (tasks in, numbers out) and has its own tests in `lib/stats.test.js`.
+There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," and a day-by-day completion trend. `stats.js` is a pure function (tasks in, numbers out) and has its own tests in `lib/stats.test.js`.
+
+The Recent Activity panel on the same page is the exception. It reads the real audit trail from `GET /activity-logs/workspace/{id}`, fetched in `DashboardPage` through `features/dashboard/useActivityLogs.js`. That endpoint returns a Spring `Slice`, so the rows are under `response.data.content`, not the response body itself. `features/dashboard/activityLog.js` turns each row into something displayable and is where the action types (`TASK_COMPLETED`, `WORKSPACE_MEMBER_ADDED`, and so on) get their labels. An action type the frontend has never seen is humanized automatically rather than dropped, so new backend events show up without a frontend change.
+
+The panel has a fallback, and it is worth knowing why. It was added when the backend logged almost nothing, so creating a task and dragging it to Done wrote zero rows. Those gaps are fixed: creating, deleting, assigning (including assigning to yourself) and completing a task all write real rows now, re-measured on 2026-09-07. When the API trail still comes back empty, `deriveActivityFeed` builds the list from the task list instead, which is what this panel did before it was wired to the endpoint. Real audit rows win whenever there are any; the derived list only fills the gap.
+
+One gap is left, and it is visible on the dashboard. Only the move *into* Done is logged, so dragging a card back out of Done writes nothing and the feed does not change, while finishing the same task twice writes two identical `completed` rows with no `reopened` row between them. That is `backend-issues.md` issue 19, and it is a backend fix: an activity log is append-only history, so the answer is a new row saying the task was reopened, not the removal of the completion that really did happen.
+
+The fetch lives in `DashboardPage` rather than inside `StatsDashboard` for two reasons: the page returns a spinner while tasks load, so a fetch inside the chart component could not start until the task request had finished, and the CSV import needs to refresh the activity trail along with the task list when it is done.
 
 The same is true of the app's two export features: CSV export and import (`lib/csv.js`) and the GDPR data export on the Settings page (`features/settings/dataExport.js`) are both built entirely client-side, because the backend does not expose a CSV endpoint or a personal-data export endpoint either. If asked where a number or a downloaded file comes from, the answer is almost always "computed in the browser from the task list," not "returned by an endpoint."
 
+## Who a new task gets assigned to
+
+`features/tasks/TaskFormModal.jsx` has an "Assign to" picker. Its options come from the same members endpoint the Colleagues page uses, so it only ever offers people who are really in the workspace, which matters because the backend rejects an `assigneeId` that is not a member of that workspace.
+
+The default differs between creating and editing on purpose:
+
+- **Creating.** The picker starts on the signed-in user, so a task created without touching the field belongs to its creator rather than to nobody.
+- **Editing.** The picker starts on whoever is currently assigned.
+
+"Nobody" is offered in both cases. Clearing an assignee is a real thing to want, the backend supports it (`assigneeId: null`), and the CSV import already creates unassigned tasks, so hiding the option on create would have made the two creation paths disagree.
+
+The signed-in user is always in the list even if the members request failed, so the form still works when that endpoint is down.
+
+
+## Editing a team, and changing a role
+
+Two controls close gaps in screens that were otherwise read-only.
+
+**Teams** has a pencil next to the delete button, on teams you own. It opens `EditTeamModal` and sends `PUT /workspaces/{id}`. That request needs `type` as well as `name`: the DTO marks it `@NotNull`, so a rename that omits it comes back 400.
+
+The description field in that form starts empty and says so. This is not an oversight: `WorkspaceResponse` returns only `id`, `name`, `type` and `owner`, so there is no way to read the current description and prefill it, and because the update maps a missing description straight onto the entity, saving replaces whatever was there. The form states that plainly rather than hiding it. `backend-issues.md` issue 16 has the one-line backend fix.
+
+**Colleagues** turns the role badge into a select, sending `PUT /workspaces/{id}/members/role` with the member's email and the new role. It stays a plain badge for the workspace owner and for yourself, matching the rule the Remove button already used, so you cannot lock yourself out of your own team. Only admins may call it; anyone else gets refused by the backend.
+
+
 ## Testing
 
-`npm test` runs vitest against four files, 34 tests total:
+`npm test` runs vitest against seven files, 57 tests total:
 
 - `lib/stats.test.js`
 - `lib/csv.test.js`
+- `lib/api.test.js`
 - `features/colleagues/roster.test.js`
 - `features/settings/dataExport.test.js`
+- `features/tasks/taskFormat.test.js`
+- `features/dashboard/activityLog.test.js`
 
-These four are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `roster.js` derives the Colleagues list from the workspace and its tasks, and `dataExport.js` assembles the GDPR export payload. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
+These seven are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `api.js` decides when an expired token should be refreshed, `roster.js` turns the members endpoint into the Colleagues list, and can rebuild that list from tasks when the endpoint cannot supply it, `dataExport.js` assembles the GDPR export payload, `taskFormat.js` formats task references and dates, and `activityLog.js` turns an audit row into a label and a tone. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
 
 ## Which code is whose
 
 `features/chat/` and `infrastructure/socket/` are copied unchanged from a teammate's branch (aarab). They are vendored byte for byte so they merge cleanly with his work later, and they are never edited here, including the no-comments and no-console rules that apply to the rest of the app. `eslint.config.js` explicitly ignores both paths for the same reason.
+
+`pages/ChatPage.jsx` is the exception, and it is ours. Because the vendored components cannot be edited, the check for whether the chat service is even up has to live outside them. `ChatPage` probes the same base URL `chatApi.js` uses, and only mounts `SocketProvider` and `ChatLayout` once something answers. If nothing does, it shows an offline panel with a retry instead. Any HTTP reply counts as up, including a 401 or a 404; only a network-level failure counts as down, which is the same failure the vendored client would hit. Gating the provider also stops socket.io from retrying a dead port forever in the background. The base URL is duplicated rather than imported, so it has to stay identical to the one in `chatApi.js`.
 
 Everything else under `frontend/src` was written for this task list.
 
@@ -65,11 +117,11 @@ Everything else under `frontend/src` was written for this task list.
 
 ### Why the core API is a relative path and goes through a proxy
 
-The Java backend allows a fixed list of browser origins. `SecurityConfig.corsConfigurationSource()` permits `app.frontend-url` (which defaults to `http://localhost:8080`), plus `http://localhost:3000`, `http://localhost:5000`, and a production domain. `WebConfig` separately hardcodes 3000 and 5000. Vite's dev server runs on `http://localhost:5173`, which appears in neither list, so the browser's preflight came back `403 Invalid CORS request` and every single request failed.
+The Java backend allows a fixed list of browser origins in `SecurityConfig.corsConfigurationSource()`. For a while `http://localhost:5173`, where Vite's dev server runs, was not on that list, so the browser's preflight came back `403 Invalid CORS request` and every single request failed. It has since been added on the backend, so CORS would now work without the proxy. The proxy stays anyway, for the reason in the last paragraph.
 
 The confusing part is that `curl` to port 8080 worked perfectly the whole time. CORS is enforced by browsers, not by servers refusing to answer, so a command line client never sees the problem.
 
-Rather than wait on a backend change, `vite.config.js` proxies `/api/v1` to `CORE_API_PROXY_TARGET` and strips the `Origin` header on the way through. The browser now talks only to `localhost:5173`, which is its own origin, so CORS never applies. Note that `changeOrigin: true` alone is not enough: it rewrites `Host`, not `Origin`, and Spring reads `Origin`.
+`vite.config.js` proxies `/api/v1` to `CORE_API_PROXY_TARGET` and strips the `Origin` header on the way through. The browser now talks only to `localhost:5173`, which is its own origin, so CORS never applies. Note that `changeOrigin: true` alone is not enough: it rewrites `Host`, not `Origin`, and Spring reads `Origin`.
 
 Because `VITE_CORE_API_URL` is relative rather than an absolute `http://localhost:8080/...`, the same value is also correct in production, where nginx serves the built frontend and the API from one origin. The alternative fix, adding `http://localhost:5173` to the backend's allowed origins, would work too and belongs to whoever owns `SecurityConfig`.
 

@@ -79,35 +79,30 @@ describe('computeStats', () => {
     expect(last.completed).toBe(1);
   });
 
-  it('returns recent activity sorted by updatedAt descending, capped at 6', () => {
-    const tasks = [
-      task({ id: '1', updatedAt: '2026-07-20T10:00:00' }),
-      task({ id: '2', updatedAt: '2026-07-25T10:00:00' }),
-      task({ id: '3', updatedAt: '2026-07-15T10:00:00' }),
-      task({ id: '4', updatedAt: '2026-07-30T10:00:00' }),
-      task({ id: '5', updatedAt: '2026-07-10T10:00:00' }),
-      task({ id: '6', updatedAt: '2026-07-28T10:00:00' }),
-      task({ id: '7', updatedAt: '2026-07-05T10:00:00' }),
-      task({ id: '8', updatedAt: '2026-07-22T10:00:00' }),
-    ];
+  it('buckets a completion by the local day, not the UTC day', () => {
+    const offsetMinutes = new Date().getTimezoneOffset();
+    const edge = new Date();
+    edge.setHours(offsetMinutes > 0 ? 23 : 0, 30, 0, 0);
 
-    const result = computeStats(tasks);
+    const result = computeStats(
+      [task({ id: 'edge', status: 'DONE', updatedAt: edge.toISOString() })],
+      7,
+    );
 
-    expect(result.recentActivity).toHaveLength(6);
-    expect(result.recentActivity.map((item) => item.id)).toEqual([
-      '4',
-      '6',
-      '2',
-      '8',
-      '1',
-      '3',
-    ]);
+    const expectedKey = `${edge.getFullYear()}-${String(edge.getMonth() + 1).padStart(2, '0')}-${String(
+      edge.getDate(),
+    ).padStart(2, '0')}`;
+    const bucket = result.completionTrend.find((item) => item.key === expectedKey);
+
+    expect(bucket).toBeDefined();
+    expect(bucket.completed).toBe(1);
+    expect(result.completionTrend.reduce((sum, item) => sum + item.completed, 0)).toBe(1);
   });
 
   it('handles an empty task list without throwing', () => {
     const result = computeStats([]);
     expect(result.total).toBe(0);
     expect(result.activeColleagues).toBe(0);
-    expect(result.recentActivity).toEqual([]);
+    expect(result.completionTrend).toHaveLength(7);
   });
 });

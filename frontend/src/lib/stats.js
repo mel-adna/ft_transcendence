@@ -1,5 +1,7 @@
 function dayKey(value) {
-  return String(value).slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return localDayKey(date);
 }
 
 function pad(value) {
@@ -47,11 +49,6 @@ export function computeStats(tasks = [], days = 7) {
     completed: completedPerDay.get(key) ?? 0,
   }));
 
-  const recentActivity = [...tasks]
-    .filter((task) => task.updatedAt)
-    .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
-    .slice(0, 6);
-
   return {
     total: tasks.length,
     todo: byStatus.TODO,
@@ -59,6 +56,5 @@ export function computeStats(tasks = [], days = 7) {
     completed: byStatus.DONE,
     activeColleagues: assignees.size,
     completionTrend,
-    recentActivity,
   };
 }
