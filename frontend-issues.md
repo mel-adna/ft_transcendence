@@ -22,18 +22,92 @@
 
 ---
 
-## 4. Email Verification Flows
+## 4. Email Verification & Unverified Login Flow
 
-### Unverified User Login Handling
-- **Problem:** If a user signs up and leaves the verification page, attempting to log in later returns a "disabled/unverified email" error without providing any way to complete verification.
-- **Expected Behavior:** 
-  1. When a user attempts to log in with an unverified account, catch the unverified error response.
-  2. Automatically trigger the backend endpoint to resend a fresh verification code.
-  3. Redirect the user directly to the Verification Modal/Page instead of keeping them stuck on the login form.
+Unverified users attempting login are blocked by an "account disabled" error with no modal or option provided to enter a verification code.
 
-### Resend Verification Code Button
-- **Problem:** The verification modal lacks a button to request a new code if the original email fails or expires.
-- **Expected Behavior:** Add a **"Resend Code"** button to the verification modal (used in both initial signup and unverified login flows) with a short cooldown timer (e.g., 60 seconds).
+what should be:
+
+
+### Step 1: Login Attempt (`POST /auth/login`)
+
+When calling `/auth/login`:
+
+- **If verified (`200 OK`):** Store the tokens and navigate to `/dashboard`.
+- **If unverified (`403 Forbidden`):**
+  1. Catch the `403` status (check for `errorCode: "EMAIL_NOT_VERIFIED"` or `"Account is disabled"` in the response message).
+  2. Save the user's `email` in your application state.
+  3. Automatically display the **Verification Code Modal/Page**.
+  4. Show an info toast: *"Your account is not verified yet. A new verification code has been sent to your email."*
+
+
+### Step 2: Submit Verification Code (`POST /auth/verify-email`)
+
+When the user inputs the 6-digit code in the modal and clicks **Verify**:
+
+- **Endpoint:** `POST /auth/verify-email`
+- **Payload:**
+```json
+  {
+    "email": "user@example.com",
+    "code": "123456"
+  }
+
+```
+
+### Step 3: Handling Success & Auto-Login (`200 OK`)
+
+When `/auth/verify-email` returns `200 OK`, the response payload includes the complete authentication session:
+
+```json
+{
+  "accessToken": "eyJhbGci...",
+  "refreshToken": "447b7a2d-...",
+  "tokenType": "Bearer",
+  "user": {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "email": "user@example.com",
+    "firstName": "Mohamed",
+    "lastName": "..."
+  }
+}
+
+```
+
+### Required Actions:
+
+1. Save `accessToken` & `refreshToken` in `localStorage` / Auth Context.
+2. Close the verification modal.
+3. **Auto-login:** Redirect the user directly to `/dashboard` or `/workspaces`. **Do NOT redirect them to the login page.**
+
+
+
+### Step 4: Handling Code Errors (`400 Bad Request` / `401 Unauthorized`)
+
+If the user submits an incorrect or expired code:
+
+1. Keep the verification modal open.
+2. Display an inline error message: *"Invalid or expired verification code. Please try again."*
+3. Keep the **Resend Code** button active.
+
+
+
+### Step 5: Resend Verification Code (`POST /auth/resend-verification`)
+
+If the user clicks **"Resend Code"**:
+
+* **Endpoint:** `POST /auth/resend-verification`
+* **Payload:**
+```json
+{
+  "email": "user@example.com"
+}
+
+```
+
+
+* **UX Requirement:** Disable the "Resend Code" button for a 60-second cooldown timer after each click to prevent excessive requests.
+
 
 ---
 
