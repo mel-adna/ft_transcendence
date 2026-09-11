@@ -16,7 +16,7 @@ export function useRooms() {
     setError(null);
     try {
       const { rooms: fetched } = await chatApi.listRooms();
-      setRooms(fetched);
+      setRooms(fetched ?? []);
     } catch (err) {
       setError(err.message);
     } finally {
