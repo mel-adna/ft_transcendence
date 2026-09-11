@@ -18,7 +18,17 @@ const UserRepository = require('../../infrastructure/repositories/UserRepository
  * and upgrades automatically once they add `id`/`username` claims — no change
  * needed here. The signing secret MUST match theirs: set JWT_SECRET in this
  * service to the same value as the Java app's `app.jwt.secret`.
+ *
+ * Key encoding: the Java side builds its signing key via
+ * `Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey))` — i.e. it treats
+ * JWT_SECRET as a Base64-encoded key, not raw UTF-8 bytes. jsonwebtoken's
+ * jwt.verify(token, someString) uses the string's raw bytes directly, so
+ * passing JWT_SECRET as-is silently produces a different key than Java's
+ * and every real token fails with "invalid signature" (surfaced here as
+ * AUTH_TOKEN_INVALID). Decoding as base64 first matches Java's derivation.
  */
+const SIGNING_KEY = Buffer.from(process.env.JWT_SECRET ?? '', 'base64');
+
 class SocketAuthUseCase {
   /**
    * @param {object} handshakeAuth - socket.handshake.auth
@@ -32,7 +42,7 @@ class SocketAuthUseCase {
 
     let payload;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET);
+      payload = jwt.verify(token, SIGNING_KEY);
     } catch (err) {
       if (err.name === 'TokenExpiredError') throw new Error('AUTH_TOKEN_EXPIRED');
       throw new Error('AUTH_TOKEN_INVALID');

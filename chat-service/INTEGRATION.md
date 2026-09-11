@@ -24,6 +24,15 @@ The chat service verifies the same JWT the Java backend issues. For that to work
 Set `JWT_SECRET` in `chat-service` to the **same value** as the Java app's
 `app.jwt.secret` (currently the `JWT_SECRET` env in their `application.yaml`).
 
+**Encoding gotcha (already handled, but easy to reintroduce):** the Java side
+builds its signing key via `Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey))`
+— it treats the secret string as **Base64-encoded key bytes**, not raw UTF-8.
+`SocketAuthUseCase` decodes `JWT_SECRET` the same way (`Buffer.from(secret,
+'base64')`) before calling `jwt.verify`. If a future change on either side
+starts using the raw string instead, every real token will fail signature
+verification (`AUTH_TOKEN_INVALID`) even though the `JWT_SECRET` *values*
+match exactly — this bit us once already.
+
 ### b) Recommended: add `id` and `username` claims (small change on their side)
 Today the Spring token only sets `subject = email` (see `JwtUtils.generateToken`
 + `UserPrincipal.getUsername()` returning the email). The chat service already
