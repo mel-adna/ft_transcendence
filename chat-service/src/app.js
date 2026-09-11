@@ -9,7 +9,6 @@ const http = require('http');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
-const statsRoutes = require('./routes/statsRoutes');
 const chatRoutes = require('./interfaces/routes/chatRoutes');
 const roomRoutes = require('./interfaces/routes/roomRoutes');
 const socketServer = require('./infrastructure/socket/SocketServer');
@@ -20,25 +19,13 @@ const server = http.createServer(app);
 
 app.set('trust proxy', 1);
 
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 60,
-  message: {
-    error: 'Too many requests from this IP, please try again after 15 minutes.',
-  },
+const chatApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: { error: 'Too many requests, please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-const validateApiKey = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'] || req.query.apiKey;
-  const SYSTEM_API_KEY = process.env.PUBLIC_API_KEY || 'team_pulse_public_api_secret_token';
-
-  if (!apiKey || apiKey !== SYSTEM_API_KEY) {
-    return res.status(403).json({ error: 'Forbidden: Invalid API key provided.' });
-  }
-  next();
-};
 
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -47,9 +34,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/api/stats', apiLimiter, validateApiKey, statsRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/chat', roomRoutes);
+app.use('/api/chat', chatApiLimiter, chatRoutes);
+app.use('/api/chat', chatApiLimiter, roomRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({
