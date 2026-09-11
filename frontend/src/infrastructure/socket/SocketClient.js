@@ -29,7 +29,14 @@ class SocketClient {
    * @returns {import('socket.io-client').Socket}
    */
   connect() {
-    if (this._socket?.connected) return this._socket;
+    // Reuse a socket that is connected OR still completing its handshake.
+    // Checking only `.connected` meant a second caller during the async
+    // handshake would tear the in-flight socket down and start over — an
+    // endless reconnect loop that also orphaned every listener already
+    // attached to the discarded instance.
+    if (this._socket && (this._socket.connected || this._socket.active)) {
+      return this._socket;
+    }
 
     const token = this._tokenGetter?.();
     if (!token) throw new Error('SOCKET_NO_AUTH_TOKEN');
