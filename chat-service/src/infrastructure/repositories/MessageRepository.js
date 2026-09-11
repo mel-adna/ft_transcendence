@@ -3,6 +3,7 @@ const prisma = require('../database/prismaClient');
 const MESSAGE_SELECT = {
   id: true,
   roomId: true,
+  senderId: true,
   content: true,
   type: true,
   parentId: true,
