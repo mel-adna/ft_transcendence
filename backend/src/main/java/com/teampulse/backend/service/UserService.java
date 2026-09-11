@@ -13,7 +13,6 @@ import com.teampulse.backend.mapper.UserMapper;
 import com.teampulse.backend.model.PasswordResetToken;
 import com.teampulse.backend.model.RefreshToken;
 import com.teampulse.backend.model.User;
-import com.teampulse.backend.model.VerificationCode;
 import com.teampulse.backend.repository.PasswordResetTokenRepository;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.VerificationCodeRepository;
@@ -22,6 +21,7 @@ import com.teampulse.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -32,8 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -50,8 +50,8 @@ public class UserService {
 	private final RefreshTokenService refreshTokenService;
 	private final AuthenticationManager authenticationManager;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
-	private final VerificationCodeRepository verificationCodeRepository;
 	private final VerificationService verificationService;
+	private final VerificationCodeRepository verificationCodeRepository;
 	private final EmailService emailService;
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
@@ -61,6 +61,22 @@ public class UserService {
 
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
+
+	@Scheduled(cron = "0 30 3 * * ?")
+	@Transactional
+	public void purgeUnverifiedAccounts() {
+		LocalDateTime cutoffDate = LocalDateTime.now().minusHours(24);
+
+		verificationCodeRepository.deleteUnverifiedCodesBefore(cutoffDate);
+
+		int deletedUnverifiedUsersCount = userRepository.hardDeleteUnverifiedAccounts(cutoffDate);
+
+		if (deletedUnverifiedUsersCount > 0) {
+			log.info("Scheduled Job: Successfully purged {} unverified accounts created before {}.",
+					deletedUnverifiedUsersCount, cutoffDate);
+		}
+	}
+
 
 	@Transactional
 	public String signup(SignupRequest request) {
