@@ -76,12 +76,6 @@ public class GlobalExceptionHandler {
                 null);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {
-        log.error("CRITICAL ERROR internal server crash at path: ", ex);
-        return buildResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected server error occurred. Please try again later.", request, null);
-    }
 
     private ResponseEntity<ErrorResponse> buildResponseEntity(HttpStatus status, String message,
             HttpServletRequest request, Map<String, String> errors) {
@@ -150,5 +144,24 @@ public class GlobalExceptionHandler {
                 "Database constraint violation or invalid data format.",
                 request,
                 null);
+    }
+
+    @ExceptionHandler(AccountNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountNotVerifiedException(AccountNotVerifiedException ex, HttpServletRequest request) {
+        log.warn("Unverified account login attempt: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+
+        return buildResponseEntity(
+                HttpStatus.FORBIDDEN,
+                ex.getMessage(),
+                request,
+                Map.of("errorCode", "EMAIL_NOT_VERIFIED")
+        );
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {
+        log.error("CRITICAL ERROR internal server crash at path: ", ex);
+        return buildResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected server error occurred. Please try again later.", request, null);
     }
 }

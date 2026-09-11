@@ -8,10 +8,7 @@ import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.enums.AuthProvider;
-import com.teampulse.backend.exception.BadRequestException;
-import com.teampulse.backend.exception.ResourceAlreadyExistsException;
-import com.teampulse.backend.exception.ResourceNotFoundException;
-import com.teampulse.backend.exception.UnauthorizedAccessException;
+import com.teampulse.backend.exception.*;
 import com.teampulse.backend.mapper.UserMapper;
 import com.teampulse.backend.model.PasswordResetToken;
 import com.teampulse.backend.model.RefreshToken;
@@ -27,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -53,6 +51,7 @@ public class UserService {
 	private final AuthenticationManager authenticationManager;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final VerificationCodeRepository verificationCodeRepository;
+	private final VerificationService verificationService;
 	private final EmailService emailService;
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
@@ -77,23 +76,7 @@ public class UserService {
 
 		User savedUser = userRepository.save(user);
 
-		String code = String.format("%06d", new SecureRandom().nextInt(1000000));
-
-		verificationCodeRepository.deleteByUser(savedUser);
-		verificationCodeRepository.flush();
-
-		VerificationCode verificationCode = VerificationCode.builder()
-				.code(code)
-				.user(savedUser)
-				.expiryDate(Instant.now().plusSeconds(15 * 60))
-				.build();
-
-		verificationCodeRepository.saveAndFlush(verificationCode);
-
-		String emailBody = String.format("Hello %s,\n\nYour verification code is: %s\nIt expires in 15 minutes.",
-				savedUser.getFirstName(), code);
-
-		emailService.sendEmail(savedUser.getEmail(), "Verify Your Team-Pulse Account", emailBody);
+		verificationService.generateAndSendCodeForUser(savedUser);
 
 		return "Verification code has been sent to your email.";
 	}
@@ -103,20 +86,10 @@ public class UserService {
 		User user = userRepository.findByEmail(request.getEmail())
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
 
-		VerificationCode verificationCode = verificationCodeRepository.findByCodeAndUser(request.getCode(), user)
-				.orElseThrow(() -> new BadRequestException("Invalid verification code."));
-
-		if (verificationCode.isExpired()) {
-			verificationCodeRepository.delete(verificationCode);
-			verificationCodeRepository.flush();
-			throw new BadRequestException("Verification code has expired. Please request a new one.");
-		}
+		verificationService.validateAndConsumeCode(user, request.getCode());
 
 		user.setEnabled(true);
-
 		userRepository.save(user);
-		verificationCodeRepository.delete(verificationCode);
-		verificationCodeRepository.flush();
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
@@ -132,29 +105,7 @@ public class UserService {
 
 	@Transactional
 	public void resendVerificationCode(ResendVerificationRequest request) {
-		User user = userRepository.findByEmail(request.getEmail())
-				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
-
-		if (user.isEnabled())
-			throw new BadRequestException("Account is already verified. Please log in.");
-
-		verificationCodeRepository.deleteByUser(user);
-		verificationCodeRepository.flush();
-
-		String code = String.format("%06d", new SecureRandom().nextInt(1000000));
-
-		VerificationCode verificationCode = VerificationCode.builder()
-				.code(code)
-				.user(user)
-				.expiryDate(Instant.now().plusSeconds(15 * 60))
-				.build();
-
-		verificationCodeRepository.saveAndFlush(verificationCode);
-
-		String emailBody = String.format("Hello %s,\n\nYour new verification code is: %s\nIt expires in 15 minutes.",
-				user.getFirstName(), code);
-
-		emailService.sendEmail(user.getEmail(), "Verify Your Team-Pulse Account", emailBody);
+		verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
 	}
 
 	@Transactional
@@ -177,6 +128,9 @@ public class UserService {
 					.user(userMapper.toResponse(user))
 					.build();
 
+		} catch (DisabledException ex) {
+			verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
+			throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 		}
