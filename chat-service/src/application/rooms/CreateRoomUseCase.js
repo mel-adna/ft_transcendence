@@ -15,7 +15,10 @@ class CreateRoomUseCase {
    * @param {string} [params.name] - required for GROUP
    * @param {string} [params.targetUserId] - required for DIRECT
    * @param {string[]} [params.memberIds] - initial members to invite (GROUP only)
-   * @returns {Promise<object>} room response DTO
+   * @returns {Promise<{ room: object, notifyUserIds: string[] }>} notifyUserIds
+   *   are the OTHER members (never the creator) who need a live room:joined
+   *   push — the caller (roomController) is responsible for actually
+   *   emitting it, same as InviteToRoomUseCase.
    */
   async execute({ creatorId, type, name, targetUserId, memberIds = [] }) {
     if (type === Room.TYPES.DIRECT) {
@@ -36,15 +39,17 @@ class CreateRoomUseCase {
 
     // Seed initial members (validated, deduped, creator excluded)
     const candidateIds = [...new Set(memberIds)].filter((id) => id && id !== creatorId);
+    let notifyUserIds = [];
     if (candidateIds.length) {
       const users = await UserRepository.findManyByIds(candidateIds);
       for (const user of users) {
         await RoomRepository.addMember(created.id, user.id, 'MEMBER');
       }
+      notifyUserIds = users.map((u) => u.id);
     }
 
     const room = await RoomRepository.findById(created.id);
-    return RoomService.buildRoomResponse(room, creatorId);
+    return { room: RoomService.buildRoomResponse(room, creatorId), notifyUserIds };
   }
 
   async _createDirectRoom(creatorId, targetUserId) {
@@ -56,7 +61,9 @@ class CreateRoomUseCase {
 
     const existing = await RoomRepository.findDMRoom(creatorId, targetUserId);
     if (existing) {
-      return RoomService.buildRoomResponse(existing);
+      // Already exists — the target was already notified when it was first
+      // created, so nothing new to push live.
+      return { room: RoomService.buildRoomResponse(existing), notifyUserIds: [] };
     }
 
     const dmName = RoomService.getDMRoomName(creatorId, targetUserId);
@@ -67,7 +74,7 @@ class CreateRoomUseCase {
     await RoomRepository.addMember(created.id, targetUserId, 'MEMBER');
 
     const room = await RoomRepository.findById(created.id);
-    return RoomService.buildRoomResponse(room);
+    return { room: RoomService.buildRoomResponse(room), notifyUserIds: [targetUserId] };
   }
 }
 

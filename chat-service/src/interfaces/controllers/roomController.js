@@ -32,12 +32,18 @@ const roomController = {
   async createGroup(req, res) {
     try {
       const { name, memberIds } = req.body ?? {};
-      const room = await CreateRoomUseCase.execute({
+      const { room, notifyUserIds } = await CreateRoomUseCase.execute({
         creatorId: req.user.id,
         type: Room.TYPES.GROUP,
         name,
         memberIds: Array.isArray(memberIds) ? memberIds : [],
       });
+
+      for (const userId of notifyUserIds) {
+        socketServer.joinUserToRoom(userId, room.id);
+        socketServer.emitToUser(userId, 'room:joined', { roomId: room.id, room });
+      }
+
       return res.status(201).json({ room });
     } catch (err) {
       return _handleError(res, err);
@@ -122,11 +128,17 @@ const roomController = {
   async createDM(req, res) {
     try {
       const { targetUserId } = req.body ?? {};
-      const room = await CreateRoomUseCase.execute({
+      const { room, notifyUserIds } = await CreateRoomUseCase.execute({
         creatorId: req.user.id,
         type: Room.TYPES.DIRECT,
         targetUserId,
       });
+
+      for (const userId of notifyUserIds) {
+        socketServer.joinUserToRoom(userId, room.id);
+        socketServer.emitToUser(userId, 'room:joined', { roomId: room.id, room });
+      }
+
       return res.status(201).json({ room });
     } catch (err) {
       return _handleError(res, err);
