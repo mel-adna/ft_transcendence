@@ -25,6 +25,7 @@ const userController = {
         requesterId: req.user.id,
         query: q ?? '',
         excludeRoomId: roomId ?? null,
+        callerToken: req.user.token,
       });
       return res.json({ users });
     } catch (err) {
