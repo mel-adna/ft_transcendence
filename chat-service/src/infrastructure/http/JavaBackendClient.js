@@ -60,4 +60,34 @@ async function listAllUsers(callerToken) {
   return searchUsersByEmail('@', callerToken);
 }
 
-module.exports = { searchUsersByEmail, listAllUsers };
+/**
+ * Member user-ids of a Java-side workspace.
+ *
+ * Used to resolve the audience for a `data:changed` push when the caller
+ * says "this workspace changed" without naming recipients (a task move, for
+ * instance, is relevant to the whole team). Called with the requesting
+ * user's own token, so the Java backend enforces that they may actually see
+ * that workspace's roster.
+ *
+ * @param {string} workspaceId
+ * @param {string} callerToken
+ * @returns {Promise<string[]>}
+ */
+async function listWorkspaceMemberIds(workspaceId, callerToken) {
+  if (!workspaceId || !callerToken) return [];
+
+  try {
+    const res = await fetch(`${JAVA_API_BASE}/workspaces/${workspaceId}/members`, {
+      headers: { Authorization: `Bearer ${callerToken}` },
+    });
+    if (!res.ok) return [];
+
+    // WorkspaceMemberResponse nests the account under `member`.
+    const members = await res.json();
+    return members.map((m) => m.member?.id).filter(Boolean).map(String);
+  } catch {
+    return [];
+  }
+}
+
+module.exports = { searchUsersByEmail, listAllUsers, listWorkspaceMemberIds };

@@ -10,6 +10,8 @@ class SocketClient {
     /** @type {import('socket.io-client').Socket | null} */
     this._socket = null;
     this._tokenGetter = null;
+    /** Consumers outside the chat UI keeping the connection alive. */
+    this._holders = 0;
   }
 
   /**
@@ -52,8 +54,45 @@ class SocketClient {
 
   /**
    * Disconnect and destroy the socket.
+   *
+   * No-op while something outside the chat feature is holding the connection
+   * open (see retain/release). ChatPage unmounts whenever the user navigates
+   * to Teams or Tasks, and those pages listen for `data:changed` on this same
+   * socket — without this guard, leaving chat would silently kill their
+   * live updates.
    */
   disconnect() {
+    if (this._holders > 0) return;
+    this._forceDisconnect();
+  }
+
+  /**
+   * Keep the connection alive independently of the chat UI's lifecycle.
+   * Returns a release function; the socket is torn down once the last
+   * holder releases and the chat provider is also gone.
+   * @returns {() => void}
+   */
+  retain() {
+    this._holders += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this._holders = Math.max(0, this._holders - 1);
+    };
+  }
+
+  /**
+   * Tear the connection down regardless of holders, and drop them.
+   * For logout: the socket is authenticated as the outgoing user, so it must
+   * not survive into the next session.
+   */
+  forceClose() {
+    this._holders = 0;
+    this._forceDisconnect();
+  }
+
+  _forceDisconnect() {
     this._stopHeartbeat();
     if (this._socket) {
       this._socket.disconnect();
