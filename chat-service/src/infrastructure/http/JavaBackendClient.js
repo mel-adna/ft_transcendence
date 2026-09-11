@@ -44,4 +44,20 @@ async function searchUsersByEmail(email, callerToken) {
   }
 }
 
-module.exports = { searchUsersByEmail };
+/**
+ * Every account in the directory, for pickers that show "everyone" rather
+ * than search results (the DM picker).
+ *
+ * The Java side exposes no list-all endpoint — only /users/search?email=,
+ * a case-insensitive substring match that rejects a blank query. Every
+ * email contains "@", so searching for it returns the full directory
+ * without needing a change on their side.
+ *
+ * @param {string} callerToken - the requesting user's own JWT
+ * @returns {Promise<Array<{ id: string, username: string, email: string, avatarUrl: string|null }>>}
+ */
+async function listAllUsers(callerToken) {
+  return searchUsersByEmail('@', callerToken);
+}
+
+module.exports = { searchUsersByEmail, listAllUsers };
