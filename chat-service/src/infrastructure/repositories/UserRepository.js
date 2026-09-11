@@ -15,6 +15,41 @@ const USER_PUBLIC_SELECT = {
  */
 const UserRepository = {
   /**
+   * Find-or-create by the identity carried in a Java-issued JWT. This service
+   * never authenticates users itself — the Java backend owns signup/login —
+   * but it does own its own `User` row per Postgres FK constraints (Message,
+   * RoomMember, ReadReceipt all reference chat-service's User.id). Without
+   * this, any account that isn't one of the seeded dev users fails on first
+   * real use: room creation/invite/message-send all reference a User row
+   * that never got created.
+   * `passwordHash` is unused here (auth is verified, never performed, by
+   * this service) and is set to a fixed placeholder.
+   * @param {{ id: string, username: string|null, email: string|null }} identity
+   * @returns {Promise<object>}
+   */
+  async ensureFromIdentity({ id, username, email }) {
+    const fallbackEmail = email ?? `${id}@unknown.local`;
+    const fallbackUsername = username ?? fallbackEmail.split('@')[0];
+
+    return prisma.user.upsert({
+      where: { id },
+      update: {
+        // Keep the local record in sync if the Java side's claims change
+        // (e.g. username edited), but never touch presence fields here.
+        ...(email ? { email } : {}),
+        ...(username ? { username: fallbackUsername } : {}),
+      },
+      create: {
+        id,
+        username: fallbackUsername,
+        email: fallbackEmail,
+        passwordHash: 'external-auth',
+      },
+      select: USER_PUBLIC_SELECT,
+    });
+  },
+
+  /**
    * @param {string} id
    * @returns {Promise<object|null>}
    */
