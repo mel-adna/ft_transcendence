@@ -51,6 +51,10 @@ services:
       - DB_USERNAME=med
       - DB_PASSWORD=123
       - FRONTEND_URL=https://localhost
+      # Pinned explicitly (rather than relying on application.yaml's
+      # hardcoded default) so it can never silently drift from the value
+      # chat-service verifies against — see chat-service/INTEGRATION.md.
+      - JWT_SECRET=${JWT_SECRET}
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_PUBLIC_URL=http://localhost:9000
       - MINIO_ACCESS_KEY=minioadmin
