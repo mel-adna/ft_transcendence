@@ -7,7 +7,7 @@ const userController = {
    */
   async listUsers(req, res) {
     try {
-      const users = await ListUsersUseCase.execute(req.user.id);
+      const users = await ListUsersUseCase.execute(req.user.id, req.user.token);
       return res.json({ users });
     } catch (err) {
       return res.status(500).json({ error: err.message });
