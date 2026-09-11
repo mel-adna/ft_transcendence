@@ -2,11 +2,14 @@ const express = require('express');
 const roomController = require('../controllers/roomController');
 const presenceController = require('../controllers/presenceController');
 const userController = require('../controllers/userController');
+const notifyController = require('../controllers/notifyController');
 const authMiddleware = require('../../middleware/authMiddleware');
 
 const router = express.Router();
 
 router.use(authMiddleware);
+
+router.post('/notify', notifyController.notify);
 
 router.get('/users', userController.listUsers);
 router.get('/users/search', userController.searchUsers);

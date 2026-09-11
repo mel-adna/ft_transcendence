@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import api, { getErrorMessage } from '../../lib/api';
+import { notifyDataChanged } from '../../lib/realtimeNotify';
 import { useAuth } from '../../context/useAuth';
 import { fullName } from './roster';
 import Modal from '../../components/Modal';
@@ -93,6 +94,11 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
         role: 'MEMBER',
       });
       setAddedIds((previous) => new Set(previous).add(candidate.id));
+      // Tell the new member their workspace list and this roster changed, so
+      // the team appears for them without a manual refresh. Existing members
+      // get the roster update too.
+      notifyDataChanged('workspaces', [candidate.id], { workspaceId });
+      notifyDataChanged('members', [candidate.id, ...rosterIds], { workspaceId });
       await onAdded();
     } catch (requestError) {
       setAddError(getErrorMessage(requestError));
