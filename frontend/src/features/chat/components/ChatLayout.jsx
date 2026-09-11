@@ -31,8 +31,9 @@ export function ChatLayout({ currentUserId }) {
 
   // Resolve the active room from the live list so its members/roles stay fresh
   // (and so a deleted room falls back to the first available one).
+  const roomList = rooms ?? [];
   const activeRoom =
-    rooms.find((r) => r.id === selectedRoomId) ?? rooms[0] ?? null;
+    roomList.find((r) => r.id === selectedRoomId) ?? roomList[0] ?? null;
 
   // Tell useRooms which room is in view so its messages don't count as unread
   // and its badge clears on open.
@@ -83,7 +84,7 @@ export function ChatLayout({ currentUserId }) {
         } md:flex w-full md:w-56 shrink-0`}
       >
         <RoomSidebar
-          rooms={rooms}
+          rooms={roomList}
           selectedRoomId={activeRoom?.id}
           onSelect={handleSelect}
           displayName={displayName}
