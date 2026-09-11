@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const UserRepository = require('../../infrastructure/repositories/UserRepository');
 
 /**
  * SocketAuthUseCase
@@ -21,9 +22,9 @@ const jwt = require('jsonwebtoken');
 class SocketAuthUseCase {
   /**
    * @param {object} handshakeAuth - socket.handshake.auth
-   * @returns {{ id: string, username: string|null, email: string|null }}
+   * @returns {Promise<{ id: string, username: string|null, email: string|null }>}
    */
-  execute(handshakeAuth) {
+  async execute(handshakeAuth) {
     const token = handshakeAuth?.token;
     if (!token) {
       throw new Error('AUTH_MISSING_TOKEN');
@@ -49,6 +50,11 @@ class SocketAuthUseCase {
       (typeof email === 'string' && email.includes('@') ? email.split('@')[0] : null) ??
       payload.sub ??
       null;
+
+    // This service never authenticates users, but it does own a local User
+    // row (FK target for messages/rooms/receipts) — provision it on first
+    // contact so a real (non-seeded) account isn't broken on its first join.
+    await UserRepository.ensureFromIdentity({ id: String(id), username, email });
 
     return {
       id: String(id),

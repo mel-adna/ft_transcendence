@@ -58,9 +58,9 @@ class SocketServer {
   }
 
   _applyAuthMiddleware() {
-    this.io.use((socket, next) => {
+    this.io.use(async (socket, next) => {
       try {
-        const user = socketAuthUseCase.execute(socket.handshake.auth);
+        const user = await socketAuthUseCase.execute(socket.handshake.auth);
         socket.user = user;
         next();
       } catch (err) {
