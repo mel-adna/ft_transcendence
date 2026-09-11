@@ -20,6 +20,10 @@ async function authMiddleware(req, res, next) {
 
   try {
     req.user = await socketAuthUseCase.execute({ token });
+    // Kept so use cases can forward the caller's own identity to the Java
+    // backend (e.g. JavaBackendClient's user search) without needing a
+    // separate service-to-service credential.
+    req.user.token = token;
     next();
   } catch (err) {
     return res.status(401).json({ error: `Unauthorized: ${err.message}` });
