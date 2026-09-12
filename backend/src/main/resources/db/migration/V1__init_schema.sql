@@ -93,9 +93,9 @@ CREATE TABLE notifications
 (
     id           UUID PRIMARY KEY,
     recipient_id UUID         NOT NULL,
-    type         VARCHAR(100) NOT NULL, -- ex: TASK_ASSIGNED, TASK_COMMENTED, WORKSPACE_MEMBER_ADDED
-    entity_type  VARCHAR(50),           -- ex: TASK, WORKSPACE, TASK_COMMENT
-    entity_id    UUID,                  -- ID of the related entity (task, workspace, etc.)
+    type         VARCHAR(100) NOT NULL, -- TASK_ASSIGNED, TASK_COMMENTED, WORKSPACE_MEMBER_ADDED
+    entity_type  VARCHAR(50),           -- TASK, WORKSPACE, TASK_COMMENT
+    entity_id    UUID,
     message      VARCHAR(500) NOT NULL,
     is_read      BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -108,7 +108,7 @@ CREATE TABLE activity_logs
     id           UUID PRIMARY KEY,
     user_id      UUID         NOT NULL,
     workspace_id UUID         NOT NULL,
-    action_type  VARCHAR(255) NOT NULL, -- Ex:  'TASK_COMPLETED'
+    action_type  VARCHAR(255) NOT NULL, -- 'TASK_COMPLETED'
     description  VARCHAR(500),
     entity_id    UUID,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -124,7 +124,9 @@ CREATE TABLE password_reset_tokens
     user_id     UUID         NOT NULL,
     expiry_date TIMESTAMP    NOT NULL,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT uk_password_reset_token UNIQUE (token),
+    CONSTRAINT uk_password_reset_user UNIQUE (user_id),
     CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
@@ -132,11 +134,11 @@ CREATE TABLE password_reset_tokens
 CREATE TABLE refresh_tokens
 (
     id          UUID PRIMARY KEY,
-    user_id     UUID      NOT NULL,
-    token       TEXT      NOT NULL UNIQUE,
-    expiry_date TIMESTAMP NOT NULL,
-    revoked     BOOLEAN   NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id     UUID         NOT NULL,
+    token       VARCHAR(255) NOT NULL UNIQUE,
+    expiry_date TIMESTAMP    NOT NULL,
+    revoked     BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
@@ -144,11 +146,11 @@ CREATE TABLE refresh_tokens
 CREATE TABLE verification_codes
 (
     id          UUID PRIMARY KEY,
-    code        VARCHAR(50) NOT NULL,
-    user_id     UUID        NOT NULL,
-    expiry_date TIMESTAMP   NOT NULL,
-    enabled     BOOLEAN     NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    code        VARCHAR(6) NOT NULL,
+    user_id     UUID       NOT NULL,
+    expiry_date TIMESTAMP  NOT NULL,
+    enabled     BOOLEAN    NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_verification_codes_user UNIQUE (user_id),
     CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
