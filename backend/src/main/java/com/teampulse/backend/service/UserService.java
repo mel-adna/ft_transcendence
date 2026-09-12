@@ -21,7 +21,6 @@ import com.teampulse.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -33,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -61,21 +59,6 @@ public class UserService {
 
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
-
-	@Scheduled(cron = "0 30 3 * * ?")
-	@Transactional
-	public void purgeUnverifiedAccounts() {
-		LocalDateTime cutoffDate = LocalDateTime.now().minusHours(24);
-
-		verificationCodeRepository.deleteUnverifiedCodesBefore(cutoffDate);
-
-		int deletedUnverifiedUsersCount = userRepository.hardDeleteUnverifiedAccounts(cutoffDate);
-
-		if (deletedUnverifiedUsersCount > 0) {
-			log.info("Scheduled Job: Successfully purged {} unverified accounts created before {}.",
-					deletedUnverifiedUsersCount, cutoffDate);
-		}
-	}
 
 
 	@Transactional

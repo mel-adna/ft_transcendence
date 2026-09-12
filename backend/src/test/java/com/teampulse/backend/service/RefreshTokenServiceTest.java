@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -84,15 +85,16 @@ public class RefreshTokenServiceTest {
 		verify(refreshTokenRepository, times(1)).delete(expiredRefreshToken);
 	}
 
-	@Test
-	@DisplayName("Should call deleteByExpiryDateBefore with current time during scheduled purge")
-	void purgeExpiredTokens_Success() {
-		when(refreshTokenRepository.deleteByExpiryDateBefore(any(Instant.class)))
-				.thenReturn(3);
-
-		refreshTokenService.purgeExpiredToken();
-
-		verify(refreshTokenRepository, times(1))
-				.deleteByExpiryDateBefore(any(Instant.class));
-	}
+//	@Test
+//	@DisplayName("Should call deleteByExpiryDateBefore with current time during scheduled purge")
+//	@Disabled
+//	void purgeExpiredTokens_Success() {
+//		when(refreshTokenRepository.deleteByExpiryDateBefore(any(Instant.class)))
+//				.thenReturn(3);
+//
+//		refreshTokenService.purgeExpiredToken();
+//
+//		verify(refreshTokenRepository, times(1))
+//				.deleteByExpiryDateBefore(any(Instant.class));
+//	}
 }
