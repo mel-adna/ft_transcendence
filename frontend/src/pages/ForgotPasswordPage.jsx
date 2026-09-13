@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, LayoutGrid, Mail } from 'lucide-react';
+import { LayoutGrid, Mail } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { validateEmail } from '../lib/validation';
+import AuthCard from '../components/AuthCard';
 import Field from '../components/Field';
+import IconInput from '../components/IconInput';
+import ErrorBanner from '../components/ErrorBanner';
+import SuccessBanner from '../components/SuccessBanner';
 import Spinner from '../components/Spinner';
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -35,80 +35,43 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-muted/20 bg-panel p-8 shadow-2xl">
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
-            <LayoutGrid size={24} className="text-primary" />
-          </div>
-          <h1 className="mt-4 text-xl font-bold text-white">Reset your password</h1>
-          <p className="mt-1 text-sm text-muted">
-            We will email you a link to choose a new one.
+    <AuthCard
+      icon={LayoutGrid}
+      title="Reset your password"
+      subtitle="We will email you a link to choose a new one."
+    >
+      {sent ? (
+        <div className="mt-6">
+          <SuccessBanner message="If that email is registered, a reset link is on its way. The link is valid for 15 minutes." />
+          <p className="mt-4 text-xs text-muted">
+            Nothing arrived? Check your spam folder, or try again in a moment.
           </p>
         </div>
+      ) : (
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+          <Field label="Email Address" id="email" error={fieldError}>
+            <IconInput
+              icon={Mail}
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="name@company.com"
+            />
+          </Field>
 
-        {sent ? (
-          <div className="mt-6">
-            <div
-              role="status"
-              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-3 text-xs font-medium text-emerald-400"
-            >
-              If that email is registered, a reset link is on its way. The link is valid for 15
-              minutes.
-            </div>
-            <p className="mt-4 text-xs text-muted">
-              Nothing arrived? Check your spam folder, or try again in a moment.
-            </p>
-          </div>
-        ) : (
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-            <Field label="Email Address" id="email" error={fieldError}>
-              <div className="relative">
-                <Mail
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                />
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="name@company.com"
-                  className={inputClass}
-                />
-              </div>
-            </Field>
+          <ErrorBanner message={serverError} />
 
-            {serverError && (
-              <div
-                role="alert"
-                className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-              >
-                {serverError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? <Spinner /> : 'Send reset link'}
-            </button>
-          </form>
-        )}
-
-        <div className="mt-6 border-t border-card pt-4 text-center">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-white"
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <ArrowLeft size={14} />
-            Back to sign in
-          </Link>
-        </div>
-      </div>
-    </div>
+            {submitting ? <Spinner /> : 'Send reset link'}
+          </button>
+        </form>
+      )}
+    </AuthCard>
   );
 }
