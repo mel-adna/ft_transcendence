@@ -9,6 +9,7 @@ const AUTH_PATHS = [
   '/auth/login',
   '/auth/signup',
   '/auth/verify-email',
+  '/auth/google',
   '/auth/refresh',
   '/auth/logout',
 ];
