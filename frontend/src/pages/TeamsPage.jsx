@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Users, AlertTriangle } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
+import { notifyDataChanged } from '../lib/realtimeNotify';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import Spinner from '../components/Spinner';
@@ -114,7 +115,20 @@ export default function TeamsPage() {
     setDeleting(true);
     setDeleteError(null);
     try {
+      // Fetch the members BEFORE deleting: afterwards the workspace is gone,
+      // so neither we nor the server could work out who to tell.
+      let memberIds = [];
+      try {
+        const { data } = await api.get(`/workspaces/${pendingDelete.id}/members`);
+        memberIds = data.map((m) => m.member?.id).filter(Boolean);
+      } catch {
+        // Non-fatal: the delete still proceeds, the others just refresh later.
+      }
+
       await api.delete(`/workspaces/${pendingDelete.id}`);
+
+      notifyDataChanged('workspaces', memberIds, { workspaceId: pendingDelete.id });
+
       setPendingDelete(null);
       await refresh();
     } catch (requestError) {
