@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, KeyRound, Mail, MailCheck } from 'lucide-react';
-import { getErrorMessage } from '../lib/api';
+import { getErrorMessage, postWithoutSession } from '../lib/api';
 import { validateEmail } from '../lib/validation';
 import { useAuth } from '../context/useAuth';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 
 const CODE_LENGTH = 6;
+const RESEND_COOLDOWN_SECONDS = 60;
 
 const inputClass =
   'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
@@ -23,12 +24,28 @@ export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const { verifyEmail } = useAuth();
 
-  const emailFromSignup = location.state?.email ?? '';
-  const [email, setEmail] = useState(emailFromSignup);
+  const emailFromRoute = location.state?.email ?? '';
+  const arrivedFromLogin = Boolean(location.state?.fromLogin);
+  const codeAlreadySent = Boolean(location.state?.codeSent);
+
+  const [email, setEmail] = useState(emailFromRoute);
   const [code, setCode] = useState('');
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
+  const [notice, setNotice] = useState(
+    arrivedFromLogin
+      ? 'Your account is not verified yet. A new verification code has been sent to your email.'
+      : null,
+  );
   const [submitting, setSubmitting] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(codeAlreadySent ? RESEND_COOLDOWN_SECONDS : 0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return undefined;
+    const timer = setTimeout(() => setCooldown((seconds) => seconds - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -49,10 +66,38 @@ export default function VerifyEmailPage() {
       navigate('/', { replace: true });
     } catch (error) {
       setServerError(getErrorMessage(error));
+      setCode('');
     } finally {
       setSubmitting(false);
     }
   }
+
+  async function handleResend() {
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setErrors((current) => ({ ...current, email: emailError }));
+      return;
+    }
+
+    setResending(true);
+    setServerError(null);
+    setNotice(null);
+    try {
+      await postWithoutSession('/auth/resend-verification', { email: email.trim() });
+      setNotice('A new code is on its way. It expires 15 minutes from now.');
+      setCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch (error) {
+      setServerError(getErrorMessage(error));
+    } finally {
+      setResending(false);
+    }
+  }
+
+  const resendLabel = resending
+    ? 'Sending...'
+    : cooldown > 0
+      ? `Resend code in ${cooldown}s`
+      : 'Resend code';
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
@@ -63,14 +108,23 @@ export default function VerifyEmailPage() {
           </div>
           <h1 className="mt-4 text-xl font-bold text-white">Confirm your email</h1>
           <p className="mt-2 text-xs text-muted">
-            {emailFromSignup
-              ? `We sent a ${CODE_LENGTH} digit code to ${emailFromSignup}. Enter it below to finish setting up your account.`
+            {emailFromRoute
+              ? `Enter the ${CODE_LENGTH} digit code we sent to ${emailFromRoute}.`
               : `Enter the email you signed up with and the ${CODE_LENGTH} digit code we sent you.`}
           </p>
         </div>
 
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-          {!emailFromSignup && (
+        {notice && (
+          <div
+            role="status"
+            className="mt-5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2.5 text-xs font-medium text-primary"
+          >
+            {notice}
+          </div>
+        )}
+
+        <form className="mt-5 space-y-4" onSubmit={handleSubmit} noValidate>
+          {!emailFromRoute && (
             <Field label="Email" id="verify-email" error={errors.email}>
               <div className="relative">
                 <Mail
@@ -94,7 +148,7 @@ export default function VerifyEmailPage() {
             label="Verification code"
             id="verify-code"
             error={errors.code}
-            hint="The code expires 15 minutes after you sign up."
+            hint="The code expires 15 minutes after it is sent."
           >
             <div className="relative">
               <KeyRound
@@ -131,6 +185,15 @@ export default function VerifyEmailPage() {
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? <Spinner /> : 'Confirm email'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending || cooldown > 0}
+            className="w-full rounded-lg border border-muted/30 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resendLabel}
           </button>
         </form>
 

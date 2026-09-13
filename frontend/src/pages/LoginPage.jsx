@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { LayoutGrid, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
-import { getErrorMessage } from '../lib/api';
+import { getErrorMessage, isEmailNotVerified } from '../lib/api';
 import { validateEmail, validatePassword, validateRequired } from '../lib/validation';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
@@ -64,12 +64,19 @@ export default function LoginPage() {
     try {
       if (mode === 'signup') {
         await signup({ firstName, lastName, email, password });
-        navigate('/verify-email', { replace: true, state: { email } });
+        navigate('/verify-email', { replace: true, state: { email, codeSent: true } });
         return;
       }
       await login(email, password);
       navigate('/', { replace: true });
     } catch (error) {
+      if (isEmailNotVerified(error)) {
+        navigate('/verify-email', {
+          replace: true,
+          state: { email, codeSent: true, fromLogin: true },
+        });
+        return;
+      }
       setServerError(getErrorMessage(error));
     } finally {
       setSubmitting(false);
