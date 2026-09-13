@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, LayoutGrid, Lock } from 'lucide-react';
-import api, { getErrorMessage } from '../lib/api';
+import { getErrorMessage, postWithoutSession } from '../lib/api';
 import { validatePassword } from '../lib/validation';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
@@ -15,7 +15,7 @@ const passwordHint =
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const token = params.get('token') ?? '';
+  const token = params.get('token')?.trim() ?? '';
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
 
     setSubmitting(true);
     try {
-      await api.post('/auth/reset-password', { token, newPassword });
+      await postWithoutSession('/auth/reset-password', { token, newPassword });
       setDone(true);
       setTimeout(() => navigate('/login', { replace: true }), 2000);
     } catch (error) {
