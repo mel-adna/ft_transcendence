@@ -144,6 +144,7 @@ Everything else under `frontend/src` was written for this task list.
 | `CORE_API_PROXY_TARGET` | Java backend, `http://localhost:8080` | Where Vite forwards `/api/v1` during development. Not read by app code |
 | `VITE_API_URL` | Node chat backend, port 5005, base path `/api` | Chat's own REST calls: rooms, messages, search (`features/chat/services/chatApi.js`, vendored) |
 | `VITE_WS_URL` | Node chat backend, port 5005 | The chat socket connection (`infrastructure/socket/SocketClient.js`, vendored) |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth web client id | Renders the Continue with Google button. Unset means the button is not rendered at all, which is the default. |
 
 ### Why the core API is a relative path and goes through a proxy
 

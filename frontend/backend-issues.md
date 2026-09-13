@@ -25,6 +25,7 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 | 22 | A failed verification email is swallowed | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 25 | An expired token returns 403, not 401 | Silent refresh cannot fire on the status the spec assumes, so sessions die at 15 minutes | 2 lines |
 | 26 | Avatars are served over plain http from port 9000 | On `https://localhost` the browser blocks every avatar as mixed content | Config |
+| 27 | No real Google OAuth client exists, and a Google signup is created disabled | The Continue with Google button cannot be switched on, and the first Google login makes an account that can never use a password | Config + 1 line |
 
 ---
 
@@ -153,3 +154,75 @@ location /avatars/ { proxy_pass http://minio:9000/teampulse-avatars/; }
 with `MINIO_PUBLIC_URL` pointing at that path. The Vite dev server needs the same proxy entry so
 the two entry points behave alike. Existing rows keep their absolute URLs and would need
 rewriting, which on a wiped database is nothing.
+
+## 27. Google sign in needs a real OAuth client, and `googleLogin` creates the account disabled
+
+The frontend side is built and merged. `LoginPage` renders a Google button above the email form on
+both tabs, and a successful credential is posted to `POST /auth/google` as `{ idToken }`, which is
+the shape `GoogleLoginRequest` already expects. Nothing else is needed from the frontend.
+
+It is switched off until two things exist.
+
+### 1. A real OAuth client, which only you can create
+
+`application.yaml` has:
+
+```yaml
+client-id: ${GOOGLE_CLIENT_ID:407408718192.apps.googleusercontent.com}
+```
+
+That default is the sample client from Google's own documentation. It is not ours, and it has no
+authorized origin for this app, so Google Identity Services refuses to initialize against it and
+the button never becomes clickable.
+
+What is needed, in Google Cloud Console:
+
+1. Create an **OAuth 2.0 Client ID** of type **Web application**.
+2. Add authorized JavaScript origins for **every** entry point we run. They are separate origins
+   as far as Google is concerned, and a missing one fails silently:
+   - `http://localhost:5173` (Vite directly)
+   - `https://localhost` (through nginx)
+3. Configure the OAuth consent screen. While it is in Testing, only accounts added as test users
+   can sign in, which is fine for the evaluation.
+
+The resulting client ID then goes in **two** places, because the browser needs it at render time
+to draw the button and the backend needs it to validate the token:
+
+- backend: `GOOGLE_CLIENT_ID`
+- frontend: `VITE_GOOGLE_CLIENT_ID`, already wired through `docker-compose.yml` and
+  `.env.example`
+
+A client ID is not a secret, so both can be committed or passed as plain environment variables.
+Until `VITE_GOOGLE_CLIENT_ID` is set the button is not rendered at all, so an unconfigured
+environment shows the ordinary email form rather than something broken.
+
+### 2. A one line fix in `googleLogin`
+
+A user arriving through Google for the first time is built like this:
+
+```java
+User.builder()
+        .email(email)
+        .firstName(firstName)
+        .lastName(lastName)
+        .avatarUrl(pictureUrl)
+        .provider(AuthProvider.GOOGLE)
+        .providerId(googleId)
+        .build()
+```
+
+`enabled` is never set, and `User.enabled` defaults to `false`. Google sign in itself still works,
+because `googleLogin` issues tokens directly rather than going through `authenticationManager`, so
+the disabled check never runs on that path. The damage shows up afterwards: that account is stored
+as unverified forever. If the person ever sets a password and signs in normally they get the 403
+from issue 25's path, and they cannot verify their way out, because no verification code was ever
+issued for them.
+
+Google has already verified the address, which is the whole point of accepting the token, so:
+
+```java
+.enabled(true)
+```
+
+Worth noting the same builder stores Google's `picture` URL as the avatar. That one is an
+`https://lh3.googleusercontent.com/...` address, so unlike issue 26 it displays correctly over TLS.

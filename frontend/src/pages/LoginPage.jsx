@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { LayoutGrid, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage, isEmailNotVerified } from '../lib/api';
+import { getGoogleClientId } from '../lib/googleIdentity';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { validateEmail, validatePassword, validateRequired } from '../lib/validation';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
@@ -14,7 +16,7 @@ const passwordHint =
   'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
 
 export default function LoginPage() {
-  const { user, login, signup } = useAuth();
+  const { user, login, signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState('login');
@@ -25,6 +27,28 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const handleGoogleCredential = useCallback(
+    async (idToken) => {
+      if (!idToken) {
+        setServerError('Google did not return a sign in token. Try again.');
+        return;
+      }
+      setServerError(null);
+      setSubmitting(true);
+      try {
+        await loginWithGoogle(idToken);
+        navigate('/', { replace: true });
+      } catch (error) {
+        setServerError(getErrorMessage(error));
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [loginWithGoogle, navigate],
+  );
+
+  const googleEnabled = Boolean(getGoogleClientId());
 
   if (user) return <Navigate to="/" replace />;
 
@@ -114,6 +138,22 @@ export default function LoginPage() {
             Sign Up
           </button>
         </div>
+
+        {googleEnabled && (
+          <div className="mt-6 space-y-4">
+            <GoogleSignInButton
+              onCredential={handleGoogleCredential}
+              text={mode === 'signup' ? 'signup_with' : 'signin_with'}
+            />
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-muted/20" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                or
+              </span>
+              <span className="h-px flex-1 bg-muted/20" />
+            </div>
+          </div>
+        )}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
           {mode === 'signup' && (
