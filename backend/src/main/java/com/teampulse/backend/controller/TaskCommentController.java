@@ -3,6 +3,8 @@ package com.teampulse.backend.controller;
 import java.security.Principal;
 import java.util.UUID;
 
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -35,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/tasks")
 @RequiredArgsConstructor
+@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "Task Comments", description = "Endpoints for managing task comments within a workspace. Requires workspace membership.")
 public class TaskCommentController {
 

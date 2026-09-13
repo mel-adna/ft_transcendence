@@ -3,6 +3,8 @@ package com.teampulse.backend.controller;
 import java.security.Principal;
 import java.util.List;
 
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +36,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
+@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "User Management", description = "Endpoints for managing user profiles, account settings, and user discovery.")
 public class UserController {
 
@@ -51,7 +54,7 @@ public class UserController {
 		return ResponseEntity.ok(userResponse);
 	}
 
-	
+
 	@Operation(summary = "Update profile metadata", description = "Updates the authenticated user's first name, last name, and avatar URL.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Profile metadata updated successfully", content = @Content(schema = @Schema(implementation = UserResponse.class))),
@@ -60,7 +63,7 @@ public class UserController {
 	})
 	@PutMapping("/me")
 	public ResponseEntity<UserResponse> updateProfile(@Valid @RequestBody ProfileUpdateRequest request,
-			@Parameter(hidden = true) Principal principal) {
+	                                                  @Parameter(hidden = true) Principal principal) {
 		UserResponse updatedUser = userService.updateProfile(principal.getName(), request);
 		return ResponseEntity.ok(updatedUser);
 	}
