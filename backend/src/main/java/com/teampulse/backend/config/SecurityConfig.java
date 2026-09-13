@@ -48,11 +48,7 @@ public class SecurityConfig {
 								"/auth/refresh",
 								"/auth/logout",
 
-								"/public/tasks/**",
-								"/public/users/**",
-								"/public/organizations/**",
-								"/public/stats/**",
-								"/public/chat/**",
+								"/public/**",
 
 								"/actuator/**",
 								"/v3/api-docs/**",

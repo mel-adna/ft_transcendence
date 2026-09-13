@@ -8,7 +8,6 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,14 +22,6 @@ public class RefreshTokenService {
 	@Value("${app.jwt.refresh-expiration-ms}")
 	private Long refreshExpirationMs;
 
-	@Scheduled(cron = "0 0 3 * * ?")
-	@Transactional
-	public void purgeExpiredToken() {
-		int deletedCount = refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
-		if (deletedCount > 0) {
-			log.info("Scheduled Job: Cleaned up {} expired refresh tokens from database.", deletedCount);
-		}
-	}
 
 	@Transactional
 	public RefreshToken createRefreshToken(User user) {

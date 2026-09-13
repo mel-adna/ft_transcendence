@@ -8,8 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.model.WorkspaceMemberId;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember, WorkspaceMemberId>{
 	List<WorkspaceMember> findByWorkspaceId(UUID workspaceId);
     List<WorkspaceMember> findByUserId(UUID userId);
