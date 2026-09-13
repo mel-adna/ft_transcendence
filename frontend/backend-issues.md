@@ -1,11 +1,8 @@
 # Backend issues
 
-Status verified 2026-09-08 against the merged backend at `9135b49`, by reading the source and
-measuring every claim against the running API. Everything already fixed has been removed, so the
-numbering has gaps. What is left is what still needs doing.
-
-Six issues closed in that merge and were each confirmed by measurement, not by reading the diff:
-16, 18, 19, 20, 21 and 23. Two things are left: the rate limiting half of 17, and 22.
+Status verified 2026-09-13 against the merged backend at `fb26685`, by reading the source and
+measuring every claim against the running API on a freshly migrated database. Everything already
+fixed has been removed, so the numbering has gaps.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a
 given issue stays valid. The order of this file is by priority: everything that blocks a
@@ -26,6 +23,8 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
 | 22 | A failed verification email is swallowed | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
+| 25 | An expired token returns 403, not 401 | Silent refresh cannot fire on the status the spec assumes, so sessions die at 15 minutes | 2 lines |
+| 26 | Avatars are served over plain http from port 9000 | On `https://localhost` the browser blocks every avatar as mixed content | Config |
 
 ---
 
@@ -90,3 +89,67 @@ product silently stops working with no failing test and no error surface.
 **Fix:** two separate things. Give the failure a surface, by recording the send outcome or by
 retrying, so a broken mailer is visible. And move the credential to an environment variable, which
 is the same rotation that was already planned for the other secrets.
+
+## 25. An expired access token returns 403, so a client cannot tell a dead session from a denial
+
+`frontend-issues.md` asks the frontend to "handle 401 responses" and refresh in the background.
+The interceptor that does this already existed. It never fired, because the backend does not send
+a 401.
+
+`JwtAuthenticationFilter` catches `ExpiredJwtException`, logs it, and calls
+`filterChain.doFilter(...)`. It does not rethrow, so the `@ExceptionHandler(ExpiredJwtException)`
+in `GlobalExceptionHandler` never runs. The request then reaches the authorization layer with no
+authentication set, and because no `AuthenticationEntryPoint` is configured, Spring falls back to
+its default and answers 403 with its generic error body.
+
+Measured with a correctly signed, genuinely expired token:
+
+```
+GET /api/v1/users/me
+  -> 403  {"status":403,"error":"Forbidden","message":"Forbidden","path":"/api/v1/users/me"}
+```
+
+The same 403 comes back for a request with no token at all, so status alone cannot separate
+"your session ended, refresh it" from "you may not do this".
+
+**Fix:** register an `AuthenticationEntryPoint` that writes 401 for unauthenticated requests.
+
+```java
+.exceptionHandling(e -> e.authenticationEntryPoint(
+        (req, res, ex) -> res.sendError(HttpStatus.UNAUTHORIZED.value(), "Unauthenticated")))
+```
+
+The frontend now works around this by treating a 403 whose body is the literal `Forbidden` as an
+ended session, since every 403 the application raises itself carries a real sentence. That
+workaround should come out once the entry point exists, because it depends on an error body
+nobody promised to keep stable.
+
+## 26. Avatar URLs are plain http on port 9000, so they are blocked over https
+
+`FileStorageService` stores `String.format("%s/%s/%s", publicUrl, bucketName, fileName)`, and
+compose sets `MINIO_PUBLIC_URL=http://localhost:9000`. Uploading works and the object really is
+public:
+
+```
+POST /users/me/avatar  -> 200, avatarUrl http://localhost:9000/teampulse-avatars/avatar-<uuid>.png
+GET  that url          -> 200, content-type image/png
+```
+
+So the report that avatars "store correctly but do not display" is accurate, and the cause is not
+in the upload or the bucket policy. nginx serves the app over TLS on 443, the stored URL is
+plain `http`, and a browser refuses to load `http://` images into an `https://` page. The
+`onError` fallback then draws initials, which is why it looks like the image is missing rather
+than blocked. On `http://localhost:5173` the same avatar displays.
+
+There is a second problem behind it: the URL only resolves at all because port 9000 is published
+to the host. Nothing outside a laptop can reach `localhost:9000`.
+
+**Fix:** serve MinIO through nginx on the same origin, and store a same-origin URL.
+
+```nginx
+location /avatars/ { proxy_pass http://minio:9000/teampulse-avatars/; }
+```
+
+with `MINIO_PUBLIC_URL` pointing at that path. The Vite dev server needs the same proxy entry so
+the two entry points behave alike. Existing rows keep their absolute URLs and would need
+rewriting, which on a wiped database is nothing.
