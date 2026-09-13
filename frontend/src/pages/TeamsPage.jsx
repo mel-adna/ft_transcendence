@@ -12,6 +12,7 @@ import EditTeamModal from '../features/teams/EditTeamModal';
 import { TYPE_LABEL } from '../features/teams/teamForm';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 
 function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
   const isOrganization = workspace.type === 'ORGANIZATION';
@@ -166,14 +167,10 @@ export default function TeamsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">Teams Overview</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Manage collaborative groups, monitor cross-functional task loads, and organize
-            workspace members.
-          </p>
-        </div>
+      <PageHeader
+        title="Teams Overview"
+        description="Manage collaborative groups, monitor cross-functional task loads, and organize workspace members."
+      >
         <Link
           to="/teams/new"
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -181,7 +178,7 @@ export default function TeamsPage() {
           <Plus size={16} />
           Create New Team
         </Link>
-      </div>
+      </PageHeader>
 
       <div className="mt-6">{renderBody()}</div>
 

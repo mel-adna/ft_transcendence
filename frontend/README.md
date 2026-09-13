@@ -25,11 +25,12 @@ Other scripts: `npm run build` produces the production bundle and `npm run lint`
 
 Read the code in this order:
 
-- `lib/` - logic with no React in it: the shared API client and token storage (`api.js`), the dashboard math (`stats.js`), CSV read and write (`csv.js`), and form validation rules (`validation.js`).
+- `lib/` - logic with no React in it: the shared API client and token storage (`api.js`), the dashboard math (`stats.js`), CSV read and write (`csv.js`), form validation rules (`validation.js`), the Google sign in script loader (`googleIdentity.js`), and the one place a person's display name is built from first name, last name or email (`people.js`).
 - `context/` - the two pieces of state almost every screen needs: who is logged in (`AuthContext`, `useAuth`) and which workspace is currently selected (`WorkspaceContext`, `useWorkspace`).
-- `components/` - small reusable UI pieces with no page-specific logic (`Avatar`, `Modal`, `Spinner`, `EmptyState`, `Field`), plus the app shell (`AppLayout`) and the route guard (`ProtectedRoute`).
+- `hooks/` - `useList`, the one hook behind every list a page loads. It returns `items`, `loading`, `error` and `reload`, and ignores a response that arrives after a newer request has started. `useTasks`, `useMembers` and `useActivityLogs` each hand it the endpoint to call and nothing else.
+- `components/` - small reusable UI pieces with no page-specific logic: `Avatar`, `Spinner`, `Field`, `IconInput` (an input with an icon on the left; the class string every input shares is in `inputClass.js`), `ErrorBanner` and `SuccessBanner`, `EmptyState` and `ErrorState` (an error with a Try again button), `Modal` and `ConfirmModal` (the Cancel or confirm dialog behind every destructive action), `PageHeader`, `AuthCard` (the centred card every sign in page sits in), `LegalPage` and `LegalLinks`, plus the app shell (`AppLayout`) and the route guard (`ProtectedRoute`).
 - `pages/` - one file per route registered in `App.jsx`. A page owns its own data fetching and decides what to render for loading, error, and empty.
-- `features/` - the domain logic and screen pieces too big to live in a single page file, one folder per domain: `dashboard`, `tasks`, `colleagues`, `settings`, `chat`.
+- `features/` - the domain logic and screen pieces too big to live in a single page file, one folder per domain: `dashboard`, `tasks`, `colleagues`, `teams`, `settings`, `chat`. A rule that more than one screen needs lives in a plain file inside the domain folder: `tasks/taskFormat.js` holds the status and priority lists, their labels and badge styles, and `teams/teamForm.js` holds the team name and description limits, the type options and the form validation.
 
 ## How login works
 

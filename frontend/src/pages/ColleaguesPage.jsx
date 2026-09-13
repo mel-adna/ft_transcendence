@@ -13,6 +13,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 import ErrorBanner from '../components/ErrorBanner';
 
 const ROLE_STYLE = {
@@ -208,13 +209,10 @@ export default function ColleaguesPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">Colleagues</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Everyone who belongs to this team, and what they can do here.
-          </p>
-        </div>
+      <PageHeader
+        title="Colleagues"
+        description="Everyone who belongs to this team, and what they can do here."
+      >
         <button
           type="button"
           onClick={openAddModal}
@@ -223,7 +221,7 @@ export default function ColleaguesPage() {
           <UserPlus size={16} />
           Add Member
         </button>
-      </div>
+      </PageHeader>
 
       <ErrorBanner message={roleError} className="mt-4" />
 

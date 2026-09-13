@@ -7,8 +7,7 @@ import {
   NAME_MAX,
   DESCRIPTION_MAX,
   TYPE_OPTIONS,
-  validateName,
-  validateDescription,
+  validateTeamForm,
 } from '../features/teams/teamForm';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
@@ -42,11 +41,7 @@ export default function CreateTeamPage() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const nextErrors = {};
-    const nameError = validateName(name);
-    if (nameError) nextErrors.name = nameError;
-    const descriptionError = validateDescription(description);
-    if (descriptionError) nextErrors.description = descriptionError;
+    const nextErrors = validateTeamForm({ name, description });
 
     setErrors(nextErrors);
     setServerError(null);
