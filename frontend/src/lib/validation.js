@@ -1,3 +1,6 @@
+export const PASSWORD_HINT =
+  'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
+
 export function validatePassword(value) {
   if (!value || value.length < 8) {
     return 'Password must be at least 8 characters.';

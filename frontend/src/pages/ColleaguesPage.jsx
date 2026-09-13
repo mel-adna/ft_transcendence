@@ -12,6 +12,7 @@ import Avatar from '../components/Avatar';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import ErrorBanner from '../components/ErrorBanner';
 
 const ROLE_STYLE = {
   OWNER: 'border-primary/30 bg-primary/10 text-primary',
@@ -238,14 +239,7 @@ export default function ColleaguesPage() {
         </button>
       </div>
 
-      {roleError && (
-        <div
-          role="alert"
-          className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-        >
-          {roleError}
-        </div>
-      )}
+      <ErrorBanner message={roleError} className="mt-4" />
 
       <div className="mt-6">{renderBody()}</div>
 
