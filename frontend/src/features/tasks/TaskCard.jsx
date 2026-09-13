@@ -1,28 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreVertical, Pencil, Trash2, ArrowRight, CalendarDays } from 'lucide-react';
 import Avatar from '../../components/Avatar';
-import { taskRef, shortDate } from './taskFormat';
+import {
+  taskRef,
+  shortDate,
+  PRIORITY_STYLE,
+  PRIORITY_LABEL,
+  STATUS_LABEL,
+  STATUSES,
+} from './taskFormat';
 import { personName } from '../../lib/people';
-
-const PRIORITY_STYLE = {
-  HIGH: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
-  MEDIUM: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  LOW: 'border-zinc-500/30 bg-zinc-500/10 text-zinc-400',
-};
-
-const PRIORITY_LABEL = {
-  HIGH: 'High',
-  MEDIUM: 'Medium',
-  LOW: 'Low',
-};
-
-const STATUS_LABEL = {
-  TODO: 'To-Do',
-  DOING: 'Doing',
-  DONE: 'Done',
-};
-
-const STATUSES = ['TODO', 'DOING', 'DONE'];
 
 export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
   const [menuOpen, setMenuOpen] = useState(false);

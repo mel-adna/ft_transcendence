@@ -1,32 +1,23 @@
 import { useEffect, useState } from 'react';
 import api, { getErrorMessage } from '../../lib/api';
-import { validateRequired } from '../../lib/validation';
+import {
+  NAME_MAX,
+  DESCRIPTION_MAX,
+  TYPE_OPTIONS,
+  validateName,
+  validateDescription,
+} from './teamForm';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
 import ErrorBanner from '../../components/ErrorBanner';
 import { inputClass } from '../../components/inputClass';
 
-const NAME_MAX = 100;
-const DESCRIPTION_MAX = 500;
-
-const TYPE_OPTIONS = [
-  { value: 'ORGANIZATION', label: 'Organization' },
-  { value: 'PERSONAL', label: 'Personal' },
-];
-
-function validateName(value) {
-  const requiredError = validateRequired(value, 'Team name');
-  if (requiredError) return requiredError;
-  if (value.trim().length > NAME_MAX) return `Team name must be ${NAME_MAX} characters or fewer.`;
-  return null;
-}
-
 export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('ORGANIZATION');
-  const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -36,7 +27,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
       setName(workspace?.name ?? '');
       setDescription(workspace?.description ?? '');
       setType(workspace?.type ?? 'ORGANIZATION');
-      setError(null);
+      setErrors({});
       setServerError(null);
       setSaving(false);
     }
@@ -46,10 +37,15 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    const nextErrors = {};
     const nameError = validateName(name);
-    setError(nameError);
+    if (nameError) nextErrors.name = nameError;
+    const descriptionError = validateDescription(description);
+    if (descriptionError) nextErrors.description = descriptionError;
+
+    setErrors(nextErrors);
     setServerError(null);
-    if (nameError) return;
+    if (Object.keys(nextErrors).length > 0) return;
 
     setSaving(true);
     try {
@@ -69,7 +65,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
   return (
     <Modal open={open} onClose={onClose} title="Edit team">
       <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-        <Field label="Team Name" id="edit-team-name" error={error}>
+        <Field label="Team Name" id="edit-team-name" error={errors.name}>
           <input
             id="edit-team-name"
             type="text"
@@ -80,10 +76,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
           />
         </Field>
 
-        <Field
-          label="Description"
-          id="edit-team-description"
-        >
+        <Field label="Description" id="edit-team-description" error={errors.description}>
           <textarea
             id="edit-team-description"
             value={description}

@@ -9,13 +9,9 @@ import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
 import EditTeamModal from '../features/teams/EditTeamModal';
+import { TYPE_LABEL } from '../features/teams/teamForm';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
-
-const TYPE_LABEL = {
-  PERSONAL: 'Personal',
-  ORGANIZATION: 'Organization',
-};
 
 function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
   const isOrganization = workspace.type === 'ORGANIZATION';
