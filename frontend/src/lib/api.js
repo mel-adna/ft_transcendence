@@ -67,8 +67,13 @@ export function isAuthPath(url) {
   return AUTH_PATHS.some((path) => String(url ?? '').includes(path));
 }
 
-export function shouldRefresh({ status, url, hasRetried, hasRefreshToken }) {
-  if (status !== 401) return false;
+export function isSessionExpired({ status, message }) {
+  if (status === 401) return true;
+  return status === 403 && message === 'Forbidden';
+}
+
+export function shouldRefresh({ status, message, url, hasRetried, hasRefreshToken }) {
+  if (!isSessionExpired({ status, message })) return false;
   if (hasRetried) return false;
   if (isAuthPath(url)) return false;
   return Boolean(hasRefreshToken);
@@ -105,11 +110,13 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const status = error.response?.status;
+    const message = error.response?.data?.message;
 
-    if (status !== 401 || !original) return Promise.reject(error);
+    if (!original || !isSessionExpired({ status, message })) return Promise.reject(error);
 
     if (!shouldRefresh({
       status,
+      message,
       url: original.url,
       hasRetried: original.hasRetried,
       hasRefreshToken: Boolean(getRefreshToken()),

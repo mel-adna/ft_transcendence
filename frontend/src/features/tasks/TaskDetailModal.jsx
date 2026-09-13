@@ -45,7 +45,7 @@ export default function TaskDetailModal({ open, onClose, task, onEdit, onDelete 
       <h3 className="mt-4 text-lg font-bold text-white">{task.title}</h3>
 
       {task.description ? (
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-body">
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-body">
           {task.description}
         </p>
       ) : (
