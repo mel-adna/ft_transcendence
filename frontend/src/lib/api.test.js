@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAuthPath, isSessionExpired, shouldRefresh } from './api';
+import { isAuthPath, isEmailNotVerified, isSessionExpired, shouldRefresh } from './api';
 
 const base = { status: 401, url: '/tasks/workspace/1', hasRetried: false, hasRefreshToken: true };
 
@@ -74,5 +74,32 @@ describe('shouldRefresh', () => {
 
   it('cannot refresh without a stored refresh token', () => {
     expect(shouldRefresh({ ...base, hasRefreshToken: false })).toBe(false);
+  });
+});
+
+describe('isEmailNotVerified', () => {
+  const res = (status, data) => ({ response: { status, data } });
+
+  it('matches the errorCode the backend sends on an unverified login', () => {
+    expect(isEmailNotVerified(res(403, {
+      message: 'Account is not verified. A new verification code has been sent to your email.',
+      errors: { errorCode: 'EMAIL_NOT_VERIFIED' },
+    }))).toBe(true);
+  });
+
+  it('still matches on the message alone, for a backend without the errorCode', () => {
+    expect(isEmailNotVerified(res(403, {
+      message: 'Account is disabled. Please verify your email first.',
+    }))).toBe(true);
+  });
+
+  it('does not match other 403s', () => {
+    expect(isEmailNotVerified(res(403, { message: 'Forbidden' }))).toBe(false);
+    expect(isEmailNotVerified(res(403, { message: 'Only ADMINs can delete workspaces' }))).toBe(false);
+  });
+
+  it('does not match wrong credentials or a missing response', () => {
+    expect(isEmailNotVerified(res(401, { message: 'Invalid email or password. Please try again.' }))).toBe(false);
+    expect(isEmailNotVerified(new Error('Network Error'))).toBe(false);
   });
 });

@@ -72,6 +72,13 @@ export function isSessionExpired({ status, message }) {
   return status === 403 && message === 'Forbidden';
 }
 
+export function isEmailNotVerified(error) {
+  const response = error?.response;
+  if (response?.status !== 403) return false;
+  if (response.data?.errors?.errorCode === 'EMAIL_NOT_VERIFIED') return true;
+  return /not verified|account is disabled/i.test(String(response.data?.message ?? ''));
+}
+
 export function shouldRefresh({ status, message, url, hasRetried, hasRefreshToken }) {
   if (!isSessionExpired({ status, message })) return false;
   if (hasRetried) return false;
