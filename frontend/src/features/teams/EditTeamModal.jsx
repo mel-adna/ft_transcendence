@@ -4,8 +4,7 @@ import {
   NAME_MAX,
   DESCRIPTION_MAX,
   TYPE_OPTIONS,
-  validateName,
-  validateDescription,
+  validateTeamForm,
 } from './teamForm';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
@@ -37,11 +36,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const nextErrors = {};
-    const nameError = validateName(name);
-    if (nameError) nextErrors.name = nameError;
-    const descriptionError = validateDescription(description);
-    if (descriptionError) nextErrors.description = descriptionError;
+    const nextErrors = validateTeamForm({ name, description });
 
     setErrors(nextErrors);
     setServerError(null);

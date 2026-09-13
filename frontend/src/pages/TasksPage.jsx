@@ -14,6 +14,7 @@ import TaskDetailModal from '../features/tasks/TaskDetailModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 
 const COLUMNS = [
   { status: 'TODO', dotClass: 'bg-muted' },
@@ -178,10 +179,10 @@ export default function TasksPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">Task Management</h1>
-        <p className="mt-2 text-sm text-muted">Manage project workflow and team assignments.</p>
-      </div>
+      <PageHeader
+        title="Task Management"
+        description="Manage project workflow and team assignments."
+      />
 
       {actionError && (
         <div

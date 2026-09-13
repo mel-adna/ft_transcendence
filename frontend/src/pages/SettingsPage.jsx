@@ -11,6 +11,7 @@ import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
 import ErrorBanner from '../components/ErrorBanner';
 import SuccessBanner from '../components/SuccessBanner';
 import { inputClass } from '../components/inputClass';
@@ -434,11 +435,7 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">Account Settings</h1>
-            <p className="mt-2 text-sm text-muted">Manage your profile, password and data.</p>
-          </div>
+        <PageHeader title="Account Settings" description="Manage your profile, password and data.">
           <button
             type="button"
             onClick={handleLogout}
@@ -447,7 +444,7 @@ export default function SettingsPage() {
             <LogOut size={16} />
             Log out
           </button>
-        </div>
+        </PageHeader>
 
         <div className="mt-6 space-y-6">
           <ProfileCard user={user} onSaved={refreshUser} />
