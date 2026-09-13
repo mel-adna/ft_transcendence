@@ -2,28 +2,18 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, UserPlus, X } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
-import { validateRequired } from '../lib/validation';
 import { useWorkspace } from '../context/useWorkspace';
+import {
+  NAME_MAX,
+  DESCRIPTION_MAX,
+  TYPE_OPTIONS,
+  validateName,
+  validateDescription,
+} from '../features/teams/teamForm';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import ErrorBanner from '../components/ErrorBanner';
 import { inputClass } from '../components/inputClass';
-
-const NAME_MAX = 100;
-const DESCRIPTION_MAX = 500;
-
-const TYPE_OPTIONS = [
-  {
-    value: 'ORGANIZATION',
-    label: 'Organization',
-    hint: 'A shared workspace for a team or company.',
-  },
-  {
-    value: 'PERSONAL',
-    label: 'Personal',
-    hint: 'A private workspace just for you.',
-  },
-];
 
 function CharCount({ value, max }) {
   return (
@@ -31,20 +21,6 @@ function CharCount({ value, max }) {
       {value.length}/{max}
     </span>
   );
-}
-
-function validateName(value) {
-  const requiredError = validateRequired(value, 'Team name');
-  if (requiredError) return requiredError;
-  if (value.trim().length > NAME_MAX) return `Team name must be ${NAME_MAX} characters or fewer.`;
-  return null;
-}
-
-function validateDescription(value) {
-  if (value.trim().length > DESCRIPTION_MAX) {
-    return `Description must be ${DESCRIPTION_MAX} characters or fewer.`;
-  }
-  return null;
 }
 
 export default function CreateTeamPage() {

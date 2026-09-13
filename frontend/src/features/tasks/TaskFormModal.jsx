@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getErrorMessage } from '../../lib/api';
 import { validateRequired } from '../../lib/validation';
+import { PRIORITIES, PRIORITY_LABEL } from './taskFormat';
 import { personName } from '../../lib/people';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
 import ErrorBanner from '../../components/ErrorBanner';
 import { inputClass } from '../../components/inputClass';
-
-const PRIORITY_OPTIONS = [
-  { value: 'LOW', label: 'Low' },
-  { value: 'MEDIUM', label: 'Medium' },
-  { value: 'HIGH', label: 'High' },
-];
 
 const TITLE_MAX = 150;
 const DESCRIPTION_MAX = 40000;
@@ -150,9 +145,9 @@ export default function TaskFormModal({
             onChange={(event) => setPriority(event.target.value)}
             className={inputClass}
           >
-            {PRIORITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+            {PRIORITIES.map((value) => (
+              <option key={value} value={value}>
+                {PRIORITY_LABEL[value]}
               </option>
             ))}
           </select>

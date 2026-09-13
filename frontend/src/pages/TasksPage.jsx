@@ -7,6 +7,7 @@ import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
 import { useMembers } from '../features/colleagues/useMembers';
 import { buildRoster } from '../features/colleagues/roster';
+import { STATUS_LABEL } from '../features/tasks/taskFormat';
 import TaskCard from '../features/tasks/TaskCard';
 import TaskFormModal from '../features/tasks/TaskFormModal';
 import TaskDetailModal from '../features/tasks/TaskDetailModal';
@@ -15,9 +16,9 @@ import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
 
 const COLUMNS = [
-  { status: 'TODO', label: 'To-Do', dotClass: 'bg-muted' },
-  { status: 'DOING', label: 'Doing', dotClass: 'bg-primary' },
-  { status: 'DONE', label: 'Done', dotClass: 'bg-emerald-500' },
+  { status: 'TODO', dotClass: 'bg-muted' },
+  { status: 'DOING', dotClass: 'bg-primary' },
+  { status: 'DONE', dotClass: 'bg-emerald-500' },
 ];
 
 export default function TasksPage() {
@@ -220,7 +221,7 @@ export default function TasksPage() {
                 <div className="flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${column.dotClass}`} />
                   <h2 className="text-xs font-bold uppercase tracking-wide text-white">
-                    {column.label}
+                    {STATUS_LABEL[column.status]}
                   </h2>
                   <span className="rounded-full bg-panel px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {columnTasks.length}
@@ -229,7 +230,7 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={() => openCreateModal(column.status)}
-                  aria-label={`Add task to ${column.label}`}
+                  aria-label={`Add task to ${STATUS_LABEL[column.status]}`}
                   className="rounded-md p-1 text-muted transition-colors hover:bg-white/5 hover:text-white"
                 >
                   <Plus size={16} />

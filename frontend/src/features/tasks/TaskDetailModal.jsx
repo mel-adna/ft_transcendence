@@ -1,16 +1,8 @@
 import { Calendar, Clock, Pencil, Trash2, User } from 'lucide-react';
 import Modal from '../../components/Modal';
 import Avatar from '../../components/Avatar';
-import { taskRef, fullDateTime } from './taskFormat';
+import { taskRef, fullDateTime, PRIORITY_STYLE, PRIORITY_LABEL, STATUS_LABEL } from './taskFormat';
 import { personName } from '../../lib/people';
-
-const PRIORITY_STYLE = {
-  HIGH: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
-  MEDIUM: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  LOW: 'border-muted/30 bg-muted/10 text-muted',
-};
-
-const STATUS_LABEL = { TODO: 'To do', DOING: 'In progress', DONE: 'Done' };
 
 function Row({ icon: Icon, label, children }) {
   return (
@@ -35,7 +27,7 @@ export default function TaskDetailModal({ open, onClose, task, onEdit, onDelete 
             PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.LOW
           }`}
         >
-          {task.priority}
+          {PRIORITY_LABEL[task.priority] ?? task.priority}
         </span>
         <span className="rounded-md border border-muted/25 px-2 py-0.5 text-[11px] font-semibold text-muted">
           {STATUS_LABEL[task.status] ?? task.status}
