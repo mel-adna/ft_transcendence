@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, UserMinus, UserPlus, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
+import { notifyDataChanged } from '../lib/realtimeNotify';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { useMembers } from '../features/colleagues/useMembers';
@@ -119,6 +120,9 @@ export default function ColleaguesPage() {
         email: member.user.email,
         role,
       });
+      // Everyone's roster shows this role; the member themselves also needs it
+      // because their own permissions in the UI depend on it.
+      notifyDataChanged('members', null, { workspaceId });
       await reload();
     } catch (requestError) {
       setRoleError(getErrorMessage(requestError));
@@ -143,9 +147,23 @@ export default function ColleaguesPage() {
     setRemoving(true);
     setRemoveError(null);
     try {
+      // Capture the audience BEFORE the delete: afterwards the removed user is
+      // no longer in the workspace, so the server could not resolve them and
+      // they'd never learn the team disappeared.
+      const removedId = pendingRemove.user.id;
+      const remainingIds = roster
+        .map((m) => m.user.id)
+        .filter((id) => id !== removedId);
+
       await api.delete(
         `/workspaces/${workspaceId}/members/${encodeURIComponent(pendingRemove.user.email)}`,
       );
+
+      // The removed member drops the whole team; everyone else just updates
+      // the roster.
+      notifyDataChanged('workspaces', [removedId], { workspaceId });
+      notifyDataChanged('members', [removedId, ...remainingIds], { workspaceId });
+
       setPendingRemove(null);
       await reload();
     } catch (requestError) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api, { getErrorMessage } from '../../lib/api';
+import { notifyDataChanged } from '../../lib/realtimeNotify';
 import { validateRequired } from '../../lib/validation';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
@@ -59,6 +60,9 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
         description: description.trim(),
         type,
       });
+      // The team name is visible to every member (switcher, headings), so the
+      // whole workspace needs to refetch — audience resolved server-side.
+      notifyDataChanged('workspaces', null, { workspaceId: workspace.id });
       await onSaved();
       onClose();
     } catch (requestError) {
