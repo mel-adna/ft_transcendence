@@ -10,6 +10,11 @@ import {
 } from 'recharts';
 import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
+import { getErrorMessage } from '../../lib/api';
+import { buildActivityFeed, deriveActivityFeed } from './activityLog';
+import Avatar from '../../components/Avatar';
+import EmptyState from '../../components/EmptyState';
+import Spinner from '../../components/Spinner';
 
 const CHART = {
   primary: '#3B82F6',
@@ -17,11 +22,6 @@ const CHART = {
   panel: '#181824',
   mutedLine: 'rgba(113, 113, 122, 0.2)',
 };
-import { getErrorMessage } from '../../lib/api';
-import { buildActivityFeed, deriveActivityFeed } from './activityLog';
-import Avatar from '../../components/Avatar';
-import EmptyState from '../../components/EmptyState';
-import Spinner from '../../components/Spinner';
 
 const RANGE_OPTIONS = [
   { value: 7, label: '7 Days' },
