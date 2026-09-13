@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import api, { getErrorMessage } from '../../lib/api';
 import { useAuth } from '../../context/useAuth';
-import { fullName } from './roster';
+import { personName } from '../../lib/people';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
@@ -139,7 +139,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
                 <Avatar user={candidate} size={32} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-white">
-                    {fullName(candidate)}
+                    {personName(candidate)}
                   </p>
                   <p className="truncate text-xs text-muted">{candidate.email}</p>
                 </div>

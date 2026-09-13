@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Users, AlertTriangle } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
+import { personName } from '../lib/people';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import Modal from '../components/Modal';
@@ -14,11 +15,6 @@ const TYPE_LABEL = {
   PERSONAL: 'Personal',
   ORGANIZATION: 'Organization',
 };
-
-function ownerName(owner) {
-  const name = [owner?.firstName, owner?.lastName].filter(Boolean).join(' ');
-  return name || owner?.email || 'Unknown owner';
-}
 
 function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
   const isOrganization = workspace.type === 'ORGANIZATION';
@@ -43,7 +39,7 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
           <Avatar user={workspace.owner} size={28} />
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-white">
-              {ownerName(workspace.owner)}
+              {personName(workspace.owner, 'Unknown owner')}
             </p>
             <p className="truncate text-[11px] text-muted">Owner</p>
           </div>

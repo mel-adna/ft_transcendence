@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MoreVertical, Pencil, Trash2, ArrowRight, CalendarDays } from 'lucide-react';
 import Avatar from '../../components/Avatar';
 import { taskRef, shortDate } from './taskFormat';
+import { personName } from '../../lib/people';
 
 const PRIORITY_STYLE = {
   HIGH: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
@@ -22,11 +23,6 @@ const STATUS_LABEL = {
 };
 
 const STATUSES = ['TODO', 'DOING', 'DONE'];
-
-function assigneeName(user) {
-  const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
-  return name || user?.email || 'Unassigned';
-}
 
 export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -166,7 +162,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
         {task.assignee && (
           <>
             <Avatar user={task.assignee} size={26} />
-            <span className="sr-only">{assigneeName(task.assignee)}</span>
+            <span className="sr-only">{personName(task.assignee)}</span>
           </>
         )}
       </div>

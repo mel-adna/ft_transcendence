@@ -1,7 +1,8 @@
 import { Calendar, Clock, Pencil, Trash2, User } from 'lucide-react';
 import Modal from '../../components/Modal';
 import Avatar from '../../components/Avatar';
-import { taskRef, fullDateTime, personName } from './taskFormat';
+import { taskRef, fullDateTime } from './taskFormat';
+import { personName } from '../../lib/people';
 
 const PRIORITY_STYLE = {
   HIGH: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
