@@ -10,8 +10,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.teampulse.backend.model.Workspace;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
 	List<Workspace> findByOwnerId(UUID id);
 	boolean existsByNameAndOwnerId(String name, UUID ownerId);

@@ -24,7 +24,7 @@ public class RefreshToken {
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
 
-	@Column(columnDefinition = "TEXT", nullable = false, unique = true)
+	@Column(nullable = false, unique = true, length = 255)
 	private String token;
 
 	@Column(name = "expiry_date", nullable = false)

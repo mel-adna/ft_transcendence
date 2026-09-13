@@ -12,8 +12,10 @@ import org.springframework.data.repository.query.Param;
 
 import com.teampulse.backend.model.RefreshToken;
 import com.teampulse.backend.model.User;
+import org.springframework.stereotype.Repository;
 
 
+@Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID> {
 	Optional<RefreshToken> findByToken(String token);
 
