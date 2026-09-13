@@ -5,6 +5,8 @@ import { personName } from '../../lib/people';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
+import ErrorBanner from '../../components/ErrorBanner';
+import { inputClass } from '../../components/inputClass';
 
 const PRIORITY_OPTIONS = [
   { value: 'LOW', label: 'Low' },
@@ -14,9 +16,6 @@ const PRIORITY_OPTIONS = [
 
 const TITLE_MAX = 150;
 const DESCRIPTION_MAX = 40000;
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 function validateTitle(value) {
   const requiredError = validateRequired(value, 'Title');
@@ -185,14 +184,7 @@ export default function TaskFormModal({
           </select>
         </Field>
 
-        {serverError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {serverError}
-          </div>
-        )}
+        <ErrorBanner message={serverError} />
 
         <div className="flex items-center justify-end gap-3 border-t border-card pt-5">
           <button

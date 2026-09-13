@@ -4,6 +4,8 @@ import { validateRequired } from '../../lib/validation';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
+import ErrorBanner from '../../components/ErrorBanner';
+import { inputClass } from '../../components/inputClass';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 500;
@@ -12,9 +14,6 @@ const TYPE_OPTIONS = [
   { value: 'ORGANIZATION', label: 'Organization' },
   { value: 'PERSONAL', label: 'Personal' },
 ];
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 function validateName(value) {
   const requiredError = validateRequired(value, 'Team name');
@@ -111,14 +110,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
           </select>
         </Field>
 
-        {serverError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {serverError}
-          </div>
-        )}
+        <ErrorBanner message={serverError} />
 
         <div className="flex justify-end gap-3 border-t border-card pt-5">
           <button

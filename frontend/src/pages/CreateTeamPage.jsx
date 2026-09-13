@@ -6,9 +6,8 @@ import { validateRequired } from '../lib/validation';
 import { useWorkspace } from '../context/useWorkspace';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
+import ErrorBanner from '../components/ErrorBanner';
+import { inputClass } from '../components/inputClass';
 
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 500;
@@ -185,14 +184,7 @@ export default function CreateTeamPage() {
             </div>
           </fieldset>
 
-          {serverError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-            >
-              {serverError}
-            </div>
-          )}
+          <ErrorBanner message={serverError} />
 
           <div className="flex items-center justify-end gap-3 border-t border-card pt-5">
             {canCancel && (
