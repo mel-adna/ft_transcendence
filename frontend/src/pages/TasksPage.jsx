@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ClipboardList, Plus, X } from 'lucide-react';
+import { ClipboardList, Plus, X } from 'lucide-react';
 import { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
@@ -12,6 +12,7 @@ import TaskFormModal from '../features/tasks/TaskFormModal';
 import TaskDetailModal from '../features/tasks/TaskDetailModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 
 const COLUMNS = [
   { status: 'TODO', label: 'To-Do', dotClass: 'bg-muted' },
@@ -167,20 +168,7 @@ export default function TasksPage() {
   if (error) {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load tasks"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Retry
-            </button>
-          }
-        />
+        <ErrorState title="Could not load tasks" error={error} onRetry={reload} />
       </div>
     );
   }

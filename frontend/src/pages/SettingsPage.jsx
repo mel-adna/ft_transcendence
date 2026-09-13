@@ -10,7 +10,7 @@ import { buildDataExport } from '../features/settings/dataExport';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import ErrorBanner from '../components/ErrorBanner';
 import SuccessBanner from '../components/SuccessBanner';
 import { inputClass } from '../components/inputClass';
@@ -387,7 +387,16 @@ function DeleteAccountCard({ onDeleted }) {
         </button>
       </div>
 
-      <Modal open={open} onClose={closeModal} title="Delete account">
+      <ConfirmModal
+        open={open}
+        onClose={closeModal}
+        title="Delete account"
+        confirmLabel="Delete account"
+        onConfirm={confirmDelete}
+        busy={deleting}
+        disabled={!canConfirm}
+        error={error}
+      >
         <div className="space-y-4">
           <p className="text-sm text-muted">
             This permanently deletes your account, signs you out everywhere, and cannot be
@@ -406,29 +415,8 @@ function DeleteAccountCard({ onDeleted }) {
               className={inputClass}
             />
           </Field>
-
-          <ErrorBanner message={error} />
-
-          <div className="flex justify-end gap-3 border-t border-card pt-4">
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={deleting}
-              className="rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDelete}
-              disabled={!canConfirm || deleting}
-              className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {deleting ? <Spinner /> : 'Delete account'}
-            </button>
-          </div>
         </div>
-      </Modal>
+      </ConfirmModal>
     </section>
   );
 }

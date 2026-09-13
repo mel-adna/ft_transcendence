@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
-import { AlertTriangle, Download, Loader2, Upload } from 'lucide-react';
+import { Download, Loader2, Upload } from 'lucide-react';
 import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
 import { getErrorMessage } from '../lib/api';
 import { downloadFile, parseTasksCsv, tasksToCsv } from '../lib/csv';
 import Spinner from '../components/Spinner';
-import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import Modal from '../components/Modal';
 import StatsDashboard from '../features/dashboard/StatsDashboard';
 import { useActivityLogs } from '../features/dashboard/useActivityLogs';
@@ -115,20 +115,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load dashboard"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Retry
-            </button>
-          }
-        />
+        <ErrorState title="Could not load dashboard" error={error} onRetry={reload} />
       </div>
     );
   }

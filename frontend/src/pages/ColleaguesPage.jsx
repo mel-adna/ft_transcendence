@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, UserMinus, UserPlus, Users } from 'lucide-react';
+import { UserMinus, UserPlus, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
@@ -9,9 +9,10 @@ import { buildRoster, inferRoster } from '../features/colleagues/roster';
 import { personName } from '../lib/people';
 import AddMemberModal from '../features/colleagues/AddMemberModal';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 import ErrorBanner from '../components/ErrorBanner';
 
 const ROLE_STYLE = {
@@ -167,22 +168,7 @@ export default function ColleaguesPage() {
     }
 
     if (error) {
-      return (
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load colleagues"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Try again
-            </button>
-          }
-        />
-      );
+      return <ErrorState title="Could not load colleagues" error={error} onRetry={reload} />;
     }
 
     if (roster.length === 0) {
@@ -251,7 +237,15 @@ export default function ColleaguesPage() {
         onAdded={reload}
       />
 
-      <Modal open={Boolean(pendingRemove)} onClose={closeRemoveModal} title="Remove member">
+      <ConfirmModal
+        open={Boolean(pendingRemove)}
+        onClose={closeRemoveModal}
+        title="Remove member"
+        confirmLabel="Remove"
+        onConfirm={confirmRemove}
+        busy={removing}
+        error={removeError}
+      >
         <p className="text-sm text-muted">
           Are you sure you want to remove{' '}
           <span className="font-semibold text-white">
@@ -259,35 +253,7 @@ export default function ColleaguesPage() {
           </span>{' '}
           from this team?
         </p>
-
-        {removeError && (
-          <div
-            role="alert"
-            className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {removeError}
-          </div>
-        )}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={closeRemoveModal}
-            disabled={removing}
-            className="rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={confirmRemove}
-            disabled={removing}
-            className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {removing ? <Spinner /> : 'Remove'}
-          </button>
-        </div>
-      </Modal>
+      </ConfirmModal>
     </div>
   );
 }

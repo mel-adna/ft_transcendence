@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import EditTeamModal from '../features/teams/EditTeamModal';
 import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
 
 const TYPE_LABEL = {
   PERSONAL: 'Personal',
@@ -130,22 +131,7 @@ export default function TeamsPage() {
     }
 
     if (error) {
-      return (
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load teams"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={refresh}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Try again
-            </button>
-          }
-        />
-      );
+      return <ErrorState title="Could not load teams" error={error} onRetry={refresh} />;
     }
 
     if (workspaces.length === 0) {
@@ -210,41 +196,21 @@ export default function TeamsPage() {
         onSaved={refresh}
       />
 
-      <Modal open={Boolean(pendingDelete)} onClose={closeDeleteModal} title="Delete team">
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        onClose={closeDeleteModal}
+        title="Delete team"
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        busy={deleting}
+        error={deleteError}
+      >
         <p className="text-sm text-muted">
           Are you sure you want to delete{' '}
           <span className="font-semibold text-white">{pendingDelete?.name}</span>? This action
           cannot be undone.
         </p>
-
-        {deleteError && (
-          <div
-            role="alert"
-            className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {deleteError}
-          </div>
-        )}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={closeDeleteModal}
-            disabled={deleting}
-            className="rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={confirmDelete}
-            disabled={deleting}
-            className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {deleting ? <Spinner /> : 'Delete'}
-          </button>
-        </div>
-      </Modal>
+      </ConfirmModal>
     </div>
   );
 }

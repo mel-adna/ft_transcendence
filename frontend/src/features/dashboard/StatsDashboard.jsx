@@ -8,12 +8,12 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
+import { List, CheckCircle, Users, Activity } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
-import { getErrorMessage } from '../../lib/api';
 import { buildActivityFeed, deriveActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
 import EmptyState from '../../components/EmptyState';
+import ErrorState from '../../components/ErrorState';
 import Spinner from '../../components/Spinner';
 
 const CHART = {
@@ -174,19 +174,10 @@ export default function StatsDashboard({
             </div>
           ) : activityError ? (
             <div className="mt-6">
-              <EmptyState
-                icon={AlertTriangle}
+              <ErrorState
                 title="Could not load activity"
-                message={getErrorMessage(activityError)}
-                action={
-                  <button
-                    type="button"
-                    onClick={onRetryActivity}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                  >
-                    Retry
-                  </button>
-                }
+                error={activityError}
+                onRetry={onRetryActivity}
               />
             </div>
           ) : activity.length === 0 ? (
