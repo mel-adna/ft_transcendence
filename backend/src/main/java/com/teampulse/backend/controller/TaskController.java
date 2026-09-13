@@ -4,6 +4,8 @@ import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/tasks")
 @RequiredArgsConstructor
+@RateLimit(capacity = 100, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "Task Management", description = "Endpoints for handling Kanban board cards, task assignments, and lifecycle states.")
 public class TaskController {
 

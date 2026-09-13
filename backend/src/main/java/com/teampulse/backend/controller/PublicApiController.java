@@ -3,6 +3,8 @@ package com.teampulse.backend.controller;
 import com.teampulse.backend.repository.TaskRepository;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class PublicApiController {
 	private final TaskRepository taskRepository;
 	private final WorkspaceRepository workspaceRepository;
 
+	@RateLimit(capacity = 30, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Get system status and stats")
 	@GetMapping("/stats")
 	public ResponseEntity<Map<String, Object>> getPublicStats() {
@@ -33,6 +36,8 @@ public class PublicApiController {
 		));
 	}
 
+
+	@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Get public tasks summary")
 	@GetMapping("/tasks")
 	public ResponseEntity<Map<String, Object>> getPublicTasks() {
@@ -42,6 +47,8 @@ public class PublicApiController {
 		));
 	}
 
+
+	@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Get public users summary")
 	@GetMapping("/users")
 	public ResponseEntity<Map<String, Object>> getPublicUsers() {
@@ -51,6 +58,8 @@ public class PublicApiController {
 		));
 	}
 
+
+	@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Get public organizations summary")
 	@GetMapping("/organizations")
 	public ResponseEntity<Map<String, Object>> getPublicOrganizations() {
@@ -60,6 +69,8 @@ public class PublicApiController {
 		));
 	}
 
+
+	@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Get public chat status gateway")
 	@GetMapping("/chat")
 	public ResponseEntity<Map<String, String>> getPublicChat() {
