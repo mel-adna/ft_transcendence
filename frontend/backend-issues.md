@@ -14,7 +14,7 @@ A mandatory requirement with nothing behind it, or a state a user cannot get out
 
 | # | Issue | What breaks | Effort |
 |---|---|---|---|
-| 17 | The public API has keys but no rate limiting | The spec says rate limited, and 150 calls in a row all return 200 | Small |
+| 17 | The public API has keys but no rate limiting | The spec says rate limited, and 150 calls with a valid key all return 200 | Small |
 
 ## Not blocking
 
@@ -38,30 +38,38 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 > **Hardened Public API**: Exposes five secure, rate-limited endpoints requiring API keys:
 > `/api/tasks`, `/api/users`, `/api/organizations`, `/api/stats`, `/api/chat`
 
-Most of it now exists. `PublicApiController` registers all five under `/api/v1/public/`, and
-`ApiKeyAuthFilter` checks an `X-API-KEY` header against `app.api.public-key`. Measured on the
-running backend:
+The key half is now properly done. `PublicApiController` registers all five under
+`/api/v1/public/`, and keys are real records rather than one shared constant: `POST /api-key/rotate`
+issues a `tp_live_...` key to the signed in user, `ApiKeyService` stores only its SHA-256 hash, and
+the plaintext is shown once. `ApiKeyAuthFilter` hashes the incoming `X-API-Key` and looks up an
+active row. Measured on the running backend:
 
 ```
-no header        ->  401  {"error":"Unauthorized","message":"Invalid or missing X-API-KEY header"}
-wrong key        ->  401
-correct key      ->  200  on all five paths
+no header      ->  401
+rotate, then use the returned key  ->  200 on all five paths
 ```
 
-What is missing is the word **rate-limited**. Measured: 150 requests in a row with a valid key,
-all 200, none throttled. Searching the backend and the nginx config still finds no rate limiting
-of any kind: no bucket4j, no resilience4j, no `@RateLimiter`, no `limit_req` zone.
+What is still missing is the word **rate-limited**. Measured with a freshly rotated, valid key:
+150 requests in a row, all 200, none throttled. Searching the backend and the nginx config finds
+no rate limiting of any kind: no bucket4j, no resilience4j, no `@RateLimiter`, no `limit_req` zone.
 
 This is the last piece of the one requirement that is mandatory rather than optional, and it is
-the easiest thing for an evaluator to check: point `curl` at `/public/stats` in a loop with the
+the easiest thing for an evaluator to check: point `curl` at `/public/stats` in a loop with a valid
 key and nothing pushes back.
 
-Cheapest honest implementation is a `limit_req` zone in nginx in front of the public paths, since
-the key is already being checked in the filter and nginx is already in the stack.
+Cheapest honest implementation is a `limit_req` zone in nginx in front of `/api/v1/public/`, since
+the key is already validated in the filter and nginx is already in the stack. Doing it per key
+rather than per IP needs the limiter inside the application instead.
 
-**Second point, smaller.** The key sits in `application.yaml` as
-`${PUBLIC_API_KEY:2a4ed4...}`, so the fallback is a real working key committed to a public repo.
-The env var override is the right shape; the default should not be a usable key.
+**Second point, smaller, and now only cleanup.** `application.yaml` still carries
+
+```yaml
+public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
+```
+
+Nothing in Java reads it any more, and that key is rejected with 401, so it is dead config rather
+than a live credential. Worth deleting so nobody mistakes it for a working key.
+
 ---
 
 # Not blocking
