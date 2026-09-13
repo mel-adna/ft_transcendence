@@ -5,7 +5,8 @@ import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { useMembers } from '../features/colleagues/useMembers';
 import { useTasks } from '../features/tasks/useTasks';
-import { buildRoster, inferRoster, fullName } from '../features/colleagues/roster';
+import { buildRoster, inferRoster } from '../features/colleagues/roster';
+import { personName } from '../lib/people';
 import AddMemberModal from '../features/colleagues/AddMemberModal';
 import Avatar from '../components/Avatar';
 import Modal from '../components/Modal';
@@ -24,7 +25,7 @@ const ROLE_OPTIONS = ['ADMIN', 'MEMBER', 'VIEWER'];
 function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
   const { user, role } = member;
   const canManage = role !== 'OWNER' && !isSelf;
-  const name = fullName(user);
+  const name = personName(user);
 
   return (
     <div className="flex flex-col justify-between rounded-2xl border border-card bg-panel p-5">
@@ -260,7 +261,7 @@ export default function ColleaguesPage() {
         <p className="text-sm text-muted">
           Are you sure you want to remove{' '}
           <span className="font-semibold text-white">
-            {pendingRemove ? fullName(pendingRemove.user) : ''}
+            {pendingRemove ? personName(pendingRemove.user) : ''}
           </span>{' '}
           from this team?
         </p>

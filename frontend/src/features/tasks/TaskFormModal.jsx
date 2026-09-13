@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getErrorMessage } from '../../lib/api';
 import { validateRequired } from '../../lib/validation';
-import { personName } from './taskFormat';
+import { personName } from '../../lib/people';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';

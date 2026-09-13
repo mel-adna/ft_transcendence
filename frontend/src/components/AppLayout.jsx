@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
+import { personName } from '../lib/people';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
 
@@ -67,7 +68,7 @@ export default function AppLayout() {
     return <Navigate to="/teams/new" replace />;
   }
 
-  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Account';
+  const fullName = personName(user, 'Account');
 
   return (
     <div className="flex min-h-screen bg-canvas text-white">

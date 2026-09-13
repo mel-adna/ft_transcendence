@@ -23,8 +23,3 @@ export function fullDateTime(value) {
     minute: '2-digit',
   });
 }
-
-export function personName(person) {
-  const name = [person?.firstName, person?.lastName].filter(Boolean).join(' ');
-  return name || person?.email || 'Unassigned';
-}
