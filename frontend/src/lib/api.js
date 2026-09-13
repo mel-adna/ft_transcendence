@@ -22,7 +22,7 @@ export function setToken(value) {
   localStorage.setItem(TOKEN_KEY, value);
 }
 
-export function getRefreshToken() {
+function getRefreshToken() {
   return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
@@ -64,11 +64,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-export function isAuthPath(url) {
+function isAuthPath(url) {
   return AUTH_PATHS.some((path) => String(url ?? '').includes(path));
 }
 
-export function isSessionExpired({ status, message }) {
+function isSessionExpired({ status, message }) {
   if (status === 401) return true;
   return status === 403 && message === 'Forbidden';
 }
@@ -80,7 +80,7 @@ export function isEmailNotVerified(error) {
   return /not verified|account is disabled/i.test(String(response.data?.message ?? ''));
 }
 
-export function shouldRefresh({ status, message, url, hasRetried, hasRefreshToken }) {
+function shouldRefresh({ status, message, url, hasRetried, hasRefreshToken }) {
   if (!isSessionExpired({ status, message })) return false;
   if (hasRetried) return false;
   if (isAuthPath(url)) return false;

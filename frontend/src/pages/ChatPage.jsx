@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquareOff } from 'lucide-react';
 import { SocketProvider, ChatLayout } from '../features/chat';
 import { getToken } from '../lib/api';
@@ -11,7 +11,6 @@ const PROBE_TIMEOUT_MS = 4000;
 
 export default function ChatPage() {
   const { user } = useAuth();
-  const readToken = useCallback(() => getToken(), []);
   const [serviceStatus, setServiceStatus] = useState('checking');
   const [attempt, setAttempt] = useState(0);
 
@@ -88,7 +87,7 @@ export default function ChatPage() {
         )}
 
         {serviceStatus === 'online' && (
-          <SocketProvider getToken={readToken}>
+          <SocketProvider getToken={getToken}>
             <ChatLayout currentUserId={user.id} />
           </SocketProvider>
         )}

@@ -1,21 +1,13 @@
 const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 
-export function readGoogleClientId(env) {
-  const value = env?.VITE_GOOGLE_CLIENT_ID;
+export function getGoogleClientId() {
+  const value = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
 
-export function getGoogleClientId() {
-  return readGoogleClientId(import.meta.env);
-}
-
 let loadPromise = null;
-
-export function resetGoogleIdentityLoader() {
-  loadPromise = null;
-}
 
 export function loadGoogleIdentity() {
   if (!getGoogleClientId()) return Promise.resolve(null);

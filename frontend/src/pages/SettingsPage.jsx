@@ -330,7 +330,7 @@ function DataExportCard({ user, workspaces }) {
     setExporting(true);
     setError(null);
     try {
-      const payload = await buildDataExport(api, user, workspaces);
+      const payload = await buildDataExport(user, workspaces);
       downloadFile(EXPORT_FILENAME, JSON.stringify(payload, null, 2), 'application/json');
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -474,11 +474,6 @@ export default function SettingsPage() {
     navigate('/login', { replace: true });
   }
 
-  async function handleAccountDeleted() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
@@ -501,7 +496,7 @@ export default function SettingsPage() {
           <ProfileCard user={user} onSaved={refreshUser} />
           <PasswordCard />
           <DataExportCard user={user} workspaces={workspaces} />
-          <DeleteAccountCard onDeleted={handleAccountDeleted} />
+          <DeleteAccountCard onDeleted={handleLogout} />
         </div>
       </div>
     </div>
