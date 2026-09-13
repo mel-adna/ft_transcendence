@@ -14,6 +14,7 @@ import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
+import LegalLinks from './LegalLinks';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -172,14 +173,8 @@ export default function AppLayout() {
             <Outlet />
           </div>
 
-          <footer className="flex items-center justify-center gap-2 px-4 py-6 text-[11px] text-muted">
-            <Link to="/privacy" className="transition-colors hover:text-white">
-              Privacy Policy
-            </Link>
-            <span>&bull;</span>
-            <Link to="/terms" className="transition-colors hover:text-white">
-              Terms of Service
-            </Link>
+          <footer className="px-4 py-6">
+            <LegalLinks />
           </footer>
         </main>
       </div>
