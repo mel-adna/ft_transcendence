@@ -1,12 +1,27 @@
 # Frontend Issues & Feature Requirements
 
 
-## [BUG] Content Security Policy (CSP) blocks Google Sign-In script
+### 1. Google OAuth Multiple Initialization Warning
 
-### Description
-The frontend fails to load the official Google Identity Services SDK (`https://accounts.google.com/gsi/client`). The browser blocks execution due to missing domain permissions in the current Content Security Policy (CSP).
+ - Warning
 
-### Console Error
 ```text
-Loading the script '[https://accounts.google.com/gsi/client](https://accounts.google.com/gsi/client)' violates the following Content Security Policy directive: "script-src 'self' 'unsafe-inline' 'unsafe-eval'". 
-Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked at googleIdentity.js:47
+client:87 [GSI_LOGGER]: google.accounts.id.initialize() is called multiple times. This could cause unexpected behavior and only the last initialized instance will be used.
+```
+
+The warning `[GSI_LOGGER]: google.accounts.id.initialize() is called multiple times`
+happens because React triggers `useEffect`
+twice in **Strict Mode** or on component re-renders, causing Google Identity Services to initialize repeatedly.
+
+---
+
+### 2. Recharts Layout Calculation Warning
+
+
+- Warning
+
+```text
+The width(-1) and height(-1) of chart should be greater than 0... in StatsDashboard.jsx.
+```
+
+ResponsiveContainer attempts to calculate dimensions before the parent div completes CSS layout rendering.
