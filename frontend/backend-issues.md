@@ -1,13 +1,8 @@
 # Backend issues
 
-Status verified 2026-09-07 against the merged backend at `e509b8a` (email verification), by
-reading the source and measuring against the running API on a freshly migrated database.
-Everything already fixed has been removed, so the numbering has gaps. What is left is what still
-needs doing.
-
-Issues 13 and 15 are gone because they are fixed. Issues 16, 17, 18 and 19 were each re-measured
-after the merge and are all still open. Issues 20 to 23 are new, and all four come from the email
-verification work.
+Status verified 2026-09-13 against the merged backend at `fb26685`, by reading the source and
+measuring every claim against the running API on a freshly migrated database. Everything already
+fixed has been removed, so the numbering has gaps.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a
 given issue stays valid. The order of this file is by priority: everything that blocks a
@@ -19,8 +14,7 @@ A mandatory requirement with nothing behind it, or a state a user cannot get out
 
 | # | Issue | What breaks | Effort |
 |---|---|---|---|
-| 21 | A verification code cannot be resent, so a slow signup is locked out for good | The account can never be used, and the same email can never sign up again | Small |
-| 17 | The hardened public API in the spec does not exist | A mandatory MVP requirement with nothing implemented behind it | Real work |
+| 17 | The public API has keys but no rate limiting | The spec says rate limited, and 150 calls with a valid key all return 200 | Small |
 
 ## Not blocking
 
@@ -28,225 +22,57 @@ Real defects, but nothing visible is broken today. Worth fixing, not urgent.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 19 | Only the move into Done is logged | Moving a card out of Done, or between To do and Doing, leaves no trace | Small |
-| 16 | `WorkspaceResponse` omits `description` | Editing a team silently wipes its description, and no client can prevent it | 1 line |
-| 18 | `POST /workspaces` returns 500 on a long description | A description over 500 characters crashes team creation instead of being rejected | 1 line |
-| 20 | Signing in before verifying returns 500 | The one error every new user will hit says nothing about verifying | Small |
 | 22 | A failed verification email is swallowed | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
-| 23 | Unknown URLs return 500 instead of 404 | Any client typo reads as a server crash, and a 404 is currently impossible | Small |
+| 25 | An expired token returns 403, not 401 | Silent refresh cannot fire on the status the spec assumes, so sessions die at 15 minutes | 2 lines |
+| 26 | Avatars are served over plain http from port 9000 | On `https://localhost` the browser blocks every avatar as mixed content | Config |
+| 27 | No real Google OAuth client exists, and a Google signup is created disabled | The Continue with Google button cannot be switched on, and the first Google login makes an account that can never use a password | Config + 1 line |
 
 ---
 
 # Blocking issues
 
-## 17. The hardened public API from the spec is not implemented
+## 17. The public API is keyed but still not rate limited
 
 `README.md` section 2E lists this under **Core Features (MVP, Mandatory Part)**:
 
 > **Hardened Public API**: Exposes five secure, rate-limited endpoints requiring API keys:
 > `/api/tasks`, `/api/users`, `/api/organizations`, `/api/stats`, `/api/chat`
 
-None of it exists. Searching the whole backend and the nginx config finds no rate limiting of any
-kind (no bucket4j, no resilience4j, no `@RateLimiter`, no `limit_req` in nginx) and no API key
-handling (no `X-API-KEY`, no api key filter, no key storage). The five paths are not registered
-either; the real API lives under `/api/v1/...` with JWT authentication, which is a different
-thing from a keyed public API.
+The key half is now properly done. `PublicApiController` registers all five under
+`/api/v1/public/`, and keys are real records rather than one shared constant: `POST /api-key/rotate`
+issues a `tp_live_...` key to the signed in user, `ApiKeyService` stores only its SHA-256 hash, and
+the plaintext is shown once. `ApiKeyAuthFilter` hashes the incoming `X-API-Key` and looks up an
+active row. Measured on the running backend:
 
-This is worth raising early because it is the one gap that is mandatory rather than optional, and
-it is trivially checkable by an evaluator with `curl`: hammer any endpoint in a loop and nothing
-throttles.
+```
+no header      ->  401
+rotate, then use the returned key  ->  200 on all five paths
+```
 
-The smallest honest implementation is an `X-API-KEY` filter in front of the five paths plus
-`limit_req` zones in nginx, which is where rate limiting is cheapest to add.
+What is still missing is the word **rate-limited**. Measured with a freshly rotated, valid key:
+150 requests in a row, all 200, none throttled. Searching the backend and the nginx config finds
+no rate limiting of any kind: no bucket4j, no resilience4j, no `@RateLimiter`, no `limit_req` zone.
+
+This is the last piece of the one requirement that is mandatory rather than optional, and it is
+the easiest thing for an evaluator to check: point `curl` at `/public/stats` in a loop with a valid
+key and nothing pushes back.
+
+Cheapest honest implementation is a `limit_req` zone in nginx in front of `/api/v1/public/`, since
+the key is already validated in the filter and nginx is already in the stack. Doing it per key
+rather than per IP needs the limiter inside the application instead.
+
+**Second point, smaller, and now only cleanup.** `application.yaml` still carries
+
+```yaml
+public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
+```
+
+Nothing in Java reads it any more, and that key is rejected with 401, so it is dead config rather
+than a live credential. Worth deleting so nobody mistakes it for a working key.
 
 ---
 
 # Not blocking
-
-## 16. `WorkspaceResponse` does not return `description`, so editing a team erases it
-
-`Workspace` stores a description and `WorkspaceCreateRequest` and `WorkspaceUpdateRequest` both
-accept one, but `WorkspaceResponse` exposes only `id`, `name`, `type` and `owner`. The field is
-write-only from a client's point of view: you can set it and never read it back.
-
-That turns into data loss on update. `WorkspaceUpdateRequest.description` is not annotated
-`@NotNull`, and MapStruct's `updateWorkspaceFromRequest` maps it straight onto the entity, so
-leaving it out sets it to null. Measured on the running backend:
-
-```
-description in DB before:                            after
-PUT /workspaces/{id} with only name and type
-description in DB after:                             <NULL>
-```
-
-No frontend can avoid this. Preserving a value requires reading it first, and the API never
-returns it. The Edit team form therefore says plainly that the field starts empty and that
-whatever is left in it replaces what was stored.
-
-**Fix:** add `private String description;` to `WorkspaceResponse`. The mapper already copies
-matching field names, so nothing else needs changing. Then the form can prefill it and the data
-loss disappears.
-
-## 18. `POST /workspaces` returns 500 for a description over 500 characters
-
-`WorkspaceUpdateRequest.description` is annotated `@Size(max=500)`. `WorkspaceCreateRequest.description`
-is not annotated at all. The column is `varchar(500)`. So the create path lets an oversized value
-through bean validation and Postgres rejects it at insert time.
-
-Measured on the running backend, same payload, same field, two endpoints:
-
-```
-POST /workspaces   description = 500 chars  ->  201 Created
-POST /workspaces   description = 501 chars  ->  500 Internal Server Error
-PUT  /workspaces/{id}  description = 501 chars  ->  400 Bad Request
-                       {"description":"Workspace description must not exceed 500 characters"}
-```
-
-The 500 body is the generic `An unexpected server error occurred. Please try again later.`, so the
-user is told nothing about which field was wrong. The backend log shows the real cause:
-
-```
-PSQLException: ERROR: value too long for type character varying(500)
-DataIntegrityViolationException: could not execute batch [insert into workspaces ...]
-```
-
-Reproduced from the Create Team screen by pasting a long paragraph into Description.
-
-**Fix:** copy the annotation that `WorkspaceUpdateRequest` already has onto
-`WorkspaceCreateRequest.description`:
-
-```java
-@Size(max=500, message="Workspace description must not exceed 500 characters")
-private String description;
-```
-
-The frontend now caps the field at 500 characters, so this is no longer reachable from the Create
-Team screen. It stays reachable from Swagger and from any other client.
-
-### The wider point
-
-`GlobalExceptionHandler` has handlers for `MethodArgumentNotValidException`, `BadRequestException`,
-`ResourceNotFoundException`, `UnauthorizedAccessException`, `ResourceAlreadyExistsException`,
-`ExpiredJwtException`, `JwtException` and `BadCredentialsException`, then a catch-all
-`@ExceptionHandler(Exception.class)` that returns 500. There is no handler for
-`DataIntegrityViolationException`.
-
-So any constraint the database enforces but bean validation does not, length, a not-null column, a
-foreign key, surfaces as a 500 rather than a 4xx. Duplicates are the exception: the service layer
-checks those itself and throws `ResourceAlreadyExistsException`, which is handled. The missing `@Size` is one instance of
-that. Adding a `DataIntegrityViolationException` handler that returns 409 or 400 would stop the
-whole class of them from being reported as server crashes.
-
-## 19. Only the move into Done is logged, so the board's other transitions leave no trace
-
-`updateTaskStatus` records the old status and hands it to one check:
-
-```java
-private void checkAndTriggerStatusEvents(Task task, TaskStatus oldStatus, User actor) {
-    if (task.getStatus() == TaskStatus.DONE && oldStatus != TaskStatus.DONE)
-        triggerTaskCompletedEvent(task, actor);
-}
-```
-
-That fires on exactly one transition. `oldStatus` is computed and then used for nothing else, so
-every other move writes no activity row at all.
-
-Measured on the running backend, one task, five moves, counting rows after each:
-
-| Move | Rows written |
-|---|---|
-| create | `TASK_CREATED` |
-| TODO to DONE | `TASK_COMPLETED` |
-| DONE to TODO | nothing |
-| TODO to DOING | nothing |
-| DOING to DONE | `TASK_COMPLETED` again |
-
-Two consequences, both visible on the dashboard. Moving a card back out of Done looks like
-nothing happened, because as far as the log is concerned nothing did. And because a completion is
-written every time the task re-enters Done, a task finished three times shows three identical
-`completed` lines with no `reopened` line between them, which reads as a duplication bug rather
-than as real history.
-
-**Fix:** log whenever the status actually changed, not only when it becomes DONE. Keep
-`TASK_COMPLETED` for the move into Done and write the generic row only for the other transitions,
-otherwise a TODO to DONE move writes two rows and trades one duplicate for another.
-
-```java
-if (task.getStatus() != oldStatus) {
-    if (task.getStatus() == TaskStatus.DONE) {
-        triggerTaskCompletedEvent(task, actor);
-    } else {
-        activityLogService.logActivity(task.getWorkspace().getId(), actor.getId(), task.getId(),
-                "TASK_STATUS_CHANGED",
-                String.format("%s %s moved task '%s' from %s to %s",
-                        actor.getFirstName(), actor.getLastName(), task.getTitle(), oldStatus, task.getStatus()));
-    }
-}
-```
-
-**Do not reuse `TASK_UPDATED` for this.** `TaskEventListener.handleTaskAssignedEvent` already
-emits `TASK_UPDATED` for a reassignment, and the frontend maps that action type to the label
-`Reassigned`. A DONE to TODO move logged as `TASK_UPDATED` would render in the feed with a
-"Reassigned" badge. A new action type avoids the collision.
-
-The frontend needs no change to display it. `activityLog.js` humanizes any action type it does
-not recognise, so `TASK_STATUS_CHANGED` renders as "Task status changed" the moment the backend
-starts sending it, and gets a nicer label once it is added to the map.
-
-Worth deciding at the same time: a completion currently also sends a notification. Whether
-reopening somebody's finished task deserves the same notification is a product call, not a
-technical one.
-
-## 21. A verification code cannot be resent, so a slow signup is locked out for good
-
-Signup creates the user with `enabled = false` and a code that expires 15 minutes later. There is
-no endpoint to send a new one: `AuthController` exposes `signup`, `verify-email`, `login`,
-`refresh`, `change-password`, `logout`, `forgot-password`, `reset-password` and `google`, and
-nothing else.
-
-That closes every door at once:
-
-| Attempt | Result |
-|---|---|
-| Verify with the expired code | `verifyEmail` deletes it and throws "expired. Please request a new one" |
-| Request a new one | No endpoint exists to request one |
-| Sign up again with the same email | `signup` throws "Email is already registered!" |
-| Sign in | Blocked, the account is still `enabled = false` |
-
-The account is unreachable and the email address is permanently spent. Anyone who signs up and
-steps away for lunch before typing the code is in this state.
-
-The error message already promises the endpoint the API does not have, so the message is right
-and the API is missing. **Fix:** a `POST /auth/resend-verification` taking an email, which
-deletes any existing code for that user and issues a fresh one. `signup` already contains the
-whole body of that method; it needs lifting into a private helper the two share.
-
-## 20. Signing in before verifying the email returns 500
-
-`UserPrincipal.isEnabled()` now returns `user.isEnabled()`, so `DaoAuthenticationProvider` throws
-`DisabledException` for an unverified account. `UserService.login` catches only
-`BadCredentialsException`, and `GlobalExceptionHandler` has no handler for `DisabledException`, so
-it reaches the catch-all and comes back as a server crash.
-
-Measured on the running backend, on a fresh database:
-
-```
-POST /auth/signup                       ->  201  "Verification code has been sent to your email."
-POST /auth/login  (not yet verified)    ->  500  "An unexpected server error occurred."
-POST /auth/verify-email  (correct code) ->  200  access and refresh tokens
-POST /auth/login  (after verifying)     ->  200
-```
-
-Backend log for the 500: `org.springframework.security.authentication.DisabledException: User is
-disabled`.
-
-This is the single most likely error in the whole product: it is what a new user gets by closing
-the verification page and trying to sign in. It should be a 403 that says the email still needs
-confirming, so the frontend can send them back to the code screen. Right now the message carries
-no hint, and the frontend cannot tell this apart from a genuine crash.
-
-**Fix:** catch `DisabledException` in `login`, or add a handler for it, and return a 403 whose
-message names the cause.
 
 ## 22. A failed verification email is swallowed, so signup can report success and strand the user
 
@@ -273,23 +99,138 @@ product silently stops working with no failing test and no error surface.
 retrying, so a broken mailer is visible. And move the credential to an environment variable, which
 is the same rotation that was already planned for the other secrets.
 
-## 23. Unknown URLs return 500 instead of 404
+## 25. An expired access token returns 403, so a client cannot tell a dead session from a denial
 
-Deleting the duplicate endpoints was right, and the old paths are gone. What they return now is
-wrong:
+`frontend-issues.md` asks the frontend to "handle 401 responses" and refresh in the background.
+The interceptor that does this already existed. It never fired, because the backend does not send
+a 401.
+
+`JwtAuthenticationFilter` catches `ExpiredJwtException`, logs it, and calls
+`filterChain.doFilter(...)`. It does not rethrow, so the `@ExceptionHandler(ExpiredJwtException)`
+in `GlobalExceptionHandler` never runs. The request then reaches the authorization layer with no
+authentication set, and because no `AuthenticationEntryPoint` is configured, Spring falls back to
+its default and answers 403 with its generic error body.
+
+Measured with a correctly signed, genuinely expired token:
 
 ```
-PUT  /users/profile          ->  500  "An unexpected server error occurred."
-POST /users/change-password  ->  500  "An unexpected server error occurred."
+GET /api/v1/users/me
+  -> 403  {"status":403,"error":"Forbidden","message":"Forbidden","path":"/api/v1/users/me"}
 ```
 
-The log gives the reason: `NoResourceFoundException: No static resource users/profile.` Spring
-raises it correctly and then the catch-all `@ExceptionHandler(Exception.class)` converts it into a
-server crash. Nothing is actually wrong with the server, and no 404 can ever be produced by this
-API.
+The same 403 comes back for a request with no token at all, so status alone cannot separate
+"your session ended, refresh it" from "you may not do this".
 
-This is the same missing-handler pattern as issues 18 and 20, and the three together are one
-decision: the catch-all is too wide. `NoResourceFoundException` should map to 404,
-`DataIntegrityViolationException` to 409 or 400, `DisabledException` to 403. The catch-all should
-be the last resort for genuinely unexpected failures, which is what makes its log line
-`CRITICAL ERROR internal server crash` accurate.
+**Fix:** register an `AuthenticationEntryPoint` that writes 401 for unauthenticated requests.
+
+```java
+.exceptionHandling(e -> e.authenticationEntryPoint(
+        (req, res, ex) -> res.sendError(HttpStatus.UNAUTHORIZED.value(), "Unauthenticated")))
+```
+
+The frontend now works around this by treating a 403 whose body is the literal `Forbidden` as an
+ended session, since every 403 the application raises itself carries a real sentence. That
+workaround should come out once the entry point exists, because it depends on an error body
+nobody promised to keep stable.
+
+## 26. Avatar URLs are plain http on port 9000, so they are blocked over https
+
+`FileStorageService` stores `String.format("%s/%s/%s", publicUrl, bucketName, fileName)`, and
+compose sets `MINIO_PUBLIC_URL=http://localhost:9000`. Uploading works and the object really is
+public:
+
+```
+POST /users/me/avatar  -> 200, avatarUrl http://localhost:9000/teampulse-avatars/avatar-<uuid>.png
+GET  that url          -> 200, content-type image/png
+```
+
+So the report that avatars "store correctly but do not display" is accurate, and the cause is not
+in the upload or the bucket policy. nginx serves the app over TLS on 443, the stored URL is
+plain `http`, and a browser refuses to load `http://` images into an `https://` page. The
+`onError` fallback then draws initials, which is why it looks like the image is missing rather
+than blocked. On `http://localhost:5173` the same avatar displays.
+
+There is a second problem behind it: the URL only resolves at all because port 9000 is published
+to the host. Nothing outside a laptop can reach `localhost:9000`.
+
+**Fix:** serve MinIO through nginx on the same origin, and store a same-origin URL.
+
+```nginx
+location /avatars/ { proxy_pass http://minio:9000/teampulse-avatars/; }
+```
+
+with `MINIO_PUBLIC_URL` pointing at that path. The Vite dev server needs the same proxy entry so
+the two entry points behave alike. Existing rows keep their absolute URLs and would need
+rewriting, which on a wiped database is nothing.
+
+## 27. Google sign in needs a real OAuth client, and `googleLogin` creates the account disabled
+
+The frontend side is built and merged. `LoginPage` renders a Google button above the email form on
+both tabs, and a successful credential is posted to `POST /auth/google` as `{ idToken }`, which is
+the shape `GoogleLoginRequest` already expects. Nothing else is needed from the frontend.
+
+It is switched off until two things exist.
+
+### 1. A real OAuth client, which only you can create
+
+`application.yaml` has:
+
+```yaml
+client-id: ${GOOGLE_CLIENT_ID:407408718192.apps.googleusercontent.com}
+```
+
+That default is the sample client from Google's own documentation. It is not ours, and it has no
+authorized origin for this app, so Google Identity Services refuses to initialize against it and
+the button never becomes clickable.
+
+What is needed, in Google Cloud Console:
+
+1. Create an **OAuth 2.0 Client ID** of type **Web application**.
+2. Add authorized JavaScript origins for **every** entry point we run. They are separate origins
+   as far as Google is concerned, and a missing one fails silently:
+   - `http://localhost:5173` (Vite directly)
+   - `https://localhost` (through nginx)
+3. Configure the OAuth consent screen. While it is in Testing, only accounts added as test users
+   can sign in, which is fine for the evaluation.
+
+The resulting client ID then goes in **two** places, because the browser needs it at render time
+to draw the button and the backend needs it to validate the token:
+
+- backend: `GOOGLE_CLIENT_ID`
+- frontend: `VITE_GOOGLE_CLIENT_ID`, already wired through `docker-compose.yml` and
+  `.env.example`
+
+A client ID is not a secret, so both can be committed or passed as plain environment variables.
+Until `VITE_GOOGLE_CLIENT_ID` is set the button is not rendered at all, so an unconfigured
+environment shows the ordinary email form rather than something broken.
+
+### 2. A one line fix in `googleLogin`
+
+A user arriving through Google for the first time is built like this:
+
+```java
+User.builder()
+        .email(email)
+        .firstName(firstName)
+        .lastName(lastName)
+        .avatarUrl(pictureUrl)
+        .provider(AuthProvider.GOOGLE)
+        .providerId(googleId)
+        .build()
+```
+
+`enabled` is never set, and `User.enabled` defaults to `false`. Google sign in itself still works,
+because `googleLogin` issues tokens directly rather than going through `authenticationManager`, so
+the disabled check never runs on that path. The damage shows up afterwards: that account is stored
+as unverified forever. If the person ever sets a password and signs in normally they get the 403
+from issue 25's path, and they cannot verify their way out, because no verification code was ever
+issued for them.
+
+Google has already verified the address, which is the whole point of accepting the token, so:
+
+```java
+.enabled(true)
+```
+
+Worth noting the same builder stores Google's `picture` URL as the avatar. That one is an
+`https://lh3.googleusercontent.com/...` address, so unlike issue 26 it displays correctly over TLS.

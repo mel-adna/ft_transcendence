@@ -12,6 +12,8 @@ fclean:
 	rm -rf ./nginx/certs
 	docker compose down -v
 
+backend:
+	docker compose up -d --build backend
 
 re: fclean all
 

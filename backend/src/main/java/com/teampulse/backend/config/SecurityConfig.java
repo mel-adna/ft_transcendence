@@ -1,8 +1,10 @@
 package com.teampulse.backend.config;
 
 import com.teampulse.backend.security.ApiKeyAuthFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -21,6 +23,8 @@ import com.teampulse.backend.security.JwtAuthenticationFilter;
 
 import lombok.RequiredArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -35,6 +39,34 @@ public class SecurityConfig {
 		http
 				.csrf(csrf -> csrf.disable())
 				.cors(Customizer.withDefaults())
+
+				.headers(headers -> headers
+						.contentSecurityPolicy(csp -> csp
+								.policyDirectives(
+										"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com/gsi/client; " +
+												"script-src-elem 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; " +
+												"style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; " +
+												"frame-src 'self' https://accounts.google.com/gsi/; " +
+												"connect-src 'self' https://accounts.google.com/gsi/; " +
+												"img-src 'self' data: https://lh3.googleusercontent.com;"
+								)
+						)
+				)
+
+				.exceptionHandling(ex -> ex
+						.authenticationEntryPoint((request, response, authException) -> {
+							response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+							response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+
+							String json = String.format(
+									"{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Full authentication is required or token has expired.\",\"path\":\"%s\"}",
+									LocalDateTime.now(),
+									request.getRequestURI()
+							);
+
+							response.getWriter().write(json);
+						})
+				)
 
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(

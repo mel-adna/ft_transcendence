@@ -10,6 +10,13 @@ import {
 } from 'recharts';
 import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
+
+const CHART = {
+  primary: '#3B82F6',
+  muted: '#71717A',
+  panel: '#181824',
+  mutedLine: 'rgba(113, 113, 122, 0.2)',
+};
 import { getErrorMessage } from '../../lib/api';
 import { buildActivityFeed, deriveActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
@@ -23,9 +30,9 @@ const RANGE_OPTIONS = [
 
 const TONE_STYLE = {
   done: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-  active: 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]',
+  active: 'border-primary/30 bg-primary/10 text-primary',
   danger: 'border-rose-500/30 bg-rose-500/10 text-rose-300',
-  neutral: 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]',
+  neutral: 'border-muted/30 bg-muted/10 text-muted',
 };
 
 function formatRelativeTime(value) {
@@ -44,12 +51,12 @@ function formatRelativeTime(value) {
 
 function StatCard({ icon: Icon, label, value }) {
   return (
-    <div className="flex h-36 flex-col justify-between rounded-2xl border border-[#27273a] bg-[#181824] p-6 shadow-lg md:h-44">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#71717A]/20 bg-[#0c0c14]/60 text-[#3B82F6]">
+    <div className="flex h-36 flex-col justify-between rounded-2xl border border-card bg-panel p-6 shadow-lg md:h-44">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-muted/20 bg-canvas/60 text-primary">
         <Icon size={22} />
       </div>
       <div>
-        <span className="block text-[10px] font-bold uppercase tracking-widest text-[#71717A]">
+        <span className="block text-[10px] font-bold uppercase tracking-widest text-muted">
           {label}
         </span>
         <h3 className="mt-2 text-[28px] font-bold leading-none tracking-tight text-white md:text-[34px]">
@@ -83,10 +90,10 @@ export default function StatsDashboard({
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl border border-[#27273a] bg-[#181824] p-6 shadow-lg lg:col-span-2">
+        <div className="rounded-2xl border border-card bg-panel p-6 shadow-lg lg:col-span-2">
           <div className="flex items-center justify-between gap-4">
             <h3 className="text-base font-bold text-white">Task Completion Trends</h3>
-            <div className="flex items-center gap-1 rounded-xl border border-[#71717A]/25 bg-[#0c0c14]/60 p-1">
+            <div className="flex items-center gap-1 rounded-xl border border-muted/25 bg-canvas/60 p-1">
               {RANGE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -94,8 +101,8 @@ export default function StatsDashboard({
                   onClick={() => setRange(option.value)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
                     range === option.value
-                      ? 'border border-[#71717A]/20 bg-[#181824] text-[#3B82F6]'
-                      : 'text-[#71717A] hover:text-slate-200'
+                      ? 'border border-muted/20 bg-panel text-primary'
+                      : 'text-muted hover:text-slate-200'
                   }`}
                 >
                   {option.label}
@@ -109,14 +116,14 @@ export default function StatsDashboard({
               <AreaChart data={stats.completionTrend}>
                 <defs>
                   <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                    <stop offset="5%" stopColor={CHART.primary} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={CHART.primary} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#71717A" opacity={0.12} vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART.muted} opacity={0.12} vertical={false} />
                 <XAxis
                   dataKey="label"
-                  stroke="#71717A"
+                  stroke={CHART.muted}
                   opacity={0.8}
                   fontSize={11}
                   fontWeight={600}
@@ -127,7 +134,7 @@ export default function StatsDashboard({
                 <YAxis
                   allowDecimals={false}
                   domain={[0, 'auto']}
-                  stroke="#71717A"
+                  stroke={CHART.muted}
                   opacity={0.8}
                   fontSize={11}
                   fontWeight={600}
@@ -138,17 +145,17 @@ export default function StatsDashboard({
                 />
                 <Tooltip
                   contentStyle={{
-                    background: '#181824',
-                    border: '1px solid rgba(113, 113, 122, 0.2)',
+                    background: CHART.panel,
+                    border: `1px solid ${CHART.mutedLine}`,
                     borderRadius: '12px',
                     color: '#fff',
                   }}
-                  labelStyle={{ color: '#71717A' }}
+                  labelStyle={{ color: CHART.muted }}
                 />
                 <Area
                   type="monotone"
                   dataKey="completed"
-                  stroke="#3B82F6"
+                  stroke={CHART.primary}
                   strokeWidth={2.5}
                   fillOpacity={1}
                   fill="url(#completionGradient)"
@@ -158,7 +165,7 @@ export default function StatsDashboard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#27273a] bg-[#181824] p-6 shadow-lg">
+        <div className="rounded-2xl border border-card bg-panel p-6 shadow-lg">
           <h3 className="text-base font-bold text-white">Recent Activity</h3>
 
           {activityLoading ? (
@@ -175,7 +182,7 @@ export default function StatsDashboard({
                   <button
                     type="button"
                     onClick={onRetryActivity}
-                    className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                   >
                     Retry
                   </button>
@@ -209,7 +216,7 @@ export default function StatsDashboard({
                       >
                         {entry.label}
                       </span>
-                      <span className="text-[10px] text-[#71717A]">
+                      <span className="text-[10px] text-muted">
                         {formatRelativeTime(entry.createdAt)}
                       </span>
                     </div>

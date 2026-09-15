@@ -317,6 +317,7 @@ public class UserService {
 						if (existingUser.getProvider() == AuthProvider.LOCAL) {
 							existingUser.setProvider(AuthProvider.GOOGLE);
 							existingUser.setProviderId(googleId);
+							existingUser.setEnabled(true);
 							if (existingUser.getAvatarUrl() == null) {
 								existingUser.setAvatarUrl(pictureUrl);
 							}
@@ -332,6 +333,7 @@ public class UserService {
 									.avatarUrl(pictureUrl)
 									.provider(AuthProvider.GOOGLE)
 									.providerId(googleId)
+									.enabled(true)
 									.build()));
 
 			UserPrincipal userPrincipal = new UserPrincipal(user);

@@ -12,7 +12,7 @@ import Avatar from '../../components/Avatar';
 const DEBOUNCE_MS = 300;
 
 const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
+  'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 export default function AddMemberModal({ open, onClose, workspaceId, rosterIds = new Set(), onAdded }) {
   const { user: currentUser } = useAuth();
@@ -133,7 +133,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
           return (
             <li
               key={candidate.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[#27273a] px-3 py-2.5"
+              className="flex items-center justify-between gap-3 rounded-lg border border-card px-3 py-2.5"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <Avatar user={candidate} size={32} />
@@ -141,11 +141,11 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
                   <p className="truncate text-sm font-semibold text-white">
                     {fullName(candidate)}
                   </p>
-                  <p className="truncate text-xs text-[#71717A]">{candidate.email}</p>
+                  <p className="truncate text-xs text-muted">{candidate.email}</p>
                 </div>
               </div>
               {alreadyMember ? (
-                <span className="shrink-0 text-[11px] font-semibold text-[#71717A]">
+                <span className="shrink-0 text-[11px] font-semibold text-muted">
                   Already added
                 </span>
               ) : (
@@ -153,7 +153,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
                   type="button"
                   onClick={() => handleAdd(candidate)}
                   disabled={addingId === candidate.id}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#3B82F6] px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {addingId === candidate.id ? (
                     <Spinner className="h-3.5 w-3.5 border-2" />
@@ -182,7 +182,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
           <div className="relative">
             <Search
               size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
               id="member-search"
@@ -204,7 +204,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
           </div>
         )}
 
-        <div className="border-t border-[#27273a] pt-4">{renderResults()}</div>
+        <div className="border-t border-card pt-4">{renderResults()}</div>
       </div>
     </Modal>
   );
