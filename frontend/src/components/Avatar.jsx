@@ -14,7 +14,7 @@ export default function Avatar({ user, size = 32 }) {
         alt={displayName}
         style={style}
         onError={() => setFailedUrl(user.avatarUrl)}
-        className="rounded-full border border-[#71717A]/30 object-cover"
+        className="rounded-full border border-muted/30 object-cover"
       />
     );
   }
@@ -22,7 +22,7 @@ export default function Avatar({ user, size = 32 }) {
   return (
     <div
       style={style}
-      className="flex items-center justify-center rounded-full border border-[#71717A]/30 bg-[#0c0c14] text-[10px] font-bold text-[#71717A]"
+      className="flex items-center justify-center rounded-full border border-muted/30 bg-canvas text-[10px] font-bold text-muted"
     >
       {initials}
     </div>

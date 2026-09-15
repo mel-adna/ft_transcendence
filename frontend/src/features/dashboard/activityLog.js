@@ -2,6 +2,7 @@ const ACTION_LABEL = {
   TASK_ASSIGNED: 'Assigned',
   TASK_UPDATED: 'Reassigned',
   TASK_COMPLETED: 'Completed',
+  TASK_STATUS_CHANGED: 'Moved',
   TASK_COMMENT_CREATED: 'New comment',
   TASK_COMMENT_UPDATED: 'Comment edited',
   TASK_COMMENT_DELETED: 'Comment removed',
@@ -12,6 +13,7 @@ const ACTION_TONE = {
   TASK_COMPLETED: 'done',
   TASK_ASSIGNED: 'active',
   TASK_UPDATED: 'active',
+  TASK_STATUS_CHANGED: 'active',
   TASK_COMMENT_DELETED: 'danger',
 };
 

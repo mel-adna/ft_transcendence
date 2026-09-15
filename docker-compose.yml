@@ -3,7 +3,7 @@ services:
   # ----------- Nginx ---------------
   nginx:
     image: nginx:stable-alpine
-    container_name: team_pulse_nginx
+    container_name: teampulse-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -19,21 +19,24 @@ services:
 
   # ----------- Frontend ---------------
   frontend:
+    image: teampulse-frontend:1.0
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: team_pulse_frontend
+    container_name: teampulse-frontend
     ports:
       - "5173:5173"
     environment:
       # - VITE_API_URL=/api/v1
       - VITE_CORE_API_URL=/api/v1
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
     networks:
       - teampulse_net
     restart: always
 
   # ----------- Backend ---------------
   backend:
+    image: teampulse-backend:1.0
     build: ./backend
     container_name: teampulse-backend
     ports:
@@ -46,7 +49,7 @@ services:
       - DB_PASSWORD=123
       - FRONTEND_URL=https://localhost
       - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_PUBLIC_URL=http://localhost:9000
+      - MINIO_PUBLIC_URL=https://localhost/avatars
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET_NAME=teampulse-avatars
@@ -75,7 +78,8 @@ services:
 
   # ----------- minio ---------------
   minio:
-    image: minio/minio:latest
+    # image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: teampulse-minio
     ports:
       - "9000:9000"

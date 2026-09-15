@@ -14,8 +14,8 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 
 const COLUMNS = [
-  { status: 'TODO', label: 'To-Do', dotClass: 'bg-[#71717A]' },
-  { status: 'DOING', label: 'Doing', dotClass: 'bg-[#3B82F6]' },
+  { status: 'TODO', label: 'To-Do', dotClass: 'bg-muted' },
+  { status: 'DOING', label: 'Doing', dotClass: 'bg-primary' },
   { status: 'DONE', label: 'Done', dotClass: 'bg-emerald-500' },
 ];
 
@@ -175,7 +175,7 @@ export default function TasksPage() {
             <button
               type="button"
               onClick={reload}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Retry
             </button>
@@ -191,7 +191,7 @@ export default function TasksPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div>
         <h1 className="text-2xl font-bold text-white sm:text-3xl">Task Management</h1>
-        <p className="mt-2 text-sm text-[#71717A]">Manage project workflow and team assignments.</p>
+        <p className="mt-2 text-sm text-muted">Manage project workflow and team assignments.</p>
       </div>
 
       {actionError && (
@@ -224,8 +224,8 @@ export default function TasksPage() {
               onDrop={(event) => handleDrop(event, column.status)}
               className={`flex flex-col gap-3 rounded-2xl border p-3 transition-colors ${
                 dragOverStatus === column.status
-                  ? 'border-[#3B82F6]/60 bg-[#3B82F6]/5'
-                  : 'border-[#27273a] bg-transparent'
+                  ? 'border-primary/60 bg-primary/5'
+                  : 'border-card bg-transparent'
               }`}
             >
               <div className="flex items-center justify-between px-1">
@@ -234,7 +234,7 @@ export default function TasksPage() {
                   <h2 className="text-xs font-bold uppercase tracking-wide text-white">
                     {column.label}
                   </h2>
-                  <span className="rounded-full bg-[#181824] px-2 py-0.5 text-[11px] font-semibold text-[#71717A]">
+                  <span className="rounded-full bg-panel px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {columnTasks.length}
                   </span>
                 </div>
@@ -242,7 +242,7 @@ export default function TasksPage() {
                   type="button"
                   onClick={() => openCreateModal(column.status)}
                   aria-label={`Add task to ${column.label}`}
-                  className="rounded-md p-1 text-[#71717A] transition-colors hover:bg-white/5 hover:text-white"
+                  className="rounded-md p-1 text-muted transition-colors hover:bg-white/5 hover:text-white"
                 >
                   <Plus size={16} />
                 </button>
@@ -258,7 +258,7 @@ export default function TasksPage() {
                       <button
                         type="button"
                         onClick={() => openCreateModal('TODO')}
-                        className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                       >
                         New Task
                       </button>
@@ -267,7 +267,7 @@ export default function TasksPage() {
                 )}
 
                 {!showEmptyState && columnTasks.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-[#27273a] px-4 py-6 text-center text-xs text-[#71717A]">
+                  <p className="rounded-xl border border-dashed border-card px-4 py-6 text-center text-xs text-muted">
                     No tasks here yet.
                   </p>
                 )}
