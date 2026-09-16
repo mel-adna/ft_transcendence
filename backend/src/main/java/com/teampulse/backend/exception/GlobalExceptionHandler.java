@@ -36,7 +36,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleUnauthorizedAccess(UnauthorizedAccessException ex,
             HttpServletRequest request) {
         log.warn("Unauthorized access attempt: {} | Path: {}", ex.getMessage(), request.getRequestURI());
-        return buildResponseEntity(HttpStatus.UNAUTHORIZED, ex.getMessage(), request, null);
+        return buildResponseEntity(HttpStatus.FORBIDDEN, ex.getMessage(), request, null);
     }
 
     @ExceptionHandler(ResourceAlreadyExistsException.class)
