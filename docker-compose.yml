@@ -1,5 +1,4 @@
 services:
-
   # ----------- Nginx ---------------
   nginx:
     image: nginx:stable-alpine
@@ -78,7 +77,6 @@ services:
 
   # ----------- minio ---------------
   minio:
-    # image: minio/minio:latest
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: teampulse-minio
     ports:
@@ -93,6 +91,37 @@ services:
     restart: always
     volumes:
       - minio_data:/data
+
+    # ----------- Redis (chat-service Socket.io adapter) ---------------
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: teampulse-redis
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
+  #   volumes:
+  #     - redis_data:/data
+
+  #   # ----------- Chat Service (Real-Time Chat & Presence) ---------------
+  # # Node + Socket.io. Verifies the Java backend's JWT (shared secret) and
+  # # uses the same Postgres. See chat-service/INTEGRATION.md.
+  # chat-service:
+  #   build: ./chat-service
+  #   container_name: teampulse-chat
+  #   environment:
+  #     - PORT=5005
+  #     - NODE_ENV=production
+  #     - CLIENT_URL=https://localhost
+  #     # MUST match the Java app's app.jwt.secret
+  #     - JWT_SECRET=${JWT_SECRET}
+  #     - DATABASE_URL=postgresql://med:123@postgres:5432/teampulsedb?schema=chat
+  #     - REDIS_URL=redis://redis:6379
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
 
   # # ----------- Prometheus ---------------
   # prometheus:
@@ -187,8 +216,6 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  # redis_data:
   # prometheus_data:
   # grafana_data:
-
-
-

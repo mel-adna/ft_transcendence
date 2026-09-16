@@ -8,6 +8,7 @@ import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.enums.AuthProvider;
+import com.teampulse.backend.event.UserWelcomeEvent;
 import com.teampulse.backend.exception.*;
 import com.teampulse.backend.mapper.UserMapper;
 import com.teampulse.backend.model.PasswordResetToken;
@@ -21,6 +22,7 @@ import com.teampulse.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -36,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -53,6 +56,7 @@ public class UserService {
 	private final EmailService emailService;
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Value("${app.frontend-url}")
 	private String frontendUrl;
@@ -89,6 +93,8 @@ public class UserService {
 
 		user.setEnabled(true);
 		userRepository.save(user);
+
+		eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getEmail(), user.getFirstName()));
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
@@ -300,9 +306,8 @@ public class UserService {
 					.build();
 
 			GoogleIdToken idToken = verifier.verify(request.getIdToken());
-			if (idToken == null) {
+			if (idToken == null)
 				throw new BadCredentialsException("Invalid Google ID Token");
-			}
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
@@ -312,29 +317,40 @@ public class UserService {
 			String lastName = (String) payload.get("family_name");
 			String pictureUrl = (String) payload.get("picture");
 
+			AtomicBoolean isNewSignup = new AtomicBoolean(false);
+
 			User user = userRepository.findByEmail(email)
 					.map(existingUser -> {
 						if (existingUser.getProvider() == AuthProvider.LOCAL) {
 							existingUser.setProvider(AuthProvider.GOOGLE);
 							existingUser.setProviderId(googleId);
 							existingUser.setEnabled(true);
-							if (existingUser.getAvatarUrl() == null) {
+
+							if (existingUser.getAvatarUrl() == null)
 								existingUser.setAvatarUrl(pictureUrl);
-							}
+
+							isNewSignup.set(true);
+
 							return userRepository.save(existingUser);
 						}
 						return existingUser;
 					})
-					.orElseGet(() -> userRepository.save(
-							User.builder()
-									.email(email)
-									.firstName(firstName)
-									.lastName(lastName)
-									.avatarUrl(pictureUrl)
-									.provider(AuthProvider.GOOGLE)
-									.providerId(googleId)
-									.enabled(true)
-									.build()));
+					.orElseGet(() -> {
+						isNewSignup.set(true);
+						return userRepository.save(
+								User.builder()
+										.email(email)
+										.firstName(firstName)
+										.lastName(lastName)
+										.avatarUrl(pictureUrl)
+										.provider(AuthProvider.GOOGLE)
+										.providerId(googleId)
+										.enabled(true)
+										.build());
+					});
+
+			if (isNewSignup.get())
+				eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getEmail(), user.getFirstName()));
 
 			UserPrincipal userPrincipal = new UserPrincipal(user);
 			String accessToken = jwtUtils.generateToken(userPrincipal);
