@@ -1,28 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { getGoogleClientId, loadGoogleIdentity } from '../lib/googleIdentity';
+import { getGoogleClientId, loadGoogleIdentity, setCredentialHandler } from '../lib/googleIdentity';
 
 export default function GoogleSignInButton({ onCredential, text = 'continue_with' }) {
   const clientId = getGoogleClientId();
   const containerRef = useRef(null);
-  const callbackRef = useRef(onCredential);
   const [unavailable, setUnavailable] = useState(false);
 
-  useEffect(() => {
-    callbackRef.current = onCredential;
-  }, [onCredential]);
+  useEffect(() => setCredentialHandler(onCredential), [onCredential]);
 
   useEffect(() => {
     if (!clientId) return undefined;
+    const container = containerRef.current;
     let cancelled = false;
 
     loadGoogleIdentity()
       .then((identity) => {
-        if (cancelled || !identity || !containerRef.current) return;
-        identity.initialize({
-          client_id: clientId,
-          callback: (response) => callbackRef.current?.(response?.credential),
-        });
-        identity.renderButton(containerRef.current, {
+        if (cancelled || !identity || !container) return;
+        identity.renderButton(container, {
           type: 'standard',
           theme: 'filled_black',
           size: 'large',
@@ -38,6 +32,7 @@ export default function GoogleSignInButton({ onCredential, text = 'continue_with
 
     return () => {
       cancelled = true;
+      container?.replaceChildren();
     };
   }, [clientId, text]);
 

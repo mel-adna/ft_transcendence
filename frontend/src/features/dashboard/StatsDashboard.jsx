@@ -16,6 +16,8 @@ import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
 import Spinner from '../../components/Spinner';
 
+const CHART_HEIGHT = 288;
+
 const CHART = {
   primary: '#3B82F6',
   muted: '#71717A',
@@ -111,8 +113,8 @@ export default function StatsDashboard({
             </div>
           </div>
 
-          <div className="mt-6 h-64 w-full md:h-72">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="mt-6 w-full">
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
               <AreaChart data={stats.completionTrend}>
                 <defs>
                   <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
