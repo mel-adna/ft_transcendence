@@ -13,22 +13,23 @@ Nothing here blocks a feature today.
 
 ## Not blocking
 
-Real defects, but nothing visible is broken. 28 is the one an evaluator is most likely to trip over.
+Real defects, but nothing visible is broken.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 28 | Five logins per fifteen minutes, counting the successful ones | Signing in and out six times during a demo locks that account out for a quarter of an hour | 1 number |
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
+| 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
+| 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
 | 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
 
 ---
 
 # Not blocking
 
-## 28. The login limit counts successful logins, so a normal demo can lock an account out
+## 28. The login limit counts successful logins, so ordinary use spends the budget
 
 `RateLimitAspect` advises with `@Before`, so a token is consumed before the method runs and
-regardless of what it returns. A login that succeeds costs the same as one that fails.
+regardless of what it returns. A login that succeeds costs exactly as much as one that fails.
 
 `AuthController.login` is annotated:
 
@@ -36,28 +37,44 @@ regardless of what it returns. A login that succeeds costs the same as one that 
 @RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 ```
 
-Five calls per fifteen minutes, keyed on the address and the email together. Signing in, signing
-out and signing back in is two of those five. An evaluator who walks through the login flow a few
-times, or anyone testing logout, spends the budget on nothing but correct passwords, and the sixth
-attempt answers 429 for the next fifteen minutes with no way to clear it short of restarting the
-service.
+Worth being precise about what that means, because the numbers read worse than they are. The bucket
+is built with `refillGreedy(capacity, Duration.ofMinutes(durationInMinutes))`, which trickles tokens
+back continuously rather than refunding all five at the quarter hour. Five per fifteen minutes is
+therefore one token every three minutes, with five of them available in a burst. Once the burst is
+spent, the sixth attempt answers 429 and the wait is about three minutes, not fifteen.
 
-The protection that is actually wanted here is against password guessing, which means counting
-failures, not attempts. Two ways to get that:
+So this is a throttle rather than a lockout, and it is not urgent. It is still worth a change,
+because signing in and signing out is a thing a person does on purpose, and doing it five times in
+a row is neither rare nor suspicious. Spending an anti-guessing budget on correct passwords means
+the limit fires for the wrong people.
+
+The protection actually wanted here is against password guessing, which means counting failures:
 
 - Raise the capacity so ordinary use cannot reach it. Twenty per fifteen minutes still stops a
-  guessing run and leaves a demo alone. This is a one number change.
-- Or move the limiter so it only counts a failure. `@Before` cannot see the outcome; `@AfterThrowing`
-  or an `@Around` that consumes a token only when the call throws can.
+  guessing run and leaves a demo alone. That is a one number change.
+- Or move the limiter so it only counts a failure. `@Before` cannot see the outcome, but
+  `@AfterThrowing`, or an `@Around` that consumes a token only when the call throws, can.
 
-Worth checking the same question on the other three. `resend-verification` and `forgot-password`
-are three per hour per email, and both are only ever called deliberately by a person, so counting
-attempts there is right. `signup` is three per fifteen minutes keyed on address and email, and a
-new signup uses a new email every time, so it never really binds.
+The other three are fine as they are. `resend-verification` and `forgot-password` are three per hour
+per email, and both are only ever triggered deliberately by a person, so counting attempts there is
+right. `signup` is keyed on address and email together and a new signup uses a new email, so it
+never really binds.
 
-The frontend now reads `retryAfterSeconds` off the 429 and says "Too many attempts. Try again in
-15 minutes." rather than the bare server message, so at least the wait is visible while this
-stands.
+The frontend reads `retryAfterSeconds` off the 429 and says "Too many attempts. Try again in 3
+minutes." rather than the bare server message, so the wait is at least visible while this stands.
+
+## 30. The dead public API key is still in `application.yaml`
+
+Reported last time under issue 17 and still there, now that the rest of 17 is done:
+
+```yaml
+public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
+```
+
+Nothing in Java reads it any more, and the value is rejected with 401, so it is dead config rather
+than a live credential. It is worth deleting anyway for two reasons: anyone reading the file will
+take it for a working key and waste time on it, and it is a credential shaped string sitting in a
+public repository, which is the same tidy up the Gmail password in issue 22 needs.
 
 ## 22. A failed verification email is swallowed, so signup can report success and strand the user
 
@@ -133,8 +150,8 @@ So nobody reopens these.
 **17, rate limiting.** bucket4j is on the classpath, `@RateLimit` carries capacity, window and key
 type, `RateLimitAspect` resolves a bucket and consumes a token, and `GlobalExceptionHandler`
 answers 429 with a `Retry-After` header and a `retryAfterSeconds` field. All five public API
-endpoints are annotated, which was the mandatory half of the requirement. The dead `public-key`
-line is gone from `application.yaml`.
+endpoints are annotated, which was the mandatory half of the requirement. The one leftover is the
+dead `public-key` line, which is still in `application.yaml` and is now issue 30.
 
 **25, expired token answered 403.** `SecurityConfig` now registers an `AuthenticationEntryPoint`
 that writes 401 with a real message. Every 403 the application raises now comes from its own
