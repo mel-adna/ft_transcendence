@@ -146,8 +146,23 @@ api.interceptors.response.use(
   },
 );
 
+function waitLabel(seconds) {
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? '' : 's'}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
+
 export function getErrorMessage(error) {
   const data = error?.response?.data;
+
+  if (error?.response?.status === 429) {
+    const seconds = Number(data?.errors?.retryAfterSeconds);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return `Too many attempts. Try again in ${waitLabel(seconds)}.`;
+    }
+    return 'Too many attempts. Please wait a moment and try again.';
+  }
+
   if (typeof data === 'string' && data.trim()) return data;
   if (data?.message) return data.message;
   if (data?.errors && typeof data.errors === 'object') {
