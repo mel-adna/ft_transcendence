@@ -8,16 +8,32 @@ export function getGoogleClientId() {
 }
 
 let loadPromise = null;
+let credentialHandler = null;
+
+export function setCredentialHandler(handler) {
+  credentialHandler = handler;
+  return () => {
+    if (credentialHandler === handler) credentialHandler = null;
+  };
+}
 
 export function loadGoogleIdentity() {
-  if (!getGoogleClientId()) return Promise.resolve(null);
+  const clientId = getGoogleClientId();
+  if (!clientId) return Promise.resolve(null);
   if (loadPromise) return loadPromise;
 
   loadPromise = new Promise((resolve, reject) => {
     const done = () => {
-      const api = window.google?.accounts?.id;
-      if (api) resolve(api);
-      else reject(new Error('Google sign in loaded but exposed no API.'));
+      const identity = window.google?.accounts?.id;
+      if (!identity) {
+        reject(new Error('Google sign in loaded but exposed no API.'));
+        return;
+      }
+      identity.initialize({
+        client_id: clientId,
+        callback: (response) => credentialHandler?.(response?.credential),
+      });
+      resolve(identity);
     };
 
     const existing = document.querySelector(`script[src="${GOOGLE_SCRIPT_SRC}"]`);
@@ -32,10 +48,14 @@ export function loadGoogleIdentity() {
     script.async = true;
     script.defer = true;
     script.addEventListener('load', done, { once: true });
-    script.addEventListener('error', () => {
-      loadPromise = null;
-      reject(new Error('Google sign in could not be reached.'));
-    }, { once: true });
+    script.addEventListener(
+      'error',
+      () => {
+        loadPromise = null;
+        reject(new Error('Google sign in could not be reached.'));
+      },
+      { once: true },
+    );
     document.head.appendChild(script);
   });
 
