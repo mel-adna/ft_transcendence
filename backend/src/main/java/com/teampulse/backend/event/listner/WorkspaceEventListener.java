@@ -39,7 +39,7 @@ public class WorkspaceEventListener {
 				event.getAdmin().getId(),
 				event.getAddedUser().getId(),
 				"WORKSPACE_MEMBER_ADDED",
-				String.format("Added %s to workspace", event.getAddedUser().getEmail()));
+				String.format("Added %s %s to workspace", event.getAddedUser().getFirstName(), event.getAddedUser().getLastName()));
 
 		emailService.sendEmail(
 				event.getAddedUser().getEmail(),
