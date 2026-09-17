@@ -54,8 +54,6 @@ public class TaskService {
 		if (member.getRole() == WorkspaceMemberRole.VIEWER)
 			throw new UnauthorizedAccessException("Viewer role not allowed to create tasks");
 
-//		validateWorkspaceMembership(workspaceId, creatorEmail, "You must be a member of this workspace to create tasks!");
-
 		User creator = userRepository.findByEmail(creatorEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("Creator user profile not found"));
 
@@ -120,14 +118,19 @@ public class TaskService {
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
 		UUID workspaceId = task.getWorkspace().getId();
-//		validateWorkspaceMembership(workspaceId, email, "You don't have permission to update tasks in this workspace!");
-
 		WorkspaceMember member = getWorkspaceMemberOrThrow(workspaceId, email);
+
 		if (member.getRole() == WorkspaceMemberRole.VIEWER)
 			throw new UnauthorizedAccessException("Viewer role not allowed to update tasks");
 
-		User currentUser = userRepository.findByEmail(email)
-				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
+		boolean isCreator = task.getCreator().getEmail().equals(email);
+		boolean isAssignee = task.getAssignee() != null && task.getAssignee().getEmail().equals(email);
+
+		if (!isAdmin && !isCreator && !isAssignee)
+			throw new UnauthorizedAccessException("Only workspace ADMINs, the task creator, or the assignee can update this task!");
+
+		User currentUser = member.getUser();
 
 		final TaskStatus oldStatus = task.getStatus();
 		final User oldAssignee = task.getAssignee();
@@ -140,9 +143,8 @@ public class TaskService {
 		if (request.getAssigneeId() != null) {
 			User assignee = validateAndGetAssignee(workspaceId, request.getAssigneeId());
 			task.setAssignee(assignee);
-		} else {
+		} else
 			task.setAssignee(null);
-		}
 
 		Task updatedTask = taskRepository.save(task);
 
@@ -172,14 +174,19 @@ public class TaskService {
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
-//		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to update task status!");
-
 		WorkspaceMember member = getWorkspaceMemberOrThrow(task.getWorkspace().getId(), email);
+
 		if (member.getRole() == WorkspaceMemberRole.VIEWER)
 			throw new UnauthorizedAccessException("Viewer role not allowed to change task status");
 
-		User currentUser = userRepository.findByEmail(email)
-				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
+		boolean isCreator = task.getCreator().getEmail().equals(email);
+		boolean isAssignee = task.getAssignee() != null && task.getAssignee().getEmail().equals(email);
+
+		if (!isAdmin && !isCreator && !isAssignee)
+			throw new UnauthorizedAccessException("Only workspace ADMINs, the task creator, or the assignee can update task status!");
+
+		User currentUser = member.getUser();
 
 		TaskStatus oldStatus = task.getStatus();
 		task.setStatus(request.getStatus());
@@ -199,8 +206,6 @@ public class TaskService {
 
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
-
-//		validateWorkspaceMembership(task.getWorkspace().getId(), email, "You don't have permission to delete tasks from this workspace!");
 
 		WorkspaceMember member = getWorkspaceMemberOrThrow(task.getWorkspace().getId(), email);
 
