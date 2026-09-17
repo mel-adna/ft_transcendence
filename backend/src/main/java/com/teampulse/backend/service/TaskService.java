@@ -135,6 +135,11 @@ public class TaskService {
 		final TaskStatus oldStatus = task.getStatus();
 		final User oldAssignee = task.getAssignee();
 
+		boolean isDetailsChanged = !task.getTitle().equals(request.getTitle())
+				|| (request.getDescription() != null && !request.getDescription().equals(task.getDescription()))
+				|| (request.getDescription() == null && task.getDescription() != null)
+				|| task.getPriority() != request.getPriority();
+
 		task.setTitle(request.getTitle());
 		task.setDescription(request.getDescription());
 		task.setPriority(request.getPriority());
@@ -148,16 +153,22 @@ public class TaskService {
 
 		Task updatedTask = taskRepository.save(task);
 
+		if (isDetailsChanged) {
+			String logDescription = String.format("%s %s updated details for task '%s'",
+					currentUser.getFirstName(), currentUser.getLastName(), updatedTask.getTitle());
+
+			activityLogService.logActivity(workspaceId, currentUser.getId(), updatedTask.getId(), "TASK_UPDATED", logDescription);
+		}
+
 		checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser);
 
 		if (updatedTask.getAssignee() != null
 				&& (oldAssignee == null || !oldAssignee.getId().equals(updatedTask.getAssignee().getId()))) {
-			User updater = userRepository.findByEmail(email).orElse(null);
 			eventPublisher.publishEvent(new TaskAssignedEvent(
 					this,
 					updatedTask,
 					updatedTask.getAssignee(),
-					updater,
+					currentUser,
 					true));
 		}
 
