@@ -3,10 +3,7 @@ package com.teampulse.backend.model;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.SQLRestriction;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.*;
 
 import com.teampulse.backend.enums.TaskPriority;
 import com.teampulse.backend.enums.TaskStatus;
@@ -58,10 +55,12 @@ public class Task {
 	@Column(name="priority", nullable=false, length=50)
 	private TaskPriority priority = TaskPriority.MEDIUM;
 
+	@NotFound(action = NotFoundAction.IGNORE)
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="assignee_id")
 	private User assignee;
 
+	@NotFound(action = NotFoundAction.IGNORE)
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="creator_id", nullable=false)
 	private User creator;

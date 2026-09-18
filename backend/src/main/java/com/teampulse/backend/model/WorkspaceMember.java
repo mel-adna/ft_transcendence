@@ -3,6 +3,8 @@ package com.teampulse.backend.model;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.teampulse.backend.enums.WorkspaceMemberRole;
@@ -37,6 +39,7 @@ public class WorkspaceMember {
 	@JoinColumn(name="workspace_id")
 	private Workspace workspace;
 
+	@NotFound(action = NotFoundAction.IGNORE)
 	@ManyToOne(fetch=FetchType.LAZY)
 	@MapsId("userId")
 	@JoinColumn(name="user_id")

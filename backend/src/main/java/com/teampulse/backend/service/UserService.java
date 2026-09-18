@@ -282,8 +282,7 @@ public class UserService {
 		UUID userId = user.getId();
 
 //		taskRepository.clearAssigneeByUserId(userId);
-//
-////		workspaceMemberRepository.deleteByUserId(userId);
+//		workspaceMemberRepository.deleteByUserId(userId);
 
 		userRepository.delete(user);
 

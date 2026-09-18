@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class WorkspaceEventListener {
@@ -24,8 +26,12 @@ public class WorkspaceEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional
 	public void handleWorkspaceMemberAddedEvent(WorkspaceMemberAddedEvent event) {
+		boolean isAdminNull = event.getAdmin() == null;
+		String adminName = isAdminNull ? "Workspace Admin" : event.getAdmin().getFirstName();
+		UUID adminId = isAdminNull ? null : event.getAdmin().getId();
+
 		String msg = String.format("You have been added to workspace '%s' by %s.",
-				event.getWorkspace().getName(), event.getAdmin().getFirstName());
+				event.getWorkspace().getName(), adminName);
 
 		notificationService.createNotification(
 				event.getAddedUser(),
@@ -34,13 +40,15 @@ public class WorkspaceEventListener {
 				event.getWorkspace().getId(),
 				msg);
 
-		activityLogService.logActivity(
-				event.getWorkspace().getId(),
-				event.getAdmin().getId(),
-				event.getAddedUser().getId(),
-				"WORKSPACE_MEMBER_ADDED",
-				String.format("Added %s %s to workspace", event.getAddedUser().getFirstName(), event.getAddedUser().getLastName()));
+		if (adminId != null) {
+			activityLogService.logActivity(
+					event.getWorkspace().getId(),
+					adminId,
+					event.getAddedUser().getId(),
+					"WORKSPACE_MEMBER_ADDED",
+					String.format("Added %s %s to workspace", event.getAddedUser().getFirstName(), event.getAddedUser().getLastName()));
 
+		}
 		emailService.sendEmail(
 				event.getAddedUser().getEmail(),
 				"Welcome to Workspace: " + event.getWorkspace().getName(),
