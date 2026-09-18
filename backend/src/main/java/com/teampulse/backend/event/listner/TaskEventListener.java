@@ -19,6 +19,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Objects;
+import java.util.UUID;
 
 
 @Slf4j
@@ -47,6 +48,10 @@ public class TaskEventListener {
 				task.getId(), event.getTimeAt());
 
 		User actor = event.getCompletedBy() != null ? event.getCompletedBy() : task.getCreator();
+		if (actor == null) {
+			log.warn("Actor (creator/completedBy) is null or deleted for completed task ID: {}. Skipping logging/notification.", task.getId());
+			return;
+		}
 
 		try {
 			String logDescription = String.format("%s %s completed task '%s'",
@@ -98,7 +103,12 @@ public class TaskEventListener {
 		User assigner = event.getAssigner();
 		User assignee = event.getAssignee();
 
-		boolean isSelfAssignment = Objects.equals(assignee.getId(), assigner.getId());
+		boolean isAssignerDeleted = (assigner == null);
+		UUID assignerId = isAssignerDeleted ? null : assigner.getId();
+		String assignerFirstName = isAssignerDeleted ? "A deleted" : assigner.getFirstName();
+		String assignerLastName = isAssignerDeleted ? "user" : assigner.getLastName();
+
+		boolean isSelfAssignment = !isAssignerDeleted && Objects.equals(assignee.getId(), assigner.getId());
 
 		String targetName = isSelfAssignment ? "himself" : String.format("%s %s", assignee.getFirstName(), assignee.getLastName());
 
@@ -107,20 +117,24 @@ public class TaskEventListener {
 		String actionText = event.isReassignment() ? "reassigned task" : "assigned task";
 
 		String logDescription = String.format("%s %s %s '%s' to %s",
-				assigner.getFirstName(), assigner.getLastName(),
+				assignerFirstName, assignerLastName,
 				actionText, task.getTitle(),
 				targetName);
 
-		activityLogService.logActivity(
-				task.getWorkspace().getId(),
-				assigner.getId(),
-				task.getId(),
-				logType,
-				logDescription);
+		if (assignerId != null) {
+			activityLogService.logActivity(
+					task.getWorkspace().getId(),
+					assignerId,
+					task.getId(),
+					logType,
+					logDescription);
+		} else
+			log.warn("Skipping ActivityLog for task assignment because assigner is deleted (null). Task ID: {}", task.getId());
+
 
 		if (!isSelfAssignment) {
 			String alertMsg = String.format("%s %s %s '%s' to you.",
-					assigner.getFirstName(), assigner.getLastName(),
+					assignerFirstName, assignerLastName,
 					actionText, task.getTitle());
 
 			notificationService.createNotification(
