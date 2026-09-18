@@ -16,11 +16,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
-
 	Optional<User> findByEmail(String email);
-	boolean existsByEmail (String email);
 	List<User> findByEmailContainingIgnoreCase(String email);
-	List<User> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(String firstName, String lastName);
 
 	@Modifying
 	@Query("DELETE FROM User u WHERE u.enabled = false AND u.createdAt < :cutoffDate")
