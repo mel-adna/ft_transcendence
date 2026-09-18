@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.teampulse.backend.enums.TaskPriority;
 import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.model.Task;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 
@@ -15,9 +17,8 @@ import org.springframework.stereotype.Repository;
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 	
 	List<Task> findByWorkspaceId(UUID workspaceId);
-	List<Task> findByWorkspaceIdAndStatus(UUID workspaceId, TaskStatus status);
-	List<Task> findByAssigneeId(UUID assigneeId);
-	List<Task> findByWorkspaceIdAndAssigneeId(UUID workspaceId, UUID assigneeId);
-	List<Task> findByWorkspaceIdAndPriority(UUID workspaceId, TaskPriority priority);
-	long countByWorkspaceIdAndStatus(UUID workspaceId, TaskStatus status);
+
+//	@Modifying
+//	@Query("UPDATE Task t SET t.assignee = null WHERE t.assignee.id = :userId")
+//	void clearAssigneeByUserId(UUID userId);
 }

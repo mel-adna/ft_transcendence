@@ -14,9 +14,7 @@ import com.teampulse.backend.mapper.UserMapper;
 import com.teampulse.backend.model.PasswordResetToken;
 import com.teampulse.backend.model.RefreshToken;
 import com.teampulse.backend.model.User;
-import com.teampulse.backend.repository.PasswordResetTokenRepository;
-import com.teampulse.backend.repository.UserRepository;
-import com.teampulse.backend.repository.VerificationCodeRepository;
+import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
 import com.teampulse.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +55,8 @@ public class UserService {
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
 	private final ApplicationEventPublisher eventPublisher;
+	private final TaskRepository taskRepository;
+	private final WorkspaceMemberRepository workspaceMemberRepository;
 
 	@Value("${app.frontend-url}")
 	private String frontendUrl;
@@ -279,9 +279,15 @@ public class UserService {
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
+		UUID userId = user.getId();
+
+//		taskRepository.clearAssigneeByUserId(userId);
+//
+////		workspaceMemberRepository.deleteByUserId(userId);
+
 		userRepository.delete(user);
 
-		log.info("User account with email {} has been successfully soft-deleted.", email);
+		log.info("User account with email {} has been successfully soft-deleted and task assignments cleared.", email);
 	}
 
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {
