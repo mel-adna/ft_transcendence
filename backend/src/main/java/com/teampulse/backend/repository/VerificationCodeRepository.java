@@ -21,5 +21,5 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
 
 	@Modifying
 	@Query("DELETE FROM VerificationCode v WHERE v.user.enabled = false AND v.user.createdAt < :cutoffDate")
-	int deleteUnverifiedCodesBefore(@Param("cutoffDate") LocalDateTime cutoffDate);
+	void deleteUnverifiedCodesBefore(@Param("cutoffDate") LocalDateTime cutoffDate);
 }

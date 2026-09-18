@@ -15,10 +15,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TaskRepository extends JpaRepository<Task, UUID> {
-	
 	List<Task> findByWorkspaceId(UUID workspaceId);
-
-//	@Modifying
-//	@Query("UPDATE Task t SET t.assignee = null WHERE t.assignee.id = :userId")
-//	void clearAssigneeByUserId(UUID userId);
 }

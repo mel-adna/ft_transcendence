@@ -8,12 +8,11 @@ import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.enums.AuthProvider;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.event.UserWelcomeEvent;
 import com.teampulse.backend.exception.*;
 import com.teampulse.backend.mapper.UserMapper;
-import com.teampulse.backend.model.PasswordResetToken;
-import com.teampulse.backend.model.RefreshToken;
-import com.teampulse.backend.model.User;
+import com.teampulse.backend.model.*;
 import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
 import com.teampulse.backend.security.UserPrincipal;
@@ -32,10 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -57,6 +53,8 @@ public class UserService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final TaskRepository taskRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
+	private final WorkspaceRepository workspaceRepository;
+
 
 	@Value("${app.frontend-url}")
 	private String frontendUrl;
@@ -281,12 +279,51 @@ public class UserService {
 
 		UUID userId = user.getId();
 
-//		taskRepository.clearAssigneeByUserId(userId);
-//		workspaceMemberRepository.deleteByUserId(userId);
+		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
+
+		List<String> blockingWorkspaces = new ArrayList<>();
+		List<Workspace> workdpcesToDelete = new ArrayList<>();
+		List<Workspace> workspacesToTransfer = new ArrayList<>();
+
+		for (Workspace ws : ownedWorkspaces) {
+			long memeberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
+
+			if (memeberCont == 1)
+				workdpcesToDelete.add(ws);
+			else {
+				boolean hasOtherAdmin = workspaceMemberRepository.existsByWorkspaceIdAndUserIdNotAndRole(
+						ws.getId(), userId, WorkspaceMemberRole.ADMIN);
+
+				if (hasOtherAdmin)
+					workspacesToTransfer.add(ws);
+				else
+					blockingWorkspaces.add(ws.getName());
+			}
+		}
+
+		if (!blockingWorkspaces.isEmpty()) {
+			String message = String.format(
+					"You must add another admin to your workspace(s) [%s] or delete them before deleting your account.",
+					String.join(", ", blockingWorkspaces)
+			);
+			throw new IllegalArgumentException(message);
+		}
+
+		if (!workdpcesToDelete.isEmpty())
+			workspaceRepository.deleteAll(workdpcesToDelete);
+
+		for (Workspace ws : workspacesToTransfer) {
+			WorkspaceMember nextAdmin = workspaceMemberRepository
+					.findFirstByWorkspaceIdAndUserIdNotAndRoleOrderByCreatedAtAsc(ws.getId(), userId, WorkspaceMemberRole.ADMIN)
+					.orElseThrow(() -> new IllegalStateException("Admin not found despite exists check"));
+
+			ws.setOwner(nextAdmin.getUser());
+			workspaceRepository.save(ws);
+		}
 
 		userRepository.delete(user);
 
-		log.info("User account with email {} has been successfully soft-deleted and task assignments cleared.", email);
+		log.info("User account with email {} has been successfully soft-deleted.", email);
 	}
 
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {
