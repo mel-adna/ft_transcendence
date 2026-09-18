@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.model.WorkspaceMemberId;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 
@@ -22,4 +24,8 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 	List<WorkspaceMember> findByUserEmail(String email);
     boolean existsByWorkspaceIdAndUserEmail(UUID workspaceId, String email);
     Optional<WorkspaceMember> findByWorkspaceIdAndUserEmail(UUID workspaceId, String email);
+
+//	@Modifying
+//	@Query("DELETE FROM WorkspaceMember wm WHERE wm.user.id = :userId")
+//	void deleteByUserId(UUID userId);
 }
