@@ -8,6 +8,9 @@ all:
 ps:
 	docker ps -a
 
+clean:
+	docker compose down
+
 fclean:
 	rm -rf ./nginx/certs
 	docker compose down -v

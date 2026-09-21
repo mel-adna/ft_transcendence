@@ -11,8 +11,7 @@ import com.teampulse.backend.model.Task;
 import lombok.Getter;
 
 @Getter
-public class TaskCompletedEvent extends ApplicationEvent{
-
+public class TaskCompletedEvent extends ApplicationEvent {
 	private final Task task;
 	private final User completedBy;
 	private final Instant timeAt;

@@ -62,7 +62,6 @@ public class UserService {
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
 
-
 	@Transactional
 	public String signup(SignupRequest request) {
 		if (userRepository.findByEmail(request.getEmail()).isPresent())
@@ -92,7 +91,7 @@ public class UserService {
 		user.setEnabled(true);
 		userRepository.save(user);
 
-		eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getEmail(), user.getFirstName()));
+		eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getId(), user.getEmail(), user.getFirstName()));
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
@@ -392,7 +391,7 @@ public class UserService {
 					});
 
 			if (isNewSignup.get())
-				eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getEmail(), user.getFirstName()));
+				eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getId(), user.getEmail(), user.getFirstName()));
 
 			UserPrincipal userPrincipal = new UserPrincipal(user);
 			String accessToken = jwtUtils.generateToken(userPrincipal);
