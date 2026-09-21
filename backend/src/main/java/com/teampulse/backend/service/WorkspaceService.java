@@ -1,12 +1,12 @@
 package com.teampulse.backend.service;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.teampulse.backend.event.WorkspaceDeletedEvent;
-import com.teampulse.backend.event.WorkspaceMemberAddedEvent;
-import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
-import com.teampulse.backend.event.WorkspaceUpdatedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +19,10 @@ import com.teampulse.backend.dto.response.WorkspaceMemberResponse;
 import com.teampulse.backend.dto.response.WorkspaceResponse;
 import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.enums.WorkspaceType;
+import com.teampulse.backend.event.WorkspaceDeletedEvent;
+import com.teampulse.backend.event.WorkspaceMemberAddedEvent;
+import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
+import com.teampulse.backend.event.WorkspaceUpdatedEvent;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
@@ -145,6 +149,12 @@ public class WorkspaceService {
 			boolean nameExits = workspaceRepository.existsByUserIdAndWorkspaceName(admin.getId(), request.getName());
 			if (nameExits)
 				throw new BadRequestException("You already have another workspace with the name: " + request.getName());
+		}
+
+		if (request.getType() == WorkspaceType.PERSONAL && workspace.getType() != WorkspaceType.PERSONAL) {
+			long memeberCount = workspaceMemberRepository.countByWorkspaceId(workspaceId);
+			if (memeberCount > 1)
+				throw new BadRequestException("Remove all members before changing to PERSONAL workspace.");
 		}
 
 		workspace.setName(request.getName());
