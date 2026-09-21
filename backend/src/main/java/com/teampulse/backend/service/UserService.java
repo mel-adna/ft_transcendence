@@ -8,19 +8,18 @@ import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.enums.AuthProvider;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
+import com.teampulse.backend.event.UserWelcomeEvent;
 import com.teampulse.backend.exception.*;
 import com.teampulse.backend.mapper.UserMapper;
-import com.teampulse.backend.model.PasswordResetToken;
-import com.teampulse.backend.model.RefreshToken;
-import com.teampulse.backend.model.User;
-import com.teampulse.backend.repository.PasswordResetTokenRepository;
-import com.teampulse.backend.repository.UserRepository;
-import com.teampulse.backend.repository.VerificationCodeRepository;
+import com.teampulse.backend.model.*;
+import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
 import com.teampulse.backend.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -32,10 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -53,6 +50,11 @@ public class UserService {
 	private final EmailService emailService;
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
+	private final ApplicationEventPublisher eventPublisher;
+	private final TaskRepository taskRepository;
+	private final WorkspaceMemberRepository workspaceMemberRepository;
+	private final WorkspaceRepository workspaceRepository;
+
 
 	@Value("${app.frontend-url}")
 	private String frontendUrl;
@@ -89,6 +91,8 @@ public class UserService {
 
 		user.setEnabled(true);
 		userRepository.save(user);
+
+		eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getEmail(), user.getFirstName()));
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
@@ -273,6 +277,50 @@ public class UserService {
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
+		UUID userId = user.getId();
+
+		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
+
+		List<String> blockingWorkspaces = new ArrayList<>();
+		List<Workspace> workdpcesToDelete = new ArrayList<>();
+		List<Workspace> workspacesToTransfer = new ArrayList<>();
+
+		for (Workspace ws : ownedWorkspaces) {
+			long memeberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
+
+			if (memeberCont == 1)
+				workdpcesToDelete.add(ws);
+			else {
+				boolean hasOtherAdmin = workspaceMemberRepository.existsByWorkspaceIdAndUserIdNotAndRole(
+						ws.getId(), userId, WorkspaceMemberRole.ADMIN);
+
+				if (hasOtherAdmin)
+					workspacesToTransfer.add(ws);
+				else
+					blockingWorkspaces.add(ws.getName());
+			}
+		}
+
+		if (!blockingWorkspaces.isEmpty()) {
+			String message = String.format(
+					"You must add another admin to your workspace(s) [%s] or delete them before deleting your account.",
+					String.join(", ", blockingWorkspaces)
+			);
+			throw new IllegalArgumentException(message);
+		}
+
+		if (!workdpcesToDelete.isEmpty())
+			workspaceRepository.deleteAll(workdpcesToDelete);
+
+		for (Workspace ws : workspacesToTransfer) {
+			WorkspaceMember nextAdmin = workspaceMemberRepository
+					.findFirstByWorkspaceIdAndUserIdNotAndRoleOrderByCreatedAtAsc(ws.getId(), userId, WorkspaceMemberRole.ADMIN)
+					.orElseThrow(() -> new IllegalStateException("Admin not found despite exists check"));
+
+			ws.setOwner(nextAdmin.getUser());
+			workspaceRepository.save(ws);
+		}
+
 		userRepository.delete(user);
 
 		log.info("User account with email {} has been successfully soft-deleted.", email);
@@ -300,9 +348,8 @@ public class UserService {
 					.build();
 
 			GoogleIdToken idToken = verifier.verify(request.getIdToken());
-			if (idToken == null) {
+			if (idToken == null)
 				throw new BadCredentialsException("Invalid Google ID Token");
-			}
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
@@ -312,27 +359,40 @@ public class UserService {
 			String lastName = (String) payload.get("family_name");
 			String pictureUrl = (String) payload.get("picture");
 
+			AtomicBoolean isNewSignup = new AtomicBoolean(false);
+
 			User user = userRepository.findByEmail(email)
 					.map(existingUser -> {
 						if (existingUser.getProvider() == AuthProvider.LOCAL) {
 							existingUser.setProvider(AuthProvider.GOOGLE);
 							existingUser.setProviderId(googleId);
-							if (existingUser.getAvatarUrl() == null) {
+							existingUser.setEnabled(true);
+
+							if (existingUser.getAvatarUrl() == null)
 								existingUser.setAvatarUrl(pictureUrl);
-							}
+
+							isNewSignup.set(true);
+
 							return userRepository.save(existingUser);
 						}
 						return existingUser;
 					})
-					.orElseGet(() -> userRepository.save(
-							User.builder()
-									.email(email)
-									.firstName(firstName)
-									.lastName(lastName)
-									.avatarUrl(pictureUrl)
-									.provider(AuthProvider.GOOGLE)
-									.providerId(googleId)
-									.build()));
+					.orElseGet(() -> {
+						isNewSignup.set(true);
+						return userRepository.save(
+								User.builder()
+										.email(email)
+										.firstName(firstName)
+										.lastName(lastName)
+										.avatarUrl(pictureUrl)
+										.provider(AuthProvider.GOOGLE)
+										.providerId(googleId)
+										.enabled(true)
+										.build());
+					});
+
+			if (isNewSignup.get())
+				eventPublisher.publishEvent(new UserWelcomeEvent(this, user.getEmail(), user.getFirstName()));
 
 			UserPrincipal userPrincipal = new UserPrincipal(user);
 			String accessToken = jwtUtils.generateToken(userPrincipal);

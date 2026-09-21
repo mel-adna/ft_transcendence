@@ -29,7 +29,7 @@ public class FileStorageService {
 	private String publicUrl;
 
 	public String uploadAvatar(MultipartFile file) {
-		if (file.isEmpty())
+		if (file == null || file.isEmpty())
 			throw new BadRequestException("File cannot be empty");
 
 		String contentType = file.getContentType();
@@ -43,9 +43,9 @@ public class FileStorageService {
 				minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
 
 			String policy = """
-						{
-							"Version": "2012-10-17",
-							"Statement": [
+					   {
+					      "Version": "2012-10-17",
+					      "Statement": [
 					              {
 					                "Effect": "Allow",
 					                "Principal": "*",
@@ -53,7 +53,7 @@ public class FileStorageService {
 					                "Resource": ["arn:aws:s3:::%s/*"]
 					              }
 					            ]
-						}
+					   }
 					""".formatted(bucketName);
 
 			minioClient.setBucketPolicy(
@@ -63,9 +63,10 @@ public class FileStorageService {
 							.build());
 
 			String originalFileName = file.getOriginalFilename();
-			String extention = originalFileName != null && originalFileName.contains(".")
+			String extention = (originalFileName != null && originalFileName.contains("."))
 					? originalFileName.substring(originalFileName.lastIndexOf("."))
 					: ".jpg";
+
 			String fileName = "avatar-" + UUID.randomUUID() + extention;
 
 			try (InputStream input = file.getInputStream()) {
@@ -79,6 +80,7 @@ public class FileStorageService {
 			}
 
 			return String.format("%s/%s/%s", publicUrl, bucketName, fileName);
+
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to upload image to MinIO: " + e.getMessage(), e);
 		}

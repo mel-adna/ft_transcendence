@@ -3,6 +3,8 @@ package com.teampulse.backend.controller;
 import java.security.Principal;
 import java.util.UUID;
 
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/activity-logs")
 @RequiredArgsConstructor
+@RateLimit(capacity = 30, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "Activity Logs", description = "Endpoints for retrieving activity trail history.")
 public class ActivityLogController {
 	private final ActivityLogService activityLogService;

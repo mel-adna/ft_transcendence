@@ -4,6 +4,8 @@ import java.security.Principal;
 import java.util.Map;
 
 import com.teampulse.backend.dto.request.*;
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 	private final UserService userService;
 
+	@RateLimit(capacity = 3, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 	@Operation(summary = "Register a new user", description = "Creates an inactive user account and sends a 6-digit verification code to email.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "201", description = "User registered successfully, verification code sent"),
@@ -38,6 +41,8 @@ public class AuthController {
 		return new ResponseEntity<>(userService.signup(request), HttpStatus.CREATED);
 	}
 
+
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 	@Operation(summary = "Verify account email", description = "Validates the 6-digit code sent via email and activates the user account.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Account verified successfully, returns JWT tokens"),
@@ -49,6 +54,7 @@ public class AuthController {
 	}
 
 
+	@RateLimit(capacity = 3, durationInMinutes = 60, keyType = RateLimitKeyType.EMAIL)
 	@Operation(summary = "Resend verification code", description = "Generates a new 6-digit verification code and emails it to the user if the account is unverified.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Verification code resent successfully"),
@@ -62,6 +68,7 @@ public class AuthController {
 	}
 
 
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Authentication successful"),
@@ -72,6 +79,8 @@ public class AuthController {
 		return ResponseEntity.ok(userService.login(request));
 	}
 
+
+	@RateLimit(capacity = 10, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Refresh access token", description = "Provides a new, valid Access Token using a non-expired Refresh Token.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
@@ -82,6 +91,8 @@ public class AuthController {
 		return ResponseEntity.ok(userService.refreshToken(request));
 	}
 
+
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Change account password", description = "Allows the logged-in user to change their password after validating the old one.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Password changed successfully"),
@@ -90,11 +101,13 @@ public class AuthController {
 	})
 	@PostMapping("/change-password")
 	public ResponseEntity<String> changePassword(Principal principal,
-			@Valid @RequestBody PasswordChangeRequest request) {
+	                                             @Valid @RequestBody PasswordChangeRequest request) {
 		userService.changePassword(principal.getName(), request);
 		return ResponseEntity.ok("Password changed successfully");
 	}
 
+
+	@RateLimit(capacity = 10, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Logout user", description = "Revokes and deletes the provided Refresh Token from the database to invalidate the session.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "204", description = "Logged out successfully"),
@@ -106,6 +119,8 @@ public class AuthController {
 		return ResponseEntity.noContent().build();
 	}
 
+
+	@RateLimit(capacity = 3, durationInMinutes = 60, keyType = RateLimitKeyType.EMAIL)
 	@Operation(summary = "Initiate password reset sequence", description = "Generates a secure token and sends a recovery link to the user's email if the account exists.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "If the email exists, a password reset link has been dispatched.")
@@ -116,6 +131,8 @@ public class AuthController {
 		return ResponseEntity.ok("If the email is registered, a password reset link has been sent successfully.");
 	}
 
+
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Execute password reset", description = "Validates the security token and updates the user's account password.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Password reset successfully completed"),
@@ -128,6 +145,8 @@ public class AuthController {
 		return ResponseEntity.ok("Your password has been successfully reset. You can now log in.");
 	}
 
+
+	@RateLimit(capacity = 10, durationInMinutes = 15, keyType = RateLimitKeyType.IP)
 	@Operation(summary = "Authenticate with Google", description = "Validates Google ID Token and issues access/refresh tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Authentication successful"),

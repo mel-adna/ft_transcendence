@@ -4,6 +4,8 @@ import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
 
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
@@ -32,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/notifications")
 @RequiredArgsConstructor
+@RateLimit(capacity = 60, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "Notification Management", description = "High-performance production endpoints for retrieving and mutating user notification states.")
 @SecurityRequirement(name = "bearerAuth")
 public class NotificationController {
@@ -109,7 +112,7 @@ public class NotificationController {
         
         log.info("[REST Request] User '{}' requested state transition to read for notification ID: {}", principal.getName(), id);
         notificationService.markAsRead(id, principal.getName());
-        return ResponseEntity.noContent().build(); // HTTP standard 204 No Content for successful void mutations
+        return ResponseEntity.noContent().build();
     }
 
 

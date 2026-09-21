@@ -32,9 +32,9 @@ public class ActivityLog {
 	@GeneratedValue(strategy=GenerationType.UUID)
 	private UUID id;
 
+	@NotFound(action = NotFoundAction.IGNORE)
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="user_id", nullable=false)
-	@NotFound(action=NotFoundAction.IGNORE)
 	private User user;
 
 	@ManyToOne(fetch=FetchType.LAZY)

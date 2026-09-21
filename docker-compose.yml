@@ -1,9 +1,8 @@
 services:
-
   # ----------- Nginx ---------------
   nginx:
     image: nginx:stable-alpine
-    container_name: team_pulse_nginx
+    container_name: teampulse-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -19,10 +18,11 @@ services:
 
   # ----------- Frontend ---------------
   frontend:
+    image: teampulse-frontend:1.0
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: team_pulse_frontend
+    container_name: teampulse-frontend
     ports:
       - "5173:5173"
     environment:
@@ -36,6 +36,7 @@ services:
 
   # ----------- Backend ---------------
   backend:
+    image: teampulse-backend:1.0
     build: ./backend
     container_name: teampulse-backend
     ports:
@@ -48,7 +49,7 @@ services:
       - DB_PASSWORD=123
       - FRONTEND_URL=https://localhost
       - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_PUBLIC_URL=http://localhost:9000
+      - MINIO_PUBLIC_URL=https://localhost/avatars
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET_NAME=teampulse-avatars
@@ -78,7 +79,7 @@ services:
 
   # ----------- minio ---------------
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: teampulse-minio
     ports:
       - "9000:9000"
@@ -92,6 +93,37 @@ services:
     restart: always
     volumes:
       - minio_data:/data
+
+    # ----------- Redis (chat-service Socket.io adapter) ---------------
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: teampulse-redis
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
+  #   volumes:
+  #     - redis_data:/data
+
+  #   # ----------- Chat Service (Real-Time Chat & Presence) ---------------
+  # # Node + Socket.io. Verifies the Java backend's JWT (shared secret) and
+  # # uses the same Postgres. See chat-service/INTEGRATION.md.
+  # chat-service:
+  #   build: ./chat-service
+  #   container_name: teampulse-chat
+  #   environment:
+  #     - PORT=5005
+  #     - NODE_ENV=production
+  #     - CLIENT_URL=https://localhost
+  #     # MUST match the Java app's app.jwt.secret
+  #     - JWT_SECRET=${JWT_SECRET}
+  #     - DATABASE_URL=postgresql://med:123@postgres:5432/teampulsedb?schema=chat
+  #     - REDIS_URL=redis://redis:6379
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   networks:
+  #     - teampulse_net
+  #   restart: always
 
   # # ----------- Prometheus ---------------
   # prometheus:
@@ -186,8 +218,6 @@ networks:
 volumes:
   postgres_data:
   minio_data:
+  # redis_data:
   # prometheus_data:
   # grafana_data:
-
-
-

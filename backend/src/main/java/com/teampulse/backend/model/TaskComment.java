@@ -38,6 +38,7 @@ public class TaskComment {
 	@NotFound(action=NotFoundAction.IGNORE)
 	private Task task;
 
+	@NotFound(action = NotFoundAction.IGNORE)
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="author_id", nullable=false)
 	private User author;
