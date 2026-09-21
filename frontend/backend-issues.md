@@ -12,6 +12,8 @@ A state a user cannot get out of.
 
 | # | Issue | What breaks | Effort |
 |---|---|---|---|
+| 34 | The chat-service image never generates the Prisma client | chat-service crashes on start and restarts forever, so chat is offline for everyone | 2 lines |
+| 35 | chat-service checks Java tokens with the wrong key | Once it runs, chat refuses every signed in user | 2 lines |
 | 33 | Two people whose emails start the same way cannot both use chat | The second one is refused by chat for good, and chat shows email fragments instead of names | Both sides |
 
 ## Not blocking
@@ -31,13 +33,76 @@ Real defects, but nothing visible is broken.
 
 # Blocking
 
+## 34. The chat-service image never generates the Prisma client
+
+`chat-service/Dockerfile` installs dependencies before it copies the source:
+
+```dockerfile
+COPY package*.json ./
+RUN npm install
+COPY . .
+```
+
+`@prisma/client` builds itself during `npm install` from `prisma/schema.prisma`, and at that moment
+the schema is not in the image yet. So the image ships an empty client, and the service dies on its
+first database call:
+
+```
+@prisma/client did not initialize yet
+```
+
+Docker restarts it and it dies again, forever. nginx answers 502 for every chat path, so the Chat
+page shows its offline panel for everyone.
+
+**Fix:** generate the client once the schema is there, after `COPY . .`:
+
+```dockerfile
+RUN npx prisma generate
+```
+
+and add `chat-service/.dockerignore` containing `node_modules`, so a `node_modules` folder on the
+host is never copied over the one built in the image.
+
+## 35. chat-service checks Java tokens with the wrong key
+
+The Java backend signs tokens with the secret decoded from base64:
+
+```java
+Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret))
+```
+
+`chat-service/src/application/socket/SocketAuthUseCase.js` checks them with the same secret used as
+plain text:
+
+```js
+payload = jwt.verify(token, process.env.JWT_SECRET);
+```
+
+Those are two different keys, so every token from the Java login fails the signature check. Chat
+answers 401 to every request and refuses every socket connection. The dev tokens printed by
+`prisma/seed.js` hide this, because they are signed with the same plain text key.
+
+**Fix:** decode the secret the way Java does:
+
+```js
+payload = jwt.verify(token, Buffer.from(process.env.JWT_SECRET, 'base64'));
+```
+
+and sign with `Buffer.from(secret, 'base64')` in `prisma/seed.js`, so the seed tokens keep working.
+
+This also needs both services to have the same `JWT_SECRET` in the first place. `docker-compose.yml`
+on `aarab` gives it to chat-service but not to the backend, which then signs with the default in
+`application.yaml`. That half is fixed on `szemmouri` by passing `JWT_SECRET=${JWT_SECRET}` to the
+backend.
+
 ## 33. Two people whose emails start the same way cannot both use chat
 
 The Java token carries `id` and `sub`, the email, and no name. chat-service fills the gap in
 `SocketAuthUseCase` by taking the part of the email before the `@` and storing it as the user's
 `username`. That column is `@unique` in `chat-service/prisma/schema.prisma`, so the first person
 whose email starts `said@` claims the name, and anyone else whose email starts the same way can
-never get in. Measured on the merged stack, two fresh accounts one after the other:
+never get in. Measured on the merged stack with 34 and 35 fixed locally, two fresh accounts one after
+the other:
 
 ```
 said1789985261287@example.com  ->  GET /api/chat/rooms 200  {"rooms":[]}
