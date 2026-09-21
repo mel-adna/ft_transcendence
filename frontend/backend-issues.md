@@ -6,7 +6,13 @@ together. Only unresolved issues are listed.
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
 
-Nothing here blocks a feature today.
+## Blocking
+
+A state a user cannot get out of.
+
+| # | Issue | What breaks | Effort |
+|---|---|---|---|
+| 33 | Two people whose emails start the same way cannot both use chat | The second one is refused by chat for good, and chat shows email fragments instead of names | Both sides |
 
 ## Not blocking
 
@@ -15,7 +21,6 @@ Real defects, but nothing visible is broken.
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
-| 33 | Chat shows the first half of each email instead of the person's name | An evaluator sees `alice1789984631525` in the member list and on every message | Both sides |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
 | 31 | The Google OAuth client does not allow `http://localhost:5173` | Google sign in is refused on the Vite port; `https://localhost` works | Console setting |
 | 32 | The backend never receives the JWT lifetimes from `.env` | `.env` says refresh tokens last 7 days; they last 3 | 2 lines |
@@ -24,26 +29,47 @@ Real defects, but nothing visible is broken.
 
 ---
 
-# Not blocking
+# Blocking
 
-## 33. Chat shows the first half of each email instead of the person's name
+## 33. Two people whose emails start the same way cannot both use chat
 
 The Java token carries `id` and `sub`, the email, and no name. chat-service fills the gap in
-`SocketAuthUseCase` by taking the part of the email before the `@`, and stores that as the user's
-`username`. Measured on the merged stack: chat's `User` table holds `alice1789984631525` for the
-account named Alice Tester, and that is what the member list and every message label show.
+`SocketAuthUseCase` by taking the part of the email before the `@` and storing it as the user's
+`username`. That column is `@unique` in `chat-service/prisma/schema.prisma`, so the first person
+whose email starts `said@` claims the name, and anyone else whose email starts the same way can
+never get in. Measured on the merged stack, two fresh accounts one after the other:
 
-`chat-service/INTEGRATION.md` suggests the obvious fix, a `username` claim set to the first name.
-Do not apply it as written. chat's `username` column is `@unique`, so the second person called Said
-would collide with the first, the upsert in `ensureFromIdentity` would throw, and that user would be
-locked out of chat entirely.
+```
+said1789985261287@example.com  ->  GET /api/chat/rooms 200  {"rooms":[]}
+said1789985261287@example.org  ->  GET /api/chat/rooms 401  {"error":"Unauthorized: Invalid
+                                   `prisma.user.upsert()` invocation: Unique constraint failed ..."}
+```
 
-What is needed is a display name that is allowed to repeat, which takes both sides:
+The second account is refused on every chat request and every socket connection, permanently,
+because the collision is in stored data. An evaluator who makes `test@gmail.com` and
+`test@yahoo.com` hits this on the second one. Two smaller problems ride along:
 
-- **Java** adds a `name` claim, first and last name, in `JwtUtils.generateToken` next to `id`.
-- **chat-service** stores it in a column of its own that is not unique, and the chat UI shows that
-  column instead of `username`. `ensureFromIdentity` already updates stored values on every
+- The error text is Prisma's own, sent straight to the browser by `authMiddleware`. It should be a
+  plain "Unauthorized" with the detail kept in the log.
+- The same stored `username` is what chat displays, so every member list and message label shows
+  `alice1789984631525` rather than Alice Tester.
+
+`chat-service/INTEGRATION.md` suggests a `username` claim set to the first name. That makes the
+collision more likely, not less: every second Said would be locked out. Do not apply it as written.
+
+The fix is to stop deriving a unique value from something two people can share, and to keep what is
+shown separate from what is unique:
+
+- **chat-service** keys uniqueness on something that already is unique. The Java `id` claim is,
+  and `email` is already `@unique` on its own, so `username` either takes the id or stops being
+  unique. The name shown in the UI goes in a column of its own that is allowed to repeat.
+- **Java** adds a `name` claim, first and last name, in `JwtUtils.generateToken` next to `id`, for
+  chat to fill that display column from. `ensureFromIdentity` already updates stored values on every
   connect, so existing users pick the name up the next time they open chat.
+
+---
+
+# Not blocking
 
 ## 28. The login limit counts successful logins, so ordinary use spends the budget
 
