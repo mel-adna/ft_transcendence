@@ -2,6 +2,8 @@ package com.teampulse.backend.controller;
 
 import com.teampulse.backend.dto.response.ApiKeyResponse;
 import com.teampulse.backend.security.UserPrincipal;
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import com.teampulse.backend.service.ApiKeyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api-key")
 @RequiredArgsConstructor
+@RateLimit(capacity = 10, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "API Key Management", description = "Endpoints for managing user API Keys (JWT Protected)")
 public class ApiKeyController {
 	private final ApiKeyService apiKeyService;

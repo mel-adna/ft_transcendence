@@ -19,6 +19,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Objects;
+import java.util.UUID;
 
 
 @Slf4j
@@ -47,6 +48,11 @@ public class TaskEventListener {
 				task.getId(), event.getTimeAt());
 
 		User actor = event.getCompletedBy() != null ? event.getCompletedBy() : task.getCreator();
+		if (actor == null) {
+			log.warn("Actor (creator/completedBy) is null or deleted for completed task ID: {}. Skipping logging/notification.", task.getId());
+			return;
+		}
+
 		try {
 			String logDescription = String.format("%s %s completed task '%s'",
 					actor.getFirstName(), actor.getLastName(), task.getTitle());
@@ -62,9 +68,11 @@ public class TaskEventListener {
 		}
 
 		try {
-			if (task.getAssignee() != null) {
-				String alertMsg = String.format("The task '%s' assigned to you has been marked as COMPLETED.",
-						task.getTitle());
+			boolean isSelfCompletion = task.getAssignee() != null && Objects.equals(task.getAssignee().getId(), actor.getId());
+
+			if (task.getAssignee() != null && !isSelfCompletion) {
+				String alertMsg = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s %s.",
+						task.getTitle(), actor.getFirstName(), actor.getLastName());
 
 				notificationService.createNotification(
 						task.getAssignee(),
@@ -95,25 +103,38 @@ public class TaskEventListener {
 		User assigner = event.getAssigner();
 		User assignee = event.getAssignee();
 
+		boolean isAssignerDeleted = (assigner == null);
+		UUID assignerId = isAssignerDeleted ? null : assigner.getId();
+		String assignerFirstName = isAssignerDeleted ? "A deleted" : assigner.getFirstName();
+		String assignerLastName = isAssignerDeleted ? "user" : assigner.getLastName();
+
+		boolean isSelfAssignment = !isAssignerDeleted && Objects.equals(assignee.getId(), assigner.getId());
+
+		String targetName = isSelfAssignment ? "himself" : String.format("%s %s", assignee.getFirstName(), assignee.getLastName());
+
+		String logType = event.isReassignment() ? "TASK_REASSIGNED" : "TASK_ASSIGNED";
 		NotificationType notifType = event.isReassignment() ? NotificationType.TASK_UPDATED : NotificationType.TASK_ASSIGNED;
 		String actionText = event.isReassignment() ? "reassigned task" : "assigned task";
 
-		String logDescription = String.format("%s %s %s '%s' to %s %s",
-				assigner.getFirstName(), assigner.getLastName(),
+		String logDescription = String.format("%s %s %s '%s' to %s",
+				assignerFirstName, assignerLastName,
 				actionText, task.getTitle(),
-				assignee.getFirstName(), assignee.getLastName());
+				targetName);
 
-		activityLogService.logActivity(
-				task.getWorkspace().getId(),
-				assigner.getId(),
-				task.getId(),
-				notifType.name(),
-				logDescription);
+		if (assignerId != null) {
+			activityLogService.logActivity(
+					task.getWorkspace().getId(),
+					assignerId,
+					task.getId(),
+					logType,
+					logDescription);
+		} else
+			log.warn("Skipping ActivityLog for task assignment because assigner is deleted (null). Task ID: {}", task.getId());
 
-		boolean isSelfAssignment = Objects.equals(assignee.getId(), assigner.getId());
+
 		if (!isSelfAssignment) {
 			String alertMsg = String.format("%s %s %s '%s' to you.",
-					assigner.getFirstName(), assigner.getLastName(),
+					assignerFirstName, assignerLastName,
 					actionText, task.getTitle());
 
 			notificationService.createNotification(

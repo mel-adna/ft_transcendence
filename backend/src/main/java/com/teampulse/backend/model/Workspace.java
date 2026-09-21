@@ -3,10 +3,7 @@ package com.teampulse.backend.model;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.SQLRestriction;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.*;
 
 import com.teampulse.backend.enums.WorkspaceType;
 
@@ -49,6 +46,7 @@ public class Workspace {
     @Column(name="type", nullable=false, length=50)
     private WorkspaceType type;
 
+    @NotFound(action = NotFoundAction.IGNORE)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="owner_id", nullable=false)
     private User owner;
