@@ -1,6 +1,7 @@
 # Backend issues
 
-Status checked 2026-09-21 against `1dadfa2` on `mdbentaleb`. Only unresolved issues are listed.
+Status checked 2026-09-21 against `1dadfa2` on `mdbentaleb` and `c3efc42` on `aarab`, merged and run
+together. Only unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
@@ -14,13 +15,35 @@ Real defects, but nothing visible is broken.
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
+| 33 | Chat shows the first half of each email instead of the person's name | An evaluator sees `alice1789984631525` in the member list and on every message | Both sides |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
+| 31 | The Google OAuth client does not allow `http://localhost:5173` | Google sign in is refused on the Vite port; `https://localhost` works | Console setting |
+| 32 | The backend never receives the JWT lifetimes from `.env` | `.env` says refresh tokens last 7 days; they last 3 | 2 lines |
 | 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
 | 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
 
 ---
 
 # Not blocking
+
+## 33. Chat shows the first half of each email instead of the person's name
+
+The Java token carries `id` and `sub`, the email, and no name. chat-service fills the gap in
+`SocketAuthUseCase` by taking the part of the email before the `@`, and stores that as the user's
+`username`. Measured on the merged stack: chat's `User` table holds `alice1789984631525` for the
+account named Alice Tester, and that is what the member list and every message label show.
+
+`chat-service/INTEGRATION.md` suggests the obvious fix, a `username` claim set to the first name.
+Do not apply it as written. chat's `username` column is `@unique`, so the second person called Said
+would collide with the first, the upsert in `ensureFromIdentity` would throw, and that user would be
+locked out of chat entirely.
+
+What is needed is a display name that is allowed to repeat, which takes both sides:
+
+- **Java** adds a `name` claim, first and last name, in `JwtUtils.generateToken` next to `id`.
+- **chat-service** stores it in a column of its own that is not unique, and the chat UI shows that
+  column instead of `username`. `ensureFromIdentity` already updates stored values on every
+  connect, so existing users pick the name up the next time they open chat.
 
 ## 28. The login limit counts successful logins, so ordinary use spends the budget
 
@@ -58,6 +81,42 @@ never really binds.
 
 The frontend reads `retryAfterSeconds` off the 429 and says "Too many attempts. Try again in 3
 minutes." rather than the bare server message, so the wait is at least visible while this stands.
+
+## 31. The Google OAuth client does not allow `http://localhost:5173`
+
+Google sign in works through nginx and is refused on the Vite port. Measured on both login pages:
+
+```
+https://localhost        no failed requests, no complaint from Google
+http://localhost:5173    403 from https://accounts.google.com/gsi/button
+                         [GSI_LOGGER]: The given origin is not allowed for the given client ID.
+```
+
+Google treats these as separate origins, and only the first is registered. **Fix:** add
+`http://localhost:5173` under Authorized JavaScript origins for this client in Google Cloud
+Console. Only people using the Vite port are affected; anyone going through `https://localhost` is
+not.
+
+## 32. The backend never receives the JWT lifetimes from `.env`
+
+`docker-compose.yml` passes the backend its database, MinIO and Google settings, but not the token
+lifetimes. So `application.yaml` falls back to its own defaults, and the values in `.env` are never
+read:
+
+| Key | `.env` says | Backend actually uses |
+|---|---|---|
+| `JWT_REFRESH_EXPIRATION` | 604800000, 7 days | 259200000, 3 days |
+| `JWT_ACCESS_EXPIRATION` | 900000, 15 minutes | 900000, 15 minutes |
+
+Access happens to match. Refresh does not, so a session that `.env` says lasts a week ends after
+three days. This is the same kind of bug as `JWT_SECRET`, which was missing from the backend in the
+same way; that one broke chat outright, because chat-service verified tokens with the `.env` value
+while Spring signed them with the yaml default. It is fixed on `szemmouri` by passing
+`JWT_SECRET=${JWT_SECRET}`.
+
+**Fix:** pass the two lifetimes the same way, or delete them from `.env` so nobody reads a value
+that is not used. `GOOGLE_CLIENT_SECRET` and `SERVER_PORT` are in the same position, and harmless
+today because one is empty and the other matches.
 
 ## 30. The dead public API key is still in `application.yaml`
 
