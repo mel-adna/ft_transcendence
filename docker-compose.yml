@@ -31,7 +31,7 @@ services:
       - VITE_CORE_API_URL=/api/v1
       - CORE_API_PROXY_TARGET=http://backend:8080
       - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
-      - VITE_API_URL=/api/chat
+      - VITE_API_URL=/api
       - VITE_WS_URL=/
     networks:
       - teampulse_net
