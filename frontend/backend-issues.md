@@ -26,6 +26,7 @@ Real defects, but nothing visible is broken.
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
 | 31 | The Google OAuth client does not allow `http://localhost:5173` | Google sign in is refused on the Vite port; `https://localhost` works | Console setting |
 | 32 | The backend never receives the JWT lifetimes from `.env` | `.env` says refresh tokens last 7 days; they last 3 | 2 lines |
+| 36 | A client mistake answers 500 instead of a 4xx | A wrong method, broken JSON or the wrong content type is reported as the server's own failure | Small |
 | 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
 | 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
 
@@ -208,6 +209,34 @@ while Spring signed them with the yaml default. It is fixed on `szemmouri` by pa
 **Fix:** pass the two lifetimes the same way, or delete them from `.env` so nobody reads a value
 that is not used. `GOOGLE_CLIENT_SECRET` and `SERVER_PORT` are in the same position, and harmless
 today because one is empty and the other matches.
+
+## 36. A client mistake answers 500 instead of a 4xx
+
+`GlobalExceptionHandler` ends with a catch-all that answers 500 "An unexpected server error
+occurred":
+
+```java
+@ExceptionHandler(Exception.class)
+```
+
+Spring's own exceptions for a malformed request have no handler of their own, so they land there
+too. Measured on the merged stack:
+
+```
+DELETE /api/v1/auth/login                     500, should be 405
+POST   /api/v1/auth/login with broken JSON    500, should be 400
+POST   /api/v1/auth/login as text/plain       500, should be 415
+```
+
+Nothing in the frontend sends these, so no user sees it. It matters for anyone calling the API by
+hand, which is exactly what an evaluator does with the public API: a POST to `/public/tasks`
+answers 500, which reads as a crash rather than "not supported".
+
+**Fix:** handle the three in `GlobalExceptionHandler`, next to the others:
+
+- `HttpRequestMethodNotSupportedException` answers 405
+- `HttpMessageNotReadableException` answers 400
+- `HttpMediaTypeNotSupportedException` answers 415
 
 ## 30. The dead public API key is still in `application.yaml`
 
