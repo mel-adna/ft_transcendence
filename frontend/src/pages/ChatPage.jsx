@@ -29,8 +29,8 @@ export default function ChatPage() {
       signal: controller.signal,
       headers: { Authorization: `Bearer ${getToken() ?? ''}` },
     })
-      .then(() => {
-        if (!cancelled) setServiceStatus('online');
+      .then((response) => {
+        if (!cancelled) setServiceStatus(response.status >= 500 ? 'offline' : 'online');
       })
       .catch(() => {
         if (!cancelled) setServiceStatus('offline');
