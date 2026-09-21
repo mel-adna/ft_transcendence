@@ -19,9 +19,8 @@ public class TaskCompletedEvent extends ApplicationEvent {
 	public TaskCompletedEvent(Object source, Task task, User completedBy) {
 		super(source);
 
-		if (task == null) {
+		if (task == null)
             throw new IllegalArgumentException("Task payload inside TaskCompletedEvent cannot be null");
-        }
 
 		this.task = task;
 		this.completedBy = completedBy;
