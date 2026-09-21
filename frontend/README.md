@@ -11,11 +11,14 @@ Team Pulse is a task and team collaboration app: workspaces, a kanban task board
 What has to be running for the app to actually work:
 
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
-- The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works
-  fine without it. That service is not in this branch: it lives in `backend/` on `origin/aarab`, which is
-  an Express + socket.io + Prisma app, not the Java one. With nothing listening on 5005 the Chat page
-  detects it and shows an offline panel with a retry, rather than the browser's raw `Failed to fetch`.
-  How that check works, and why it lives outside the vendored components, is under "Which code is whose".
+- The Node chat service, in `chat-service/` at the repository root. It is an Express + Socket.io + Prisma
+  app, not the Java one, and only the `/chat` route needs it: every other page works fine without it.
+  `docker compose up` starts it together with Redis, and it keeps its tables in their own `chat` schema
+  in the same Postgres. The browser never talks to it directly. nginx forwards `/api/chat/` and
+  `/socket.io/` to it, and Vite's dev server on port 5173 forwards the same two paths, so both entry
+  points behave alike. When it is down the Chat page shows an offline panel with a retry rather than an
+  empty chat. How that check works, and why it lives outside the vendored components, is under "Which
+  code is whose".
 
 The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
@@ -125,7 +128,7 @@ The vendored chat under `features/chat/` still uses arbitrary values. That is de
 
 `features/chat/` and `infrastructure/socket/` are copied unchanged from a teammate's branch (aarab). They are vendored byte for byte so they merge cleanly with his work later, and they are never edited here, including the no-comments and no-console rules that apply to the rest of the app. `eslint.config.js` explicitly ignores both paths for the same reason.
 
-`pages/ChatPage.jsx` is the exception, and it is ours. Because the vendored components cannot be edited, the check for whether the chat service is even up has to live outside them. `ChatPage` probes the same base URL `chatApi.js` uses, and only mounts `SocketProvider` and `ChatLayout` once something answers. If nothing does, it shows an offline panel with a retry instead. Any HTTP reply counts as up, including a 401 or a 404; only a network-level failure counts as down, which is the same failure the vendored client would hit. Gating the provider also stops socket.io from retrying a dead port forever in the background. The base URL is duplicated rather than imported, so it has to stay identical to the one in `chatApi.js`.
+`pages/ChatPage.jsx` is the exception, and it is ours. Because the vendored components cannot be edited, the check for whether the chat service is even up has to live outside them. `ChatPage` probes the same base URL `chatApi.js` uses, and only mounts `SocketProvider` and `ChatLayout` once something answers. If nothing does, it shows an offline panel with a retry instead. A reply below 500 counts as up, including a 401 or a 404, since only a running service sends those. A reply of 500 or more counts as down, and so does a network failure. The 500 rule exists because chat sits behind a proxy: when chat-service is gone, nginx and Vite answer 502 themselves instead of failing at the network level, and counting that as up used to mount an empty chat that read "No rooms yet". Gating the provider also stops socket.io from retrying a dead port forever in the background. The base URL is duplicated rather than imported, so it has to stay identical to the one in `chatApi.js`.
 
 Everything else under `frontend/src` was written for this task list.
 
@@ -135,8 +138,9 @@ Everything else under `frontend/src` was written for this task list.
 |---|---|---|
 | `VITE_CORE_API_URL` | `/api/v1`, a relative path | Everything except chat: auth, tasks, workspaces, colleagues, settings (`lib/api.js`) |
 | `CORE_API_PROXY_TARGET` | Java backend, `http://localhost:8080` | Where Vite forwards `/api/v1` during development. Not read by app code |
-| `VITE_API_URL` | Node chat backend, port 5005, base path `/api` | Chat's own REST calls: rooms, messages, search (`features/chat/services/chatApi.js`, vendored) |
-| `VITE_WS_URL` | Node chat backend, port 5005 | The chat socket connection (`infrastructure/socket/SocketClient.js`, vendored) |
+| `VITE_API_URL` | `/api`, a relative path | Chat's own REST calls: rooms, messages, search (`features/chat/services/chatApi.js`, vendored). The client appends `/chat/...` itself and chat-service mounts at `/api/chat`, so the base stops at `/api`; setting it to `/api/chat` doubles the segment and every call returns 404 |
+| `VITE_WS_URL` | `/`, the page's own origin | The chat socket connection, at `/socket.io/` (`infrastructure/socket/SocketClient.js`, vendored) |
+| `CHAT_PROXY_TARGET` | chat-service, `http://localhost:5005` | Where Vite forwards `/api/chat` and `/socket.io` during development. Not read by app code |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth web client id | Renders the Continue with Google button. Unset means the button is not rendered at all, which is the default. |
 
 ### Why the core API is a relative path and goes through a proxy
