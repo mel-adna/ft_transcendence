@@ -1,5 +1,6 @@
 package com.teampulse.backend.event.listner;
 
+import com.teampulse.backend.dto.messaging.UnifiedEvent;
 import com.teampulse.backend.enums.EntityType;
 import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.event.TaskAssignedEvent;
@@ -10,6 +11,7 @@ import com.teampulse.backend.repository.TaskRepository;
 import com.teampulse.backend.service.ActivityLogService;
 import com.teampulse.backend.service.EmailService;
 import com.teampulse.backend.service.NotificationService;
+import com.teampulse.backend.service.RedisEventPublisherService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -31,6 +35,8 @@ public class TaskEventListener {
 	private final ActivityLogService activityLogService;
 	private final TaskRepository taskRepository;
 	private final EmailService emailService;
+	private final RedisEventPublisherService redisEventPublisherService;
+
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -43,9 +49,6 @@ public class TaskEventListener {
 			log.warn("Task not found for event logging: {}", event.getTask().getId());
 			return;
 		}
-
-		log.info("Successfully intercepted TaskCompletedEvent for Task ID: {} which occurred at: {}",
-				task.getId(), event.getTimeAt());
 
 		User actor = event.getCompletedBy() != null ? event.getCompletedBy() : task.getCreator();
 		if (actor == null) {
@@ -68,27 +71,27 @@ public class TaskEventListener {
 		}
 
 		try {
-			boolean isSelfCompletion = task.getAssignee() != null && Objects.equals(task.getAssignee().getId(), actor.getId());
+			User assignee = task.getAssignee();
+			User creator = task.getCreator();
 
-			if (task.getAssignee() != null && !isSelfCompletion) {
-				String alertMsg = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s %s.",
+			if (assignee != null && !Objects.equals(assignee.getId(), creator.getId())) {
+				String msgToAssignee = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s %s.",
 						task.getTitle(), actor.getFirstName(), actor.getLastName());
 
-				notificationService.createNotification(
-						task.getAssignee(),
-						NotificationType.TASK_COMPLETED,
-						EntityType.TASK,
-						task.getId(),
-						alertMsg);
+				notifyUserAndPublish(assignee, actor, task, msgToAssignee, NotificationType.TASK_COMPLETED, "COMPLETED");
+			}
 
-				emailService.sendEmail(task.getAssignee().getEmail(), "Task Completed: " + task.getTitle(),
-						alertMsg);
+			if (creator != null && !Objects.equals(creator.getId(), actor.getId())) {
 
-				log.info("Notification & Email successfully persisted for Assignee: {}", task.getAssignee().getEmail());
+				if (assignee == null || !Objects.equals(creator.getId(), assignee.getId())) {
+					String msgToCreator = String.format("The task '%s' you created has been marked as COMPLETED by %s %s.",
+							task.getTitle(), actor.getFirstName(), actor.getLastName());
+
+					notifyUserAndPublish(creator, actor, task, msgToCreator, NotificationType.TASK_COMPLETED, "COMPLETED");
+				}
 			}
 		} catch (Exception e) {
-			log.error("Failed to send notifications for completed task ID: {}. Error: {}", task.getId(),
-					e.getMessage());
+			log.error("Failed to send notifications for completed task ID: {}. Error: {}", task.getId(), e.getMessage());
 		}
 	}
 
@@ -109,47 +112,55 @@ public class TaskEventListener {
 		String assignerLastName = isAssignerDeleted ? "user" : assigner.getLastName();
 
 		boolean isSelfAssignment = !isAssignerDeleted && Objects.equals(assignee.getId(), assigner.getId());
-
 		String targetName = isSelfAssignment ? "himself" : String.format("%s %s", assignee.getFirstName(), assignee.getLastName());
 
 		String logType = event.isReassignment() ? "TASK_REASSIGNED" : "TASK_ASSIGNED";
-		NotificationType notifType = event.isReassignment() ? NotificationType.TASK_UPDATED : NotificationType.TASK_ASSIGNED;
 		String actionText = event.isReassignment() ? "reassigned task" : "assigned task";
-
-		String logDescription = String.format("%s %s %s '%s' to %s",
-				assignerFirstName, assignerLastName,
-				actionText, task.getTitle(),
-				targetName);
+		String logDescription = String.format("%s %s %s '%s' to %s", assignerFirstName, assignerLastName,
+				actionText, task.getTitle(), targetName);
 
 		if (assignerId != null) {
-			activityLogService.logActivity(
-					task.getWorkspace().getId(),
-					assignerId,
-					task.getId(),
-					logType,
-					logDescription);
-		} else
-			log.warn("Skipping ActivityLog for task assignment because assigner is deleted (null). Task ID: {}", task.getId());
-
+			activityLogService.logActivity(task.getWorkspace().getId(), assignerId,
+					task.getId(), logType, logDescription);
+		}
 
 		if (!isSelfAssignment) {
-			String alertMsg = String.format("%s %s %s '%s' to you.",
-					assignerFirstName, assignerLastName,
-					actionText, task.getTitle());
+			String alertMsg = String.format("%s %s %s '%s' to you.", assignerFirstName, assignerLastName, actionText, task.getTitle());
+			NotificationType notifType = event.isReassignment() ? NotificationType.TASK_UPDATED : NotificationType.TASK_ASSIGNED;
+			String redisAction = event.isReassignment() ? "REASSIGNED" : "ASSIGNED";
 
-			notificationService.createNotification(
-					assignee,
-					notifType,
-					EntityType.TASK,
-					task.getId(),
-					alertMsg);
-
-			emailService.sendEmail(
-					assignee.getEmail(),
-					"New Task Assignment: " + task.getTitle(),
-					alertMsg);
-		} else {
-			log.info("Skipping self-assignment notification/email for user: {}", assignee.getEmail());
+			notifyUserAndPublish(assignee, assigner, task, alertMsg, notifType, redisAction);
 		}
+	}
+
+	private void notifyUserAndPublish(User recipient, User actor, Task task, String message,
+	                                  NotificationType notifyType, String redisAction) {
+
+		notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
+
+		emailService.sendEmail(recipient.getEmail(), "Task Update: " + task.getTitle(), message);
+
+		UUID senderId = actor != null ? actor.getId() : null;
+
+		String actorName = actor != null ? actor.getFirstName() + " " + actor.getLastName() : "System";
+
+		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+				.eventId(UUID.randomUUID())
+				.type("TASK")
+				.action(redisAction)
+				.recipientId(recipient.getId())
+				.senderId(senderId)
+				.entityType(EntityType.TASK.name())
+				.entityId(task.getId().toString())
+				.payload(Map.of(
+						"taskTitle", task.getTitle(),
+						"workspaceId", task.getWorkspace().getId().toString(),
+						"actorName", actorName,
+						"message", message
+				))
+				.timestamp(Instant.now())
+				.build();
+
+		redisEventPublisherService.publish(realTimeEvent);
 	}
 }
