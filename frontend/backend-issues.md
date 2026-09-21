@@ -1,10 +1,6 @@
 # Backend issues
 
-Status checked 2026-09-17 against `4d9fb45` on `mdbentaleb`, by reading every file that commit
-range touched. Four of the five issues that were open are fixed and have been removed, so the
-numbering has gaps: **17** (no rate limiting), **25** (expired token answered 403), **26** (avatars
-served over plain http) and **27** (no real Google OAuth client, Google signup created disabled)
-are all done. What each fix was is summarised at the bottom.
+Status checked 2026-09-21 against `1dadfa2` on `mdbentaleb`. Only unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
@@ -65,7 +61,7 @@ minutes." rather than the bare server message, so the wait is at least visible w
 
 ## 30. The dead public API key is still in `application.yaml`
 
-Reported last time under issue 17 and still there, now that the rest of 17 is done:
+`application.yaml` still contains an unused API key:
 
 ```yaml
 public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
@@ -140,40 +136,3 @@ Cache<String, Bucket> buckets = Caffeine.newBuilder()
         .expireAfterAccess(Duration.ofHours(2))
         .build();
 ```
-
----
-
-# What was fixed, for the record
-
-So nobody reopens these.
-
-**17, rate limiting.** bucket4j is on the classpath, `@RateLimit` carries capacity, window and key
-type, `RateLimitAspect` resolves a bucket and consumes a token, and `GlobalExceptionHandler`
-answers 429 with a `Retry-After` header and a `retryAfterSeconds` field. All five public API
-endpoints are annotated, which was the mandatory half of the requirement. The one leftover is the
-dead `public-key` line, which is still in `application.yaml` and is now issue 30.
-
-**25, expired token answered 403.** `SecurityConfig` now registers an `AuthenticationEntryPoint`
-that writes 401 with a real message. Every 403 the application raises now comes from its own
-handlers and carries a sentence, never the bare word `Forbidden`.
-
-One thing to know before that workaround comes out of the frontend. `lib/api.js` still treats a 403
-whose body is the literal `Forbidden` as an ended session, because it has to keep working against a
-backend build from before this fix. It is safe to leave in place with this backend, since nothing
-here produces that body any more, and it should be deleted once this change is on the branch
-everyone runs.
-
-Worth knowing that the same commit moved `UnauthorizedAccessException` from 401 to 403, which
-changed the status of a wrong password at login and of a dead refresh token. The frontend handles
-both correctly, because it separates a session that ended from a request that was refused by the
-message rather than by the status alone.
-
-**26, avatars over plain http.** `MINIO_PUBLIC_URL` is now `https://localhost/avatars` and nginx
-proxies `/avatars/` to MinIO, so a stored avatar URL is same origin and TLS. No mixed content, and
-no dependence on port 9000 being published.
-
-**27, Google sign in.** A real OAuth client exists and its id is in `.env` under both
-`GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. `googleLogin` now sets `enabled(true)` both when it
-creates an account and when it links an existing local account, so a Google user is no longer
-stored unverified forever. The CSP in `nginx.conf` and in `SecurityConfig` allows the Google script,
-its stylesheet, its iframe and its avatars.
