@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
   const coreApiTarget = env.CORE_API_PROXY_TARGET ?? 'http://localhost:8080'
+  const chatTarget = env.CHAT_PROXY_TARGET ?? 'http://localhost:5005'
 
   return {
     plugins: [react(), tailwindcss()],
@@ -18,6 +19,15 @@ export default defineConfig(({ mode }) => {
               proxyReq.removeHeader('origin')
             })
           },
+        },
+        '/api/chat': {
+          target: chatTarget,
+          changeOrigin: true,
+        },
+        '/socket.io': {
+          target: chatTarget,
+          changeOrigin: true,
+          ws: true,
         },
       },
     },
