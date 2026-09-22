@@ -1,44 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import api from '../../lib/api';
 import { useDataChanged } from '../../lib/useDataChanged';
+import { useList } from '../../hooks/useList';
 
 export function useMembers(workspaceId) {
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const currentRequestRef = useRef(null);
-
-  const reload = useCallback(async () => {
-    if (!workspaceId) {
-      currentRequestRef.current = null;
-      setMembers([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    const requestToken = {};
-    currentRequestRef.current = requestToken;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.get(`/workspaces/${workspaceId}/members`);
-      if (currentRequestRef.current !== requestToken) return;
-      setMembers(response.data);
-    } catch (requestError) {
-      if (currentRequestRef.current !== requestToken) return;
-      setError(requestError);
-      setMembers([]);
-    } finally {
-      if (currentRequestRef.current === requestToken) setLoading(false);
-    }
+  const load = useCallback(async () => {
+    if (!workspaceId) return [];
+    const response = await api.get(`/workspaces/${workspaceId}/members`);
+    return response.data;
   }, [workspaceId]);
 
-  useEffect(() => {
-    function sync() {
-      reload();
-    }
-    sync();
-  }, [reload]);
+  const { items: members, loading, error, reload } = useList(load);
 
   // The roster changed elsewhere (someone was added or removed).
   useDataChanged('members', reload);

@@ -1,8 +1,10 @@
-export async function buildDataExport(apiClient, user, workspaces) {
+import api from '../../lib/api';
+
+export async function buildDataExport(user, workspaces) {
   const tasksByWorkspace = {};
 
   for (const workspace of workspaces) {
-    const response = await apiClient.get(`/tasks/workspace/${workspace.id}`);
+    const response = await api.get(`/tasks/workspace/${workspace.id}`);
     tasksByWorkspace[workspace.name] = response.data;
   }
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { personName } from '../lib/people';
 
 export default function Avatar({ user, size = 32 }) {
   const [failedUrl, setFailedUrl] = useState(null);
   const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase() || '?';
-  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'User';
+  const displayName = personName(user, 'User');
   const style = { width: size, height: size };
   const showImage = Boolean(user?.avatarUrl) && user.avatarUrl !== failedUrl;
 
@@ -14,7 +15,7 @@ export default function Avatar({ user, size = 32 }) {
         alt={displayName}
         style={style}
         onError={() => setFailedUrl(user.avatarUrl)}
-        className="rounded-full border border-[#71717A]/30 object-cover"
+        className="rounded-full border border-muted/30 object-cover"
       />
     );
   }
@@ -22,7 +23,7 @@ export default function Avatar({ user, size = 32 }) {
   return (
     <div
       style={style}
-      className="flex items-center justify-center rounded-full border border-[#71717A]/30 bg-[#0c0c14] text-[10px] font-bold text-[#71717A]"
+      className="flex items-center justify-center rounded-full border border-muted/30 bg-canvas text-[10px] font-bold text-muted"
     >
       {initials}
     </div>

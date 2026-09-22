@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquareOff } from 'lucide-react';
 import { SocketProvider, ChatLayout } from '../features/chat';
 import { getToken } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import PageHeader from '../components/PageHeader';
 
 const CHAT_API = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/api';
 const PROBE_TIMEOUT_MS = 4000;
 
 export default function ChatPage() {
   const { user } = useAuth();
-  const readToken = useCallback(() => getToken(), []);
   const [serviceStatus, setServiceStatus] = useState('checking');
   const [attempt, setAttempt] = useState(0);
 
@@ -55,10 +55,7 @@ export default function ChatPage() {
   return (
     <div className="px-5 py-6 md:px-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-white md:text-[28px]">Team Chat</h1>
-        <p className="mt-2 text-sm font-medium text-[#71717A]">
-          Talk with your colleagues in real time.
-        </p>
+        <PageHeader title="Team Chat" description="Talk with your colleagues in real time." />
       </div>
 
       <div className="h-[calc(100dvh-23rem)] min-h-[24rem] md:h-[calc(100dvh-20rem)]">
@@ -78,7 +75,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={retryProbe}
-                  className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                 >
                   Try again
                 </button>
@@ -88,7 +85,7 @@ export default function ChatPage() {
         )}
 
         {serviceStatus === 'online' && (
-          <SocketProvider getToken={readToken}>
+          <SocketProvider getToken={getToken}>
             <ChatLayout currentUserId={user.id} />
           </SocketProvider>
         )}

@@ -2,6 +2,7 @@ const ACTION_LABEL = {
   TASK_ASSIGNED: 'Assigned',
   TASK_UPDATED: 'Reassigned',
   TASK_COMPLETED: 'Completed',
+  TASK_STATUS_CHANGED: 'Moved',
   TASK_COMMENT_CREATED: 'New comment',
   TASK_COMMENT_UPDATED: 'Comment edited',
   TASK_COMMENT_DELETED: 'Comment removed',
@@ -12,6 +13,7 @@ const ACTION_TONE = {
   TASK_COMPLETED: 'done',
   TASK_ASSIGNED: 'active',
   TASK_UPDATED: 'active',
+  TASK_STATUS_CHANGED: 'active',
   TASK_COMMENT_DELETED: 'danger',
 };
 
@@ -29,7 +31,7 @@ const STATUS_TONE = {
 
 export const ACTIVITY_FEED_LIMIT = 8;
 
-export function humanizeAction(actionType) {
+function humanizeAction(actionType) {
   if (!actionType) return 'Activity';
   if (Object.hasOwn(ACTION_LABEL, actionType)) return ACTION_LABEL[actionType];
   const words = String(actionType).toLowerCase().split('_').filter(Boolean);
@@ -37,7 +39,7 @@ export function humanizeAction(actionType) {
   return words.join(' ').replace(/^./, (first) => first.toUpperCase());
 }
 
-export function actionTone(actionType) {
+function actionTone(actionType) {
   if (!actionType) return 'neutral';
   return Object.hasOwn(ACTION_TONE, actionType) ? ACTION_TONE[actionType] : 'neutral';
 }

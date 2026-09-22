@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
-import { AlertTriangle, Download, Loader2, Upload } from 'lucide-react';
+import { Download, Loader2, Upload } from 'lucide-react';
 import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
 import { getErrorMessage } from '../lib/api';
 import { downloadFile, parseTasksCsv, tasksToCsv } from '../lib/csv';
 import Spinner from '../components/Spinner';
-import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import StatsDashboard from '../features/dashboard/StatsDashboard';
 import { useActivityLogs } from '../features/dashboard/useActivityLogs';
@@ -14,7 +15,7 @@ import { ACTIVITY_FEED_LIMIT } from '../features/dashboard/activityLog';
 const CSV_FILENAME = 'team-pulse-tasks.csv';
 
 const outlineButtonClass =
-  'inline-flex items-center gap-2 rounded-lg border border-[#71717A]/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center gap-2 rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60';
 
 export default function DashboardPage() {
   const { current } = useWorkspace();
@@ -115,20 +116,7 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load dashboard"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Retry
-            </button>
-          }
-        />
+        <ErrorState title="Could not load dashboard" error={error} onRetry={reload} />
       </div>
     );
   }
@@ -142,13 +130,10 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">Analytics Overview</h1>
-          <p className="mt-2 text-sm text-[#71717A]">
-            Track your team's performance and activity.
-          </p>
-        </div>
+      <PageHeader
+        title="Analytics Overview"
+        description="Track your team's performance and activity."
+      >
         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -178,13 +163,13 @@ export default function DashboardPage() {
             </button>
           </div>
           {importing && importProgress && (
-            <span aria-live="polite" className="text-xs font-medium text-[#71717A]">
+            <span aria-live="polite" className="text-xs font-medium text-muted">
               Importing {Math.min(importProgress.done + 1, importProgress.total)} of{' '}
               {importProgress.total}...
             </span>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       <div className="mt-6">
         <StatsDashboard
@@ -208,11 +193,11 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-          <div className="flex justify-end border-t border-[#27273a] pt-4">
+          <div className="flex justify-end border-t border-card pt-4">
             <button
               type="button"
               onClick={closeImportSummary}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Done
             </button>

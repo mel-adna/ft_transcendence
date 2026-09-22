@@ -1,14 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import api from '../../lib/api';
 import { useDataChanged } from '../../lib/useDataChanged';
 import { notifyDataChanged } from '../../lib/realtimeNotify';
+import { useList } from '../../hooks/useList';
 
 export function useTasks(workspaceId) {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const currentRequestRef = useRef(null);
-
   // Ask the chat service to tell everyone else in this workspace to refetch;
   // the Java backend has no realtime channel of its own. Audience is resolved
   // server-side from workspaceId (null = "the whole team").
@@ -16,30 +12,13 @@ export function useTasks(workspaceId) {
     if (workspaceId) notifyDataChanged('tasks', null, { workspaceId });
   }, [workspaceId]);
 
-  const reload = useCallback(async () => {
-    if (!workspaceId) return;
-    const requestToken = {};
-    currentRequestRef.current = requestToken;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.get(`/tasks/workspace/${workspaceId}`);
-      if (currentRequestRef.current !== requestToken) return;
-      setTasks(response.data);
-    } catch (requestError) {
-      if (currentRequestRef.current !== requestToken) return;
-      setError(requestError);
-    } finally {
-      if (currentRequestRef.current === requestToken) setLoading(false);
-    }
+  const load = useCallback(async () => {
+    if (!workspaceId) return [];
+    const response = await api.get(`/tasks/workspace/${workspaceId}`);
+    return response.data;
   }, [workspaceId]);
 
-  useEffect(() => {
-    function sync() {
-      reload();
-    }
-    sync();
-  }, [reload]);
+  const { items: tasks, setItems: setTasks, loading, error, reload } = useList(load);
 
   const createTask = useCallback(
     async (payload) => {
@@ -48,15 +27,18 @@ export function useTasks(workspaceId) {
       announceChange();
       return response.data;
     },
-    [workspaceId, announceChange],
+    [workspaceId, setTasks, announceChange],
   );
 
-  const updateTask = useCallback(async (taskId, payload) => {
-    const response = await api.put(`/tasks/${taskId}`, payload);
-    setTasks((previous) => previous.map((task) => (task.id === taskId ? response.data : task)));
-    announceChange();
-    return response.data;
-  }, [announceChange]);
+  const updateTask = useCallback(
+    async (taskId, payload) => {
+      const response = await api.put(`/tasks/${taskId}`, payload);
+      setTasks((previous) => previous.map((task) => (task.id === taskId ? response.data : task)));
+      announceChange();
+      return response.data;
+    },
+    [setTasks, announceChange],
+  );
 
   const moveTask = useCallback(
     async (taskId, status) => {
@@ -79,14 +61,17 @@ export function useTasks(workspaceId) {
         throw requestError;
       }
     },
-    [tasks, announceChange],
+    [tasks, setTasks, announceChange],
   );
 
-  const removeTask = useCallback(async (taskId) => {
-    await api.delete(`/tasks/${taskId}`);
-    setTasks((previous) => previous.filter((task) => task.id !== taskId));
-    announceChange();
-  }, [announceChange]);
+  const removeTask = useCallback(
+    async (taskId) => {
+      await api.delete(`/tasks/${taskId}`);
+      setTasks((previous) => previous.filter((task) => task.id !== taskId));
+      announceChange();
+    },
+    [setTasks, announceChange],
+  );
 
   // A task was created/moved/edited/deleted by someone else in this workspace.
   useDataChanged('tasks', reload);

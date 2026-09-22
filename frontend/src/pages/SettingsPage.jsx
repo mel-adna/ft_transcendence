@@ -3,52 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import { Download, LogOut, Trash2, Upload } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { downloadFile } from '../lib/csv';
-import { validatePassword, validateRequired } from '../lib/validation';
+import { PASSWORD_HINT, validatePassword, validateRequired } from '../lib/validation';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { buildDataExport } from '../features/settings/dataExport';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
+import ErrorBanner from '../components/ErrorBanner';
+import SuccessBanner from '../components/SuccessBanner';
+import { inputClass } from '../components/inputClass';
 
 const EXPORT_FILENAME = 'team-pulse-my-data.json';
 const DELETE_CONFIRMATION_WORD = 'DELETE';
 
-const passwordHint =
-  'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
-
-const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] px-3 py-2.5 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
-
-const cardClass = 'rounded-2xl border border-[#27273a] bg-[#181824] p-5 sm:p-6';
+const cardClass = 'rounded-2xl border border-card bg-panel p-5 sm:p-6';
 
 const primaryButtonClass =
-  'flex items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60';
-
-function ErrorBanner({ message }) {
-  if (!message) return null;
-  return (
-    <div
-      role="alert"
-      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-    >
-      {message}
-    </div>
-  );
-}
-
-function SuccessBanner({ show, message }) {
-  if (!show) return null;
-  return (
-    <div
-      role="status"
-      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400"
-    >
-      {message}
-    </div>
-  );
-}
+  'flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -132,24 +106,24 @@ function ProfileCard({ user, onSaved }) {
   return (
     <section className={cardClass}>
       <h2 className="text-base font-bold text-white">Profile</h2>
-      <p className="mt-1 text-sm text-[#71717A]">
+      <p className="mt-1 text-sm text-muted">
         Update your name and avatar. This is how you appear to the rest of your team.
       </p>
 
       <form
-        className="mt-5 space-y-4 border-t border-[#27273a] pt-5"
+        className="mt-5 space-y-4 border-t border-card pt-5"
         onSubmit={handleSubmit}
         noValidate
       >
         <div className="flex items-center gap-4">
           <Avatar user={previewUser} size={56} />
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-[#71717A]">Profile photo</p>
+            <p className="text-xs font-semibold text-muted">Profile photo</p>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#71717A]/25 px-3 py-2 text-xs font-semibold text-[#71717A] transition-colors hover:border-[#3B82F6]/40 hover:text-white disabled:opacity-60"
+              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-muted/25 px-3 py-2 text-xs font-semibold text-muted transition-colors hover:border-primary/40 hover:text-white disabled:opacity-60"
             >
               {uploading ? <Spinner /> : <Upload size={14} />}
               {uploading ? 'Uploading' : 'Upload a photo'}
@@ -161,7 +135,7 @@ function ProfileCard({ user, onSaved }) {
               onChange={handleAvatarChange}
               className="hidden"
             />
-            <p className="mt-2 text-[11px] text-[#71717A]">
+            <p className="mt-2 text-[11px] text-muted">
               JPEG or PNG, up to 5 MB. Saved as soon as you pick it.
             </p>
             {avatarError && (
@@ -206,9 +180,9 @@ function ProfileCard({ user, onSaved }) {
         </Field>
 
         <ErrorBanner message={serverError} />
-        <SuccessBanner show={success} message="Profile updated." />
+        {success && <SuccessBanner message="Profile updated." />}
 
-        <div className="flex justify-end border-t border-[#27273a] pt-4">
+        <div className="flex justify-end border-t border-card pt-4">
           <button type="submit" disabled={submitting} className={primaryButtonClass}>
             {submitting ? <Spinner /> : 'Save changes'}
           </button>
@@ -264,10 +238,10 @@ function PasswordCard() {
   return (
     <section className={cardClass}>
       <h2 className="text-base font-bold text-white">Password</h2>
-      <p className="mt-1 text-sm text-[#71717A]">Change the password used to sign in.</p>
+      <p className="mt-1 text-sm text-muted">Change the password used to sign in.</p>
 
       <form
-        className="mt-5 space-y-4 border-t border-[#27273a] pt-5"
+        className="mt-5 space-y-4 border-t border-card pt-5"
         onSubmit={handleSubmit}
         noValidate
       >
@@ -286,7 +260,7 @@ function PasswordCard() {
           label="New Password"
           id="newPassword"
           error={errors.newPassword}
-          hint={passwordHint}
+          hint={PASSWORD_HINT}
         >
           <input
             id="newPassword"
@@ -310,9 +284,9 @@ function PasswordCard() {
         </Field>
 
         <ErrorBanner message={serverError} />
-        <SuccessBanner show={success} message="Password updated." />
+        {success && <SuccessBanner message="Password updated." />}
 
-        <div className="flex justify-end border-t border-[#27273a] pt-4">
+        <div className="flex justify-end border-t border-card pt-4">
           <button type="submit" disabled={submitting} className={primaryButtonClass}>
             {submitting ? <Spinner /> : 'Update password'}
           </button>
@@ -330,7 +304,7 @@ function DataExportCard({ user, workspaces }) {
     setExporting(true);
     setError(null);
     try {
-      const payload = await buildDataExport(api, user, workspaces);
+      const payload = await buildDataExport(user, workspaces);
       downloadFile(EXPORT_FILENAME, JSON.stringify(payload, null, 2), 'application/json');
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -342,29 +316,25 @@ function DataExportCard({ user, workspaces }) {
   return (
     <section className={cardClass}>
       <h2 className="text-base font-bold text-white">Your data</h2>
-      <p className="mt-1 text-sm text-[#71717A]">
+      <p className="mt-1 text-sm text-muted">
         Download a copy of everything Team Pulse stores about you: your profile, your teams and
         their tasks.
       </p>
 
-      <div className="mt-5 flex flex-col gap-3 border-t border-[#27273a] pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-[#71717A]">Saved as a single JSON file.</p>
+      <div className="mt-5 flex flex-col gap-3 border-t border-card pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted">Saved as a single JSON file.</p>
         <button
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-muted/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {exporting ? <Spinner /> : <Download size={16} />}
           Download my data
         </button>
       </div>
 
-      {error && (
-        <div className="mt-4">
-          <ErrorBanner message={error} />
-        </div>
-      )}
+      <ErrorBanner message={error} className="mt-4" />
     </section>
   );
 }
@@ -403,7 +373,7 @@ function DeleteAccountCard({ onDeleted }) {
   return (
     <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-5 sm:p-6">
       <h2 className="text-base font-bold text-rose-400">Delete account</h2>
-      <p className="mt-1 text-sm text-[#71717A]">
+      <p className="mt-1 text-sm text-muted">
         Permanently delete your account and everything tied to it. This action is irreversible.
       </p>
 
@@ -418,9 +388,18 @@ function DeleteAccountCard({ onDeleted }) {
         </button>
       </div>
 
-      <Modal open={open} onClose={closeModal} title="Delete account">
+      <ConfirmModal
+        open={open}
+        onClose={closeModal}
+        title="Delete account"
+        confirmLabel="Delete account"
+        onConfirm={confirmDelete}
+        busy={deleting}
+        disabled={!canConfirm}
+        error={error}
+      >
         <div className="space-y-4">
-          <p className="text-sm text-[#71717A]">
+          <p className="text-sm text-muted">
             This permanently deletes your account, signs you out everywhere, and cannot be
             undone. Type <span className="font-semibold text-white">DELETE</span> to confirm.
           </p>
@@ -437,29 +416,8 @@ function DeleteAccountCard({ onDeleted }) {
               className={inputClass}
             />
           </Field>
-
-          <ErrorBanner message={error} />
-
-          <div className="flex justify-end gap-3 border-t border-[#27273a] pt-4">
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={deleting}
-              className="rounded-lg border border-[#71717A]/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDelete}
-              disabled={!canConfirm || deleting}
-              className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {deleting ? <Spinner /> : 'Delete account'}
-            </button>
-          </div>
         </div>
-      </Modal>
+      </ConfirmModal>
     </section>
   );
 }
@@ -474,34 +432,25 @@ export default function SettingsPage() {
     navigate('/login', { replace: true });
   }
 
-  async function handleAccountDeleted() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">Account Settings</h1>
-            <p className="mt-2 text-sm text-[#71717A]">Manage your profile, password and data.</p>
-          </div>
+        <PageHeader title="Account Settings" description="Manage your profile, password and data.">
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#71717A]/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-muted/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5"
           >
             <LogOut size={16} />
             Log out
           </button>
-        </div>
+        </PageHeader>
 
         <div className="mt-6 space-y-6">
           <ProfileCard user={user} onSaved={refreshUser} />
           <PasswordCard />
           <DataExportCard user={user} workspaces={workspaces} />
-          <DeleteAccountCard onDeleted={handleAccountDeleted} />
+          <DeleteAccountCard onDeleted={handleLogout} />
         </div>
       </div>
     </div>

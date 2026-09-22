@@ -12,6 +12,7 @@ import lombok.Getter;
 public class WorkspaceResponse {
 	private final UUID id;
 	private final String name;
+	private final String description;
 	private final WorkspaceType type;
 	private final UserResponse owner;
 }

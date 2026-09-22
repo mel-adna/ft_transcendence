@@ -51,6 +51,13 @@ export function AuthProvider({ children }) {
     setUser(response.data.user);
   }, []);
 
+  const loginWithGoogle = useCallback(async (idToken) => {
+    const response = await postWithoutSession('/auth/google', { idToken });
+    setToken(response.data.accessToken);
+    setRefreshToken(response.data.refreshToken);
+    setUser(response.data.user);
+  }, []);
+
   const logout = useCallback(async () => {
     await revokeRefreshToken();
     clearToken();
@@ -69,7 +76,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, signup, verifyEmail, logout, refreshUser }}
+      value={{ user, loading, login, signup, verifyEmail, loginWithGoogle, logout, refreshUser }}
     >
       {children}
     </AuthContext.Provider>

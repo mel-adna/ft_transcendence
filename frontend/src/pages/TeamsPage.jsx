@@ -1,52 +1,46 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { notifyDataChanged } from '../lib/realtimeNotify';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
+import { personName } from '../lib/people';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import EditTeamModal from '../features/teams/EditTeamModal';
+import { TYPE_LABEL } from '../features/teams/teamForm';
 import EmptyState from '../components/EmptyState';
-
-const TYPE_LABEL = {
-  PERSONAL: 'Personal',
-  ORGANIZATION: 'Organization',
-};
-
-function ownerName(owner) {
-  const name = [owner?.firstName, owner?.lastName].filter(Boolean).join(' ');
-  return name || owner?.email || 'Unknown owner';
-}
+import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 
 function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
   const isOrganization = workspace.type === 'ORGANIZATION';
 
   return (
-    <div className="flex flex-col justify-between rounded-2xl border border-[#27273a] bg-[#181824] p-5">
+    <div className="flex flex-col justify-between rounded-2xl border border-card bg-panel p-5">
       <div>
         <div className="flex items-start justify-between gap-3">
           <h3 className="min-w-0 break-words text-base font-bold text-white">{workspace.name}</h3>
           <span
             className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
               isOrganization
-                ? 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[#3B82F6]'
-                : 'border-[#71717A]/30 bg-[#71717A]/10 text-[#71717A]'
+                ? 'border-primary/30 bg-primary/10 text-primary'
+                : 'border-muted/30 bg-muted/10 text-muted'
             }`}
           >
             {TYPE_LABEL[workspace.type] ?? workspace.type}
           </span>
         </div>
 
-        <div className="mt-5 flex items-center gap-2.5 border-t border-[#27273a] pt-4">
+        <div className="mt-5 flex items-center gap-2.5 border-t border-card pt-4">
           <Avatar user={workspace.owner} size={28} />
           <div className="min-w-0">
             <p className="truncate text-xs font-semibold text-white">
-              {ownerName(workspace.owner)}
+              {personName(workspace.owner, 'Unknown owner')}
             </p>
-            <p className="truncate text-[11px] text-[#71717A]">Owner</p>
+            <p className="truncate text-[11px] text-muted">Owner</p>
           </div>
         </div>
       </div>
@@ -55,7 +49,7 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
         <button
           type="button"
           onClick={onOpen}
-          className="flex-1 rounded-lg bg-[#3B82F6] py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="flex-1 rounded-lg bg-primary py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           Open
         </button>
@@ -64,7 +58,7 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
             type="button"
             onClick={onEdit}
             aria-label={`Edit ${workspace.name}`}
-            className="rounded-lg border border-[#71717A]/25 p-2 text-[#71717A] transition-colors hover:border-[#3B82F6]/40 hover:text-[#3B82F6]"
+            className="rounded-lg border border-muted/25 p-2 text-muted transition-colors hover:border-primary/40 hover:text-primary"
           >
             <Pencil size={16} />
           </button>
@@ -74,7 +68,7 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
             type="button"
             onClick={onDelete}
             aria-label={`Delete ${workspace.name}`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#71717A]/25 text-[#71717A] transition-colors hover:border-rose-500/40 hover:text-rose-400"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-muted/25 text-muted transition-colors hover:border-rose-500/40 hover:text-rose-400"
           >
             <Trash2 size={16} />
           </button>
@@ -148,22 +142,7 @@ export default function TeamsPage() {
     }
 
     if (error) {
-      return (
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load teams"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={refresh}
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Try again
-            </button>
-          }
-        />
-      );
+      return <ErrorState title="Could not load teams" error={error} onRetry={refresh} />;
     }
 
     if (workspaces.length === 0) {
@@ -175,7 +154,7 @@ export default function TeamsPage() {
           action={
             <Link
               to="/teams/new"
-              className="rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Create New Team
             </Link>
@@ -202,22 +181,18 @@ export default function TeamsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">Teams Overview</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#71717A]">
-            Manage collaborative groups, monitor cross-functional task loads, and organize
-            workspace members.
-          </p>
-        </div>
+      <PageHeader
+        title="Teams Overview"
+        description="Manage collaborative groups, monitor cross-functional task loads, and organize workspace members."
+      >
         <Link
           to="/teams/new"
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <Plus size={16} />
           Create New Team
         </Link>
-      </div>
+      </PageHeader>
 
       <div className="mt-6">{renderBody()}</div>
 
@@ -228,41 +203,21 @@ export default function TeamsPage() {
         onSaved={refresh}
       />
 
-      <Modal open={Boolean(pendingDelete)} onClose={closeDeleteModal} title="Delete team">
-        <p className="text-sm text-[#71717A]">
+      <ConfirmModal
+        open={Boolean(pendingDelete)}
+        onClose={closeDeleteModal}
+        title="Delete team"
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        busy={deleting}
+        error={deleteError}
+      >
+        <p className="text-sm text-muted">
           Are you sure you want to delete{' '}
           <span className="font-semibold text-white">{pendingDelete?.name}</span>? This action
           cannot be undone.
         </p>
-
-        {deleteError && (
-          <div
-            role="alert"
-            className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {deleteError}
-          </div>
-        )}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={closeDeleteModal}
-            disabled={deleting}
-            className="rounded-lg border border-[#71717A]/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={confirmDelete}
-            disabled={deleting}
-            className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {deleting ? <Spinner /> : 'Delete'}
-          </button>
-        </div>
-      </Modal>
+      </ConfirmModal>
     </div>
   );
 }

@@ -1,15 +1,29 @@
 package com.teampulse.backend.service;
 
-import java.security.SecureRandom;
-import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import com.teampulse.backend.dto.request.*;
+import com.teampulse.backend.dto.response.AuthResponse;
+import com.teampulse.backend.dto.response.UserResponse;
+import com.teampulse.backend.enums.AuthProvider;
+import com.teampulse.backend.exception.*;
+import com.teampulse.backend.mapper.UserMapper;
+import com.teampulse.backend.model.PasswordResetToken;
+import com.teampulse.backend.model.RefreshToken;
+import com.teampulse.backend.model.User;
+import com.teampulse.backend.repository.PasswordResetTokenRepository;
+import com.teampulse.backend.repository.UserRepository;
+import com.teampulse.backend.repository.VerificationCodeRepository;
+import com.teampulse.backend.security.JwtUtils;
+import com.teampulse.backend.security.UserPrincipal;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,39 +31,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
-import com.teampulse.backend.dto.request.ForgotPasswordRequest;
-import com.teampulse.backend.dto.request.GoogleLoginRequest;
-import com.teampulse.backend.dto.request.LoginRequest;
-import com.teampulse.backend.dto.request.PasswordChangeRequest;
-import com.teampulse.backend.dto.request.ProfileUpdateRequest;
-import com.teampulse.backend.dto.request.RefreshTokenRequest;
-import com.teampulse.backend.dto.request.ResetPasswordRequest;
-import com.teampulse.backend.dto.request.SignupRequest;
-import com.teampulse.backend.dto.request.VerifyEmailRequest;
-import com.teampulse.backend.dto.response.AuthResponse;
-import com.teampulse.backend.dto.response.UserResponse;
-import com.teampulse.backend.enums.AuthProvider;
-import com.teampulse.backend.exception.BadRequestException;
-import com.teampulse.backend.exception.ResourceAlreadyExistsException;
-import com.teampulse.backend.exception.ResourceNotFoundException;
-import com.teampulse.backend.exception.UnauthorizedAccessException;
-import com.teampulse.backend.mapper.UserMapper;
-import com.teampulse.backend.model.PasswordResetToken;
-import com.teampulse.backend.model.RefreshToken;
-import com.teampulse.backend.model.User;
-import com.teampulse.backend.model.VerificationCode;
-import com.teampulse.backend.repository.PasswordResetTokenRepository;
-import com.teampulse.backend.repository.UserRepository;
-import com.teampulse.backend.repository.VerificationCodeRepository;
-import com.teampulse.backend.security.JwtUtils;
-import com.teampulse.backend.security.UserPrincipal;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -62,6 +48,7 @@ public class UserService {
 	private final RefreshTokenService refreshTokenService;
 	private final AuthenticationManager authenticationManager;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
+	private final VerificationService verificationService;
 	private final VerificationCodeRepository verificationCodeRepository;
 	private final EmailService emailService;
 	private final UserMapper userMapper;
@@ -72,6 +59,7 @@ public class UserService {
 
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
+
 
 	@Transactional
 	public String signup(SignupRequest request) {
@@ -87,22 +75,7 @@ public class UserService {
 
 		User savedUser = userRepository.save(user);
 
-		String code = String.format("%06d", new SecureRandom().nextInt(1000000));
-
-		verificationCodeRepository.deleteByUser(savedUser);
-
-		VerificationCode verificationCode = VerificationCode.builder()
-												.code(code)
-												.user(savedUser)
-												.expiryDate(Instant.now().plusSeconds(15 * 60))
-												.build();
-
-		verificationCodeRepository.save(verificationCode);
-
-		String emailBody = String.format("Hello %s,\n\nYour verification code is: %s\nIt expires in 15 minutes.", 
-            savedUser.getFirstName(), code);
-
-		emailService.sendEmail(savedUser.getEmail(), "Verify Your Team-Pulse Account", emailBody);
+		verificationService.generateAndSendCodeForUser(savedUser);
 
 		return "Verification code has been sent to your email.";
 	}
@@ -110,20 +83,12 @@ public class UserService {
 	@Transactional
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
 		User user = userRepository.findByEmail(request.getEmail())
-						.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
-		
-		VerificationCode verificationCode = verificationCodeRepository.findByCodeAndUser(request.getCode(), user)
-												.orElseThrow(() -> new BadRequestException("Invalid verification code."));
-		
-		if (verificationCode.isExpired()) {
-			verificationCodeRepository.delete(verificationCode);
-			throw new BadRequestException("Verification code has expired. Please request a new one.");
-		}
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+
+		verificationService.validateAndConsumeCode(user, request.getCode());
 
 		user.setEnabled(true);
-		
 		userRepository.save(user);
-		verificationCodeRepository.delete(verificationCode);
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
@@ -135,6 +100,11 @@ public class UserService {
 				.refreshToken(refreshToken.getToken())
 				.user(userMapper.toResponse(user))
 				.build();
+	}
+
+	@Transactional
+	public void resendVerificationCode(ResendVerificationRequest request) {
+		verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
 	}
 
 	@Transactional
@@ -157,6 +127,9 @@ public class UserService {
 					.user(userMapper.toResponse(user))
 					.build();
 
+		} catch (DisabledException ex) {
+			verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
+			throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 		}
