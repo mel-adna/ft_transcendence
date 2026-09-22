@@ -1,18 +1,20 @@
 package com.teampulse.backend.security;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
-
-import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+
+import javax.crypto.SecretKey;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtUtils {
@@ -36,7 +38,15 @@ public class JwtUtils {
 		Map<String, Object> extraClaims = new HashMap<>();
 
 		if (userDetails instanceof UserPrincipal principal && principal.getUser() != null) {
-			extraClaims.put("id", principal.getUser().getId().toString());
+			var user = principal.getUser();
+
+			extraClaims.put("id", user.getId().toString());
+
+			String firstName = user.getFirstName() != null ? user.getFirstName() : "";
+            String lastName = user.getLastName() != null ? user.getLastName() : "";
+            String fullName = (firstName + " " + lastName).trim();
+
+			extraClaims.put("name", fullName.isEmpty() ? user.getEmail() : fullName);
 		}
 
 		return generateToken(extraClaims, userDetails);

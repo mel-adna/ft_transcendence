@@ -26,7 +26,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # - VITE_API_URL=/api/v1
+      - VITE_API_URL=/api
       - VITE_CORE_API_URL=/api/v1
       - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
     networks:
@@ -47,6 +47,9 @@ services:
       - DB_USERNAME=med
       - DB_PASSWORD=123
       - FRONTEND_URL=https://localhost
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_PUBLIC_URL=https://localhost/avatars
       - MINIO_ACCESS_KEY=minioadmin
