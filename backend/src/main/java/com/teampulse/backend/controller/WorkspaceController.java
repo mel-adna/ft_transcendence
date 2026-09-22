@@ -123,22 +123,6 @@ public class WorkspaceController {
 		return ResponseEntity.noContent().build();
 	}
 
-	@Operation(summary = "Add a member to workspace", description = "Invites/Adds an existing user to the workspace. Restricted to workspace ADMINs.")
-	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Member added successfully"),
-			@ApiResponse(responseCode = "400", description = "User is already a member or bad data"),
-			@ApiResponse(responseCode = "403", description = "Forbidden - Action restricted to ADMINs")
-	})
-	@PostMapping("/{workspaceId}/members")
-	public ResponseEntity<String> addMemberToWorkspace(
-			@Parameter(description = "UUID of the workspace") @PathVariable UUID workspaceId,
-			@Valid @RequestBody WorkspaceMemberAddRequest request,
-			Principal principal) {
-
-		workspaceService.addMemberToWorkspace(workspaceId, principal.getName(), request);
-		return ResponseEntity.ok("Member added successfully to the workspace.");
-	}
-
 	@Operation(summary = "Update a member's role", description = "Changes a workspace member's role (e.g. from MEMBER to ADMIN). Restricted to workspace ADMINs.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Member role updated successfully"),

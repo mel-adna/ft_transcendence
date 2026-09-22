@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.teampulse.backend.dto.request.WorkspaceCreateRequest;
-import com.teampulse.backend.dto.request.WorkspaceMemberAddRequest;
 import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
 import com.teampulse.backend.dto.request.WorkspaceUpdateRequest;
 import com.teampulse.backend.dto.response.WorkspaceMemberResponse;
@@ -20,7 +19,6 @@ import com.teampulse.backend.dto.response.WorkspaceResponse;
 import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.enums.WorkspaceType;
 import com.teampulse.backend.event.WorkspaceDeletedEvent;
-import com.teampulse.backend.event.WorkspaceMemberAddedEvent;
 import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
 import com.teampulse.backend.event.WorkspaceUpdatedEvent;
 import com.teampulse.backend.exception.BadRequestException;
@@ -193,40 +191,6 @@ public class WorkspaceService {
 		eventPublisher.publishEvent(new WorkspaceDeletedEvent(this, workspaceId, workspaceName, admin, memberIds));
 
 		log.info("Workspace with ID: {} has been soft-deleted successfully.", workspaceId);
-	}
-
-	@Transactional
-	public void addMemberToWorkspace(UUID workspaceId, String adminEmail, WorkspaceMemberAddRequest request) {
-		if (workspaceId == null)
-			throw new BadRequestException("Workspace ID cannot be null");
-
-		verifyUserIsAdmin(workspaceId, adminEmail);
-
-		Workspace workspace = workspaceRepository.findById(workspaceId)
-				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
-
-		if (workspace.getType() == WorkspaceType.PERSONAL) {
-			throw new BadRequestException("Cannot add members to a personal workspace.");
-		}
-
-		User newUser = userRepository.findByEmail(request.getEmail())
-				.orElseThrow(() -> new ResourceNotFoundException("User to add not found"));
-
-		WorkspaceMemberId newUserId = new WorkspaceMemberId(workspaceId, newUser.getId());
-
-		if (workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, request.getEmail()))
-			throw new BadRequestException("User is already a member of this workspace.");
-
-		WorkspaceMember newMember = new WorkspaceMember();
-		newMember.setId(newUserId);
-		newMember.setWorkspace(workspace);
-		newMember.setUser(newUser);
-		newMember.setRole(request.getRole() != null ? request.getRole() : WorkspaceMemberRole.MEMBER);
-
-		workspaceMemberRepository.save(newMember);
-
-		User admin = userRepository.findByEmail(adminEmail).orElse(null);
-		eventPublisher.publishEvent(new WorkspaceMemberAddedEvent(this, workspace, newUser, admin));
 	}
 
 	@Transactional
