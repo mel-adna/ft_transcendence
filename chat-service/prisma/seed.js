@@ -20,9 +20,12 @@ function signToken(user) {
   if (!secret) {
     throw new Error('JWT_SECRET is not set in .env');
   }
+  // Java derives its HMAC key from the base64-decoded secret bytes
+  // (Decoders.BASE64.decode) — match that here, or seed tokens sign with a
+  // different key than SocketAuthUseCase verifies against.
   return jwt.sign(
     { id: user.id, username: user.username, email: user.email },
-    secret,
+    Buffer.from(secret, 'base64'),
     { expiresIn: '30d' },
   );
 }
@@ -80,7 +83,7 @@ async function main() {
       data: {
         roomId: GENERAL_ROOM_ID,
         senderId: ALICE_ID,
-        content: 'Welcome to General! Seed data is ready — open the Chat tab to test.',
+        content: 'Welcome to General! Seed data is ready, open the Chat tab to test.',
         type: 'SYSTEM',
       },
     });

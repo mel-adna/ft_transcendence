@@ -49,6 +49,7 @@ model RoomMember {
   roomId    String
   userId    String
   role      String   @default("MEMBER") // MEMBER | ADMIN | OWNER
+  status    String   @default("ACCEPTED") // PENDING | ACCEPTED
   joinedAt  DateTime @default(now())
 
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -56,6 +57,7 @@ model RoomMember {
 
   @@id([roomId, userId])
   @@index([userId])
+  @@index([status])
 }
 
 // ─── MESSAGE ──────────────────────────────────────────────────────────────

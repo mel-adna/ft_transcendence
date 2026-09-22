@@ -23,6 +23,8 @@ export function ChatLayout({ currentUserId }) {
     leaveRoom,
     setActiveRoom,
     displayName,
+    pendingRequests,
+    respondToDM,
   } = useRooms();
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -90,6 +92,8 @@ export function ChatLayout({ currentUserId }) {
           displayName={displayName}
           onCreateClick={() => setModalOpen(true)}
           isLoading={isLoading}
+          pendingRequests={pendingRequests}
+          onRespondToDM={respondToDM}
         />
       </div>
 
