@@ -3,6 +3,8 @@ const CreateRoomUseCase = require('../../application/rooms/CreateRoomUseCase');
 const InviteToRoomUseCase = require('../../application/rooms/InviteToRoomUseCase');
 const DeleteRoomUseCase = require('../../application/rooms/DeleteRoomUseCase');
 const LeaveRoomUseCase = require('../../application/rooms/LeaveRoomUseCase');
+const RespondToDMRequestUseCase = require('../../application/rooms/RespondToDMRequestUseCase');
+const ListPendingDMRequestsUseCase = require('../../application/rooms/ListPendingDMRequestsUseCase');
 const RoomService = require('../../domain/rooms/RoomService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const Room = require('../../domain/rooms/Room');
@@ -26,6 +28,9 @@ const STATUS_MAP = {
   ROOM_NOT_DELETABLE: 400,
   ROOM_DELETE_FORBIDDEN: 403,
   ROOM_CANNOT_LEAVE_DM: 400,
+  DM_REQUEST_INVALID_ACTION: 400,
+  DM_REQUEST_NOT_A_DM: 400,
+  DM_REQUEST_NOT_PENDING: 400,
 };
 
 const roomController = {
@@ -125,21 +130,87 @@ const roomController = {
     }
   },
 
+  /**
+   * POST /api/chat/rooms/dm  { targetUserId }
+   * Starts a DM as a pending request — the target must accept before either
+   * side can message (see respondToDM). Does NOT join the target's socket to
+   * the room; they only get a lightweight "someone wants to chat" push.
+   */
   async createDM(req, res) {
     try {
       const { targetUserId } = req.body ?? {};
-      const { room, notifyUserIds } = await CreateRoomUseCase.execute({
+      const { room, requestSentTo } = await CreateRoomUseCase.execute({
         creatorId: req.user.id,
         type: Room.TYPES.DIRECT,
         targetUserId,
       });
 
-      for (const userId of notifyUserIds) {
-        socketServer.joinUserToRoom(userId, room.id);
-        socketServer.emitToUser(userId, 'room:joined', { roomId: room.id, room });
+      for (const userId of requestSentTo) {
+        socketServer.emitToUser(userId, 'dm:requested', {
+          roomId: room.id,
+          from: { id: req.user.id, username: req.user.username ?? null },
+        });
       }
 
       return res.status(201).json({ room });
+    } catch (err) {
+      return _handleError(res, err);
+    }
+  },
+
+  /**
+   * GET /api/chat/dm-requests
+   * Pending DM requests sent TO the caller, awaiting their accept/reject.
+   */
+  async listPendingDMRequests(req, res) {
+    try {
+      const requests = await ListPendingDMRequestsUseCase.execute(req.user.id);
+      return res.json({ requests });
+    } catch (err) {
+      return _handleError(res, err);
+    }
+  },
+
+  /**
+   * POST /api/chat/rooms/:roomId/respond  { action: 'ACCEPT' | 'REJECT' }
+   * Only the invited (PENDING) side may call this.
+   * ACCEPT joins both sockets to the room live and unlocks messaging.
+   * REJECT deletes the room; only the requester is told, since the target
+   * already knows what they just did.
+   */
+  async respondToDM(req, res) {
+    try {
+      const { roomId } = req.params;
+      const { action } = req.body ?? {};
+      const userId = req.user.id;
+
+      const { room, requesterId } = await RespondToDMRequestUseCase.execute({
+        roomId,
+        userId,
+        action,
+      });
+
+      if (action === 'ACCEPT') {
+        socketServer.joinUserToRoom(userId, roomId);
+        if (requesterId) socketServer.joinUserToRoom(requesterId, roomId);
+
+        socketServer.emitToUser(userId, 'room:joined', { roomId, room });
+        if (requesterId) {
+          socketServer.emitToUser(requesterId, 'dm:responded', {
+            roomId,
+            action: 'ACCEPT',
+            room,
+          });
+        }
+      } else if (requesterId) {
+        socketServer.emitToUser(requesterId, 'dm:responded', {
+          roomId,
+          action: 'REJECT',
+          room: null,
+        });
+      }
+
+      return res.json({ ok: true, action, room });
     } catch (err) {
       return _handleError(res, err);
     }

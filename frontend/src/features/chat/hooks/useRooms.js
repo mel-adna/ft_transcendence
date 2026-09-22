@@ -10,6 +10,7 @@ export function useRooms() {
   const [rooms, setRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -24,9 +25,41 @@ export function useRooms() {
     }
   }, []);
 
+  const refreshPendingRequests = useCallback(async () => {
+    try {
+      const { requests } = await chatApi.listPendingDMRequests();
+      setPendingRequests(requests ?? []);
+    } catch {
+      // Non-critical — the badge just won't update until the next refresh.
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshPendingRequests();
+  }, [refresh, refreshPendingRequests]);
+
+  // Someone sent us a DM request — surface it in the pending list.
+  useSocketEvent(
+    'dm:requested',
+    useCallback(() => {
+      refreshPendingRequests();
+    }, [refreshPendingRequests]),
+  );
+
+  // The other side responded to a request WE sent.
+  useSocketEvent(
+    'dm:responded',
+    useCallback(
+      ({ roomId, action, room }) => {
+        if (action === 'ACCEPT' && room) {
+          setRooms((prev) => [room, ...prev.filter((r) => r.id !== room.id)]);
+        }
+        setPendingRequests((prev) => prev.filter((r) => r.id !== roomId));
+      },
+      [],
+    ),
+  );
 
   useSocketEvent(
     'room:joined',
@@ -118,6 +151,15 @@ export function useRooms() {
     return room;
   }, []);
 
+  const respondToDM = useCallback(async (roomId, action) => {
+    const { room } = await chatApi.respondToDM(roomId, action);
+    setPendingRequests((prev) => prev.filter((r) => r.id !== roomId));
+    if (action === 'ACCEPT' && room) {
+      setRooms((prev) => [room, ...prev.filter((r) => r.id !== room.id)]);
+    }
+    return room;
+  }, []);
+
   const deleteRoom = useCallback(async (roomId) => {
     await chatApi.deleteRoom(roomId);
     // Optimistically drop it; the room:deleted broadcast will also arrive but
@@ -151,5 +193,7 @@ export function useRooms() {
     leaveRoom,
     setActiveRoom,
     displayName,
+    pendingRequests,
+    respondToDM,
   };
 }

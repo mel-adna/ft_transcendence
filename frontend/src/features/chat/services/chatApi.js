@@ -75,6 +75,18 @@ export const chatApi = {
     });
   },
 
+  listPendingDMRequests() {
+    return request('/chat/dm-requests', { headers: authHeaders() });
+  },
+
+  respondToDM(roomId, action) {
+    return request(`/chat/rooms/${roomId}/respond`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ action }),
+    });
+  },
+
   getMembers(roomId) {
     return request(`/chat/rooms/${roomId}/members`, { headers: authHeaders() });
   },

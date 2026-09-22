@@ -15,10 +15,13 @@ class CreateRoomUseCase {
    * @param {string} [params.name] - required for GROUP
    * @param {string} [params.targetUserId] - required for DIRECT
    * @param {string[]} [params.memberIds] - initial members to invite (GROUP only)
-   * @returns {Promise<{ room: object, notifyUserIds: string[] }>} notifyUserIds
-   *   are the OTHER members (never the creator) who need a live room:joined
-   *   push — the caller (roomController) is responsible for actually
-   *   emitting it, same as InviteToRoomUseCase.
+   * @returns {Promise<{ room: object, notifyUserIds: string[], requestSentTo: string[] }>}
+   *   notifyUserIds are OTHER members (never the creator) already joined and
+   *   needing a live room:joined push. requestSentTo is only ever populated
+   *   for a brand-new DIRECT room — the target hasn't joined anything yet,
+   *   they've just received a pending request (see RespondToDMRequestUseCase).
+   *   The caller (roomController) is responsible for actually emitting these,
+   *   same as InviteToRoomUseCase.
    */
   async execute({ creatorId, type, name, targetUserId, memberIds = [] }) {
     if (type === Room.TYPES.DIRECT) {
@@ -49,9 +52,16 @@ class CreateRoomUseCase {
     }
 
     const room = await RoomRepository.findById(created.id);
-    return { room: RoomService.buildRoomResponse(room, creatorId), notifyUserIds };
+    return { room: RoomService.buildRoomResponse(room, creatorId), notifyUserIds, requestSentTo: [] };
   }
 
+  /**
+   * Starts a DM as a request: the creator is an ACCEPTED member immediately,
+   * the target is PENDING until they respond via RespondToDMRequestUseCase.
+   * @returns {Promise<{ room: object, notifyUserIds: string[], requestSentTo: string[] }>}
+   *   requestSentTo is who should get the "someone wants to DM you" push —
+   *   distinct from notifyUserIds (room:joined, only sent once accepted).
+   */
   async _createDirectRoom(creatorId, targetUserId) {
     if (!targetUserId) throw new Error('ROOM_DM_TARGET_REQUIRED');
     if (targetUserId === creatorId) throw new Error('ROOM_DM_SELF');
@@ -61,20 +71,23 @@ class CreateRoomUseCase {
 
     const existing = await RoomRepository.findDMRoom(creatorId, targetUserId);
     if (existing) {
-      // Already exists — the target was already notified when it was first
-      // created, so nothing new to push live.
-      return { room: RoomService.buildRoomResponse(existing), notifyUserIds: [] };
+      // Already requested or already accepted — nothing new to send either way.
+      return { room: RoomService.buildRoomResponse(existing, creatorId), notifyUserIds: [], requestSentTo: [] };
     }
 
     const dmName = RoomService.getDMRoomName(creatorId, targetUserId);
     const roomEntity = Room.create(dmName, Room.TYPES.DIRECT);
     const created = await RoomRepository.create(roomEntity.toCreateInput());
 
-    await RoomRepository.addMember(created.id, creatorId, 'MEMBER');
-    await RoomRepository.addMember(created.id, targetUserId, 'MEMBER');
+    await RoomRepository.addMember(created.id, creatorId, 'MEMBER', 'ACCEPTED');
+    await RoomRepository.addMember(created.id, targetUserId, 'MEMBER', 'PENDING');
 
     const room = await RoomRepository.findById(created.id);
-    return { room: RoomService.buildRoomResponse(room), notifyUserIds: [targetUserId] };
+    return {
+      room: RoomService.buildRoomResponse(room, creatorId),
+      notifyUserIds: [],
+      requestSentTo: [targetUserId],
+    };
   }
 }
 

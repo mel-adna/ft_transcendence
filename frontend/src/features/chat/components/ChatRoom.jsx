@@ -263,7 +263,7 @@ export function ChatRoom({
             )}
             {searchResults.length > 0 && (
               <p className="text-[10px] text-[#71717A] mt-1">
-                {searchResults.length} result(s) — close search to return to live chat
+                {searchResults.length} result(s), close search to return to live chat
               </p>
             )}
           </form>

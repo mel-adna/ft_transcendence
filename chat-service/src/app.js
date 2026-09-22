@@ -12,6 +12,7 @@ const rateLimit = require('express-rate-limit');
 const chatRoutes = require('./interfaces/routes/chatRoutes');
 const roomRoutes = require('./interfaces/routes/roomRoutes');
 const socketServer = require('./infrastructure/socket/SocketServer');
+const notificationSubscriber = require('./infrastructure/redis/NotificationSubscriber');
 const { startPresenceCleanup, gracefulShutdown } = require('./infrastructure/lifecycle/serverLifecycle');
 
 const app = express();
@@ -57,6 +58,7 @@ let presenceCleanupTimer = null;
 
 async function bootstrap() {
   await socketServer.init(server);
+  await notificationSubscriber.start();
 
   presenceCleanupTimer = startPresenceCleanup();
 
@@ -70,7 +72,7 @@ bootstrap().catch((err) => {
   process.exit(1);
 });
 
-const shutdown = () => gracefulShutdown(server, socketServer, presenceCleanupTimer);
+const shutdown = () => gracefulShutdown(server, socketServer, presenceCleanupTimer, notificationSubscriber);
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

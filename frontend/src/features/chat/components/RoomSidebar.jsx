@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Hash, MessageCircle } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 import { UserSearchSelect } from './UserSearchSelect';
+import { DMRequestsPanel } from './DMRequestsPanel';
 
 /**
  * CreateRoomModal
@@ -143,7 +144,16 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
  * RoomSidebar
  * Room list with create button.
  */
-export function RoomSidebar({ rooms, selectedRoomId, onSelect, displayName, onCreateClick, isLoading }) {
+export function RoomSidebar({
+  rooms,
+  selectedRoomId,
+  onSelect,
+  displayName,
+  onCreateClick,
+  isLoading,
+  pendingRequests = [],
+  onRespondToDM,
+}) {
   return (
     <aside className="w-56 shrink-0 flex flex-col border-r border-[#71717A]/25 bg-[#0e0e17]">
       <div className="px-3 py-3 border-b border-[#71717A]/25 flex items-center justify-between shrink-0">
@@ -156,6 +166,8 @@ export function RoomSidebar({ rooms, selectedRoomId, onSelect, displayName, onCr
           <Plus size={16} />
         </button>
       </div>
+
+      <DMRequestsPanel requests={pendingRequests} onRespond={onRespondToDM} />
 
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {isLoading && (
