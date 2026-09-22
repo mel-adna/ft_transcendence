@@ -34,6 +34,7 @@ services:
       # /chat/... themselves — this must be the bare /api base, not /api/chat.
       - VITE_API_URL=/api
       - VITE_WS_URL=/
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
     networks:
       - teampulse_net
     restart: always
@@ -60,6 +61,7 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET_NAME=teampulse-avatars
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-407408718192.apps.googleusercontent.com}
     depends_on:
       - postgres
       - minio

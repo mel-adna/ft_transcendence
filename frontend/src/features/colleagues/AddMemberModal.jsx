@@ -3,17 +3,16 @@ import { Search, UserPlus } from 'lucide-react';
 import api, { getErrorMessage } from '../../lib/api';
 import { notifyDataChanged } from '../../lib/realtimeNotify';
 import { useAuth } from '../../context/useAuth';
-import { fullName } from './roster';
+import { personName } from '../../lib/people';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
 import Spinner from '../../components/Spinner';
 import EmptyState from '../../components/EmptyState';
 import Avatar from '../../components/Avatar';
+import IconInput from '../../components/IconInput';
+import ErrorBanner from '../../components/ErrorBanner';
 
 const DEBOUNCE_MS = 300;
-
-const inputClass =
-  'w-full rounded-lg border border-[#71717A]/25 bg-[#0c0c14] py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-[#71717A]/50 focus:border-[#3B82F6] focus:outline-none';
 
 export default function AddMemberModal({ open, onClose, workspaceId, rosterIds = new Set(), onAdded }) {
   const { user: currentUser } = useAuth();
@@ -139,19 +138,19 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
           return (
             <li
               key={candidate.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[#27273a] px-3 py-2.5"
+              className="flex items-center justify-between gap-3 rounded-lg border border-card px-3 py-2.5"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <Avatar user={candidate} size={32} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-white">
-                    {fullName(candidate)}
+                    {personName(candidate)}
                   </p>
-                  <p className="truncate text-xs text-[#71717A]">{candidate.email}</p>
+                  <p className="truncate text-xs text-muted">{candidate.email}</p>
                 </div>
               </div>
               {alreadyMember ? (
-                <span className="shrink-0 text-[11px] font-semibold text-[#71717A]">
+                <span className="shrink-0 text-[11px] font-semibold text-muted">
                   Already added
                 </span>
               ) : (
@@ -159,7 +158,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
                   type="button"
                   onClick={() => handleAdd(candidate)}
                   disabled={addingId === candidate.id}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#3B82F6] px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {addingId === candidate.id ? (
                     <Spinner className="h-3.5 w-3.5 border-2" />
@@ -185,32 +184,19 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
           error={searchError}
           hint="Type at least part of an email address."
         >
-          <div className="relative">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#71717A]"
-            />
-            <input
-              id="member-search"
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="e.g. jane@company.com"
-              className={inputClass}
-            />
-          </div>
+          <IconInput
+            icon={Search}
+            id="member-search"
+            type="text"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="e.g. jane@company.com"
+          />
         </Field>
 
-        {addError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {addError}
-          </div>
-        )}
+        <ErrorBanner message={addError} />
 
-        <div className="border-t border-[#27273a] pt-4">{renderResults()}</div>
+        <div className="border-t border-card pt-4">{renderResults()}</div>
       </div>
     </Modal>
   );

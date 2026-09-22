@@ -1,45 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import api from '../../lib/api';
+import { useList } from '../../hooks/useList';
 
 export function useActivityLogs(workspaceId, size = 20) {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const currentRequestRef = useRef(null);
-
-  const reload = useCallback(async () => {
-    if (!workspaceId) {
-      currentRequestRef.current = null;
-      setLogs([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    const requestToken = {};
-    currentRequestRef.current = requestToken;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.get(`/activity-logs/workspace/${workspaceId}`, {
-        params: { size },
-      });
-      if (currentRequestRef.current !== requestToken) return;
-      setLogs(response.data?.content ?? []);
-    } catch (requestError) {
-      if (currentRequestRef.current !== requestToken) return;
-      setError(requestError);
-      setLogs([]);
-    } finally {
-      if (currentRequestRef.current === requestToken) setLoading(false);
-    }
+  const load = useCallback(async () => {
+    if (!workspaceId) return [];
+    const response = await api.get(`/activity-logs/workspace/${workspaceId}`, {
+      params: { size },
+    });
+    return response.data?.content ?? [];
   }, [workspaceId, size]);
 
-  useEffect(() => {
-    function sync() {
-      reload();
-    }
-    sync();
-  }, [reload]);
+  const { items: logs, loading, error, reload } = useList(load);
 
   return { logs, loading, error, reload };
 }
