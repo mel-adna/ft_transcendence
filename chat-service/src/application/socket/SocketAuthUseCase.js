@@ -11,11 +11,19 @@ const UserRepository = require('../../infrastructure/repositories/UserRepository
  * token shapes we resolve identity tolerantly:
  *
  *   id       ← `id` claim, else `userId`, else the JWT subject (`sub`)
- *   username ← `username` claim, else local-part of the email, else `sub`
+ *   username ← `name` claim, else `username` claim, else the full email,
+ *              else `sub`
  *   email    ← `email` claim, else `sub` (Spring sets subject = email)
  *
+ * `name`/`username` deliberately never fall back to the email's local-part
+ * or a first name alone: both collide across different real accounts
+ * (test@gmail.com and test@yahoo.com both derive "test"; two people can
+ * share a first name), and `username` has no uniqueness constraint of its
+ * own to catch that — only `id` does. The full email is unique (enforced on
+ * the Java side), so it's the only safe last-resort display string.
+ *
  * So it already works with the current bare Spring token (subject = email),
- * and upgrades automatically once they add `id`/`username` claims — no change
+ * and upgrades automatically once they add a `name` claim — no change
  * needed here. The signing secret MUST match theirs: set JWT_SECRET in this
  * service to the same value as the Java app's `app.jwt.secret`.
  *
@@ -55,11 +63,7 @@ class SocketAuthUseCase {
     }
 
     const email = payload.email ?? payload.sub ?? null;
-    const username =
-      payload.username ??
-      (typeof email === 'string' && email.includes('@') ? email.split('@')[0] : null) ??
-      payload.sub ??
-      null;
+    const username = payload.name ?? payload.username ?? email ?? payload.sub ?? null;
 
     // This service never authenticates users, but it does own a local User
     // row (FK target for messages/rooms/receipts) — provision it on first

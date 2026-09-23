@@ -25,51 +25,35 @@ const UserRepository = {
    * `passwordHash` is unused here (auth is verified, never performed, by
    * this service) and is set to a fixed placeholder.
    *
-   * `username` is derived from the email's local-part when the JWT carries
-   * no explicit username claim (the current Java token shape) — that's only
-   * unique in practice, not by construction: two different real accounts
-   * can share an email local-part (bob@gmail.com vs bob@yahoo.com), and a
-   * stale local row can be left behind by an id that no longer exists on
-   * the Java side (e.g. its Postgres volume got reset while this service's
-   * schema didn't). Either way, `username` has its own @unique constraint
-   * independent of `id`, so a naive upsert throws instead of resolving.
-   * On a collision, disambiguate with a short suffix derived from `id`
-   * rather than fail the whole auth flow over a cosmetic display name.
+   * `username` is a display name, not an identity key — `id` (the Java
+   * account's UUID) is what `upsert` keys on and what every other table's FK
+   * points at. It is NOT @unique: two different real accounts can share one
+   * (bob@gmail.com vs bob@yahoo.com both deriving "bob", or two people
+   * actually named "Said"), and it must never fail a chat request just
+   * because someone else already has the same display name.
    * @param {{ id: string, username: string|null, email: string|null }} identity
    * @returns {Promise<object>}
    */
   async ensureFromIdentity({ id, username, email }) {
     const fallbackEmail = email ?? `${id}@unknown.local`;
-    const baseUsername = username ?? fallbackEmail.split('@')[0];
+    const resolvedUsername = username ?? fallbackEmail;
 
-    const attempt = async (candidateUsername) =>
-      prisma.user.upsert({
-        where: { id },
-        update: {
-          // Keep the local record in sync if the Java side's claims change
-          // (e.g. username edited), but never touch presence fields here.
-          ...(email ? { email } : {}),
-          ...(username ? { username: candidateUsername } : {}),
-        },
-        create: {
-          id,
-          username: candidateUsername,
-          email: fallbackEmail,
-          passwordHash: 'external-auth',
-        },
-        select: USER_PUBLIC_SELECT,
-      });
-
-    try {
-      return await attempt(baseUsername);
-    } catch (err) {
-      if (err.code !== 'P2002' || !err.meta?.target?.includes('username')) throw err;
-      // Deterministic per-id suffix so retries (and repeat logins by the
-      // same colliding user) converge on the same disambiguated name
-      // instead of piling up new suffixes every time.
-      const suffixedUsername = `${baseUsername}-${id.slice(0, 6)}`;
-      return attempt(suffixedUsername);
-    }
+    return prisma.user.upsert({
+      where: { id },
+      update: {
+        // Keep the local record in sync if the Java side's claims change,
+        // but never touch presence fields here.
+        ...(email ? { email } : {}),
+        ...(username ? { username: resolvedUsername } : {}),
+      },
+      create: {
+        id,
+        username: resolvedUsername,
+        email: fallbackEmail,
+        passwordHash: 'external-auth',
+      },
+      select: USER_PUBLIC_SELECT,
+    });
   },
 
   /**

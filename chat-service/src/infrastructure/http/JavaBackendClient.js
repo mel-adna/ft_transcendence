@@ -16,6 +16,15 @@
 const JAVA_API_BASE = process.env.JAVA_API_URL ?? 'http://backend:8080/api/v1';
 
 /**
+ * @param {{ firstName?: string|null, lastName?: string|null }} u
+ * @returns {string|null}
+ */
+function _fullName(u) {
+  const full = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+  return full || null;
+}
+
+/**
  * @param {string} email - partial or full email
  * @param {string} callerToken - the requesting user's own JWT
  * @returns {Promise<Array<{ id: string, username: string, email: string, avatarUrl: string|null }>>}
@@ -33,7 +42,12 @@ async function searchUsersByEmail(email, callerToken) {
     const users = await res.json();
     return users.map((u) => ({
       id: String(u.id),
-      username: u.firstName ?? u.email?.split('@')[0] ?? u.id,
+      // Full name, not first name alone — two people can share a first name
+      // (Said Zemmouri and Said Something-else) — and never the email's
+      // local-part, which collides across different real accounts
+      // (test@gmail.com vs test@yahoo.com). Only the full email is unique;
+      // it's the one safe last resort.
+      username: _fullName(u) ?? u.email ?? u.id,
       email: u.email ?? null,
       avatarUrl: u.avatarUrl ?? null,
     }));

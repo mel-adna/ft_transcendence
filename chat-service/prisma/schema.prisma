@@ -11,7 +11,12 @@ datasource db {
 
 model User {
   id              String       @id @default(uuid())
-  username        String       @unique
+  // Display name only — NOT an identity key. Two different Java accounts can
+  // legitimately share one (two people named "Said", or two emails whose
+  // local-part happens to match: test@gmail.com vs test@yahoo.com). `id`
+  // (the Java account's UUID) is the only thing this service treats as
+  // unique per person; a duplicate username must never fail a chat request.
+  username        String
   email           String       @unique
   passwordHash    String
   avatarUrl       String?
