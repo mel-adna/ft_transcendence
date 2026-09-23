@@ -31,12 +31,28 @@ const UserRepository = {
    * (bob@gmail.com vs bob@yahoo.com both deriving "bob", or two people
    * actually named "Said"), and it must never fail a chat request just
    * because someone else already has the same display name.
+   *
+   * Callers resolve `username` tolerantly (a `name`/`username` JWT claim, or
+   * the account's own email as a last resort when the token carries
+   * neither — see SocketAuthUseCase). That means a caller with no real name
+   * to offer still passes a truthy value: the email. Never let that
+   * overwrite a real name already on file — e.g. one this row picked up
+   * earlier via the Java /users/search fallback (JavaBackendClient), which
+   * DOES have firstName+lastName. Otherwise the display name randomly
+   * degrades back to a raw email the next time its own owner logs into
+   * chat with a nameless token, purely depending on request ordering.
    * @param {{ id: string, username: string|null, email: string|null }} identity
    * @returns {Promise<object>}
    */
   async ensureFromIdentity({ id, username, email }) {
     const fallbackEmail = email ?? `${id}@unknown.local`;
     const resolvedUsername = username ?? fallbackEmail;
+    // A name equal to the email carries no real information — it's the
+    // "nothing better to show" fallback, not an actual display name update.
+    const isRealName = username && username !== email;
+
+    const existing = await prisma.user.findUnique({ where: { id }, select: { username: true } });
+    const shouldUpdateUsername = isRealName || !existing;
 
     return prisma.user.upsert({
       where: { id },
@@ -44,7 +60,7 @@ const UserRepository = {
         // Keep the local record in sync if the Java side's claims change,
         // but never touch presence fields here.
         ...(email ? { email } : {}),
-        ...(username ? { username: resolvedUsername } : {}),
+        ...(shouldUpdateUsername ? { username: resolvedUsername } : {}),
       },
       create: {
         id,
