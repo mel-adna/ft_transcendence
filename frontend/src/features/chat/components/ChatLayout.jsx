@@ -53,11 +53,9 @@ export function ChatLayout({ currentUserId }) {
 
   const canLeave = activeRoom?.type === 'GROUP' && !isOwner;
 
-  // True while the other side of a DM hasn't accepted yet — the requester
-  // is ACCEPTED immediately (they created it) but the recipient can't see
-  // or receive anything until they respond, so sending here just writes
-  // messages nobody can read yet. Block it and say so, instead of letting
-  // it look like a normal, working conversation.
+  // The requester's own membership is ACCEPTED right away, but the other
+  // side can't see the room until they respond, so this stops messages
+  // getting sent into a conversation nobody's on the other end of yet.
   const isPendingDM =
     activeRoom?.type === 'DIRECT' &&
     activeRoom.members?.some((m) => m.userId !== currentUserId && m.status === 'PENDING');
