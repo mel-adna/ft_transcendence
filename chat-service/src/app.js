@@ -14,6 +14,7 @@ const roomRoutes = require('./interfaces/routes/roomRoutes');
 const socketServer = require('./infrastructure/socket/SocketServer');
 const notificationSubscriber = require('./infrastructure/redis/NotificationSubscriber');
 const { startPresenceCleanup, gracefulShutdown } = require('./infrastructure/lifecycle/serverLifecycle');
+const { register, httpMetricsMiddleware } = require('./infrastructure/metrics/metrics');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +35,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(httpMetricsMiddleware);
 
 app.use('/api/chat', chatApiLimiter, chatRoutes);
 app.use('/api/chat', chatApiLimiter, roomRoutes);
@@ -44,6 +46,14 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime(),
     socket: socketServer.getStats?.() ?? { status: 'not_initialized' },
   });
+});
+
+// Prometheus scrape target, no auth (same as the Java backend's actuator
+// endpoint and the postgres/nginx exporters). Not proxied by nginx, so only
+// reachable inside the Docker network.
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
 });
 
 app.use((err, req, res, next) => {

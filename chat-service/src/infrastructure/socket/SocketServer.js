@@ -9,6 +9,12 @@ const registerMessageHandlers = require('../../interfaces/sockets/messageHandler
 const registerPresenceHandlers = require('../../interfaces/sockets/presenceHandler');
 const registerRoomHandlers = require('../../interfaces/sockets/roomHandler');
 const registerTypingHandlers = require('../../interfaces/sockets/typingHandler');
+const {
+  socketConnectionsGauge,
+  onlineUsersGauge,
+  socketAuthFailuresCounter,
+  redisConnectedGauge,
+} = require('../metrics/metrics');
 
 /**
  * SocketServer
@@ -39,6 +45,7 @@ class SocketServer {
     } else {
       console.log('[SocketServer] Running in single-instance mode (no REDIS_URL)');
     }
+    redisConnectedGauge.set(this._redis ? 1 : 0);
 
     this._applyConnectionLimit(maxConnections);
     this._applyAuthMiddleware();
@@ -65,6 +72,7 @@ class SocketServer {
         next();
       } catch (err) {
         console.warn(`[SocketServer] Auth rejected: ${err.message} | socketId=${socket.id}`);
+        socketAuthFailuresCounter.inc({ reason: err.message });
         next(new Error(err.message));
       }
     });
@@ -76,8 +84,11 @@ class SocketServer {
       const { id: userId } = socket.user;
 
       registry.register(userId, socket.id);
+      const stats = registry.stats();
+      socketConnectionsGauge.set(stats.totalSockets);
+      onlineUsersGauge.set(stats.onlineUsers);
       console.log(
-        `[SocketServer] Connected: userId=${userId} socketId=${socket.id} | online=${registry.stats().totalSockets}`,
+        `[SocketServer] Connected: userId=${userId} socketId=${socket.id} | online=${stats.totalSockets}`,
       );
 
       registerChatHandlers(this.io, socket);
@@ -89,6 +100,9 @@ class SocketServer {
       socket.on('disconnect', (reason) => {
         this._connectionCount = Math.max(0, this._connectionCount - 1);
         const result = registry.unregister(socket.id);
+        const afterStats = registry.stats();
+        socketConnectionsGauge.set(afterStats.totalSockets);
+        onlineUsersGauge.set(afterStats.onlineUsers);
         console.log(
           `[SocketServer] Disconnected: userId=${userId} reason=${reason} lastSocket=${result?.isLastSocket}`,
         );

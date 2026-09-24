@@ -9,6 +9,7 @@ const RoomService = require('../../domain/rooms/RoomService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const Room = require('../../domain/rooms/Room');
 const socketServer = require('../../infrastructure/socket/SocketServer');
+const { dmRequestsCounter } = require('../../infrastructure/metrics/metrics');
 
 const STATUS_MAP = {
   ROOM_INVALID_TYPE: 400,
@@ -150,6 +151,7 @@ const roomController = {
           roomId: room.id,
           from: { id: req.user.id, username: req.user.username ?? null },
         });
+        dmRequestsCounter.inc({ outcome: 'sent' });
       }
 
       return res.status(201).json({ room });
@@ -202,12 +204,14 @@ const roomController = {
             room,
           });
         }
+        dmRequestsCounter.inc({ outcome: 'accepted' });
       } else if (requesterId) {
         socketServer.emitToUser(requesterId, 'dm:responded', {
           roomId,
           action: 'REJECT',
           room: null,
         });
+        dmRequestsCounter.inc({ outcome: 'rejected' });
       }
 
       return res.json({ ok: true, action, room });
