@@ -25,7 +25,7 @@ export function ChatLayout({ currentUserId }) {
     displayName,
     pendingRequests,
     respondToDM,
-  } = useRooms();
+  } = useRooms(currentUserId);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   // Mobile master-detail: which pane is showing.
@@ -52,6 +52,15 @@ export function ChatLayout({ currentUserId }) {
       ));
 
   const canLeave = activeRoom?.type === 'GROUP' && !isOwner;
+
+  // True while the other side of a DM hasn't accepted yet — the requester
+  // is ACCEPTED immediately (they created it) but the recipient can't see
+  // or receive anything until they respond, so sending here just writes
+  // messages nobody can read yet. Block it and say so, instead of letting
+  // it look like a normal, working conversation.
+  const isPendingDM =
+    activeRoom?.type === 'DIRECT' &&
+    activeRoom.members?.some((m) => m.userId !== currentUserId && m.status === 'PENDING');
 
   const handleSelect = (room) => {
     setSelectedRoomId(room.id);
@@ -110,6 +119,7 @@ export function ChatLayout({ currentUserId }) {
             currentUserId={currentUserId}
             roomName={displayName(activeRoom)}
             roomType={activeRoom.type}
+            isPendingDM={isPendingDM}
             canDelete={isOwner}
             canLeave={canLeave}
             onDeleteRoom={handleDeleteRoom}

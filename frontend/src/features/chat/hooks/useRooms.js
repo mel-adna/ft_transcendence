@@ -5,8 +5,11 @@ import { useSocketEvent } from './useSocketEvent';
 /**
  * useRooms
  * Fetches and manages the user's room list with realtime join updates.
+ * @param {string} [currentUserId] - used to exclude yourself from a DM's
+ *   displayed name; a DIRECT room's `members` includes both sides, and
+ *   without this a DM shows as "You, TheirName" instead of just their name.
  */
-export function useRooms() {
+export function useRooms(currentUserId) {
   const [rooms, setRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -172,14 +175,19 @@ export function useRooms() {
     setRooms((prev) => prev.filter((r) => r.id !== roomId));
   }, []);
 
-  const displayName = useCallback((room) => {
-    if (room.type === 'DIRECT') {
-      const others = room.members?.filter((m) => m.user?.username);
-      if (others?.length) return others.map((m) => m.user.username).join(', ');
-      return room.name?.startsWith('dm:') ? 'Direct Message' : room.name ?? 'Direct';
-    }
-    return room.name ?? 'Unnamed channel';
-  }, []);
+  const displayName = useCallback(
+    (room) => {
+      if (room.type === 'DIRECT') {
+        const others = room.members?.filter(
+          (m) => m.user?.username && m.userId !== currentUserId,
+        );
+        if (others?.length) return others.map((m) => m.user.username).join(', ');
+        return room.name?.startsWith('dm:') ? 'Direct Message' : room.name ?? 'Direct';
+      }
+      return room.name ?? 'Unnamed channel';
+    },
+    [currentUserId],
+  );
 
   return {
     rooms,

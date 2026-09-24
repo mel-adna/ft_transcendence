@@ -21,6 +21,7 @@ export function ChatRoom({
   currentUserId,
   roomName,
   roomType,
+  isPendingDM = false,
   showMembers = false,
   canDelete = false,
   canLeave = false,
@@ -284,12 +285,20 @@ export function ChatRoom({
 
         <TypingIndicator users={typingUsers} />
 
-        <MessageInput
-          onSend={sendMessage}
-          onTyping={notifyTyping}
-          onStopTyping={stopTyping}
-          disabled={!connected}
-        />
+        {isPendingDM ? (
+          <div className="p-3 border-t border-[#71717A]/25 bg-[#0e0e17] shrink-0">
+            <p className="text-xs text-[#71717A] text-center">
+              Waiting for {roomName} to accept your message request
+            </p>
+          </div>
+        ) : (
+          <MessageInput
+            onSend={sendMessage}
+            onTyping={notifyTyping}
+            onStopTyping={stopTyping}
+            disabled={!connected}
+          />
+        )}
       </div>
 
       {/* Desktop members panel */}
