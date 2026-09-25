@@ -2,29 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, UserPlus, X } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
-import { validateRequired } from '../lib/validation';
 import { useWorkspace } from '../context/useWorkspace';
+import {
+  NAME_MAX,
+  DESCRIPTION_MAX,
+  TYPE_OPTIONS,
+  validateTeamForm,
+} from '../features/teams/teamForm';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
-
-const NAME_MAX = 100;
-const DESCRIPTION_MAX = 500;
-
-const TYPE_OPTIONS = [
-  {
-    value: 'ORGANIZATION',
-    label: 'Organization',
-    hint: 'A shared workspace for a team or company.',
-  },
-  {
-    value: 'PERSONAL',
-    label: 'Personal',
-    hint: 'A private workspace just for you.',
-  },
-];
+import ErrorBanner from '../components/ErrorBanner';
+import { inputClass } from '../components/inputClass';
 
 function CharCount({ value, max }) {
   return (
@@ -32,20 +20,6 @@ function CharCount({ value, max }) {
       {value.length}/{max}
     </span>
   );
-}
-
-function validateName(value) {
-  const requiredError = validateRequired(value, 'Team name');
-  if (requiredError) return requiredError;
-  if (value.trim().length > NAME_MAX) return `Team name must be ${NAME_MAX} characters or fewer.`;
-  return null;
-}
-
-function validateDescription(value) {
-  if (value.trim().length > DESCRIPTION_MAX) {
-    return `Description must be ${DESCRIPTION_MAX} characters or fewer.`;
-  }
-  return null;
 }
 
 export default function CreateTeamPage() {
@@ -67,11 +41,7 @@ export default function CreateTeamPage() {
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const nextErrors = {};
-    const nameError = validateName(name);
-    if (nameError) nextErrors.name = nameError;
-    const descriptionError = validateDescription(description);
-    if (descriptionError) nextErrors.description = descriptionError;
+    const nextErrors = validateTeamForm({ name, description });
 
     setErrors(nextErrors);
     setServerError(null);
@@ -185,14 +155,7 @@ export default function CreateTeamPage() {
             </div>
           </fieldset>
 
-          {serverError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-            >
-              {serverError}
-            </div>
-          )}
+          <ErrorBanner message={serverError} />
 
           <div className="flex items-center justify-end gap-3 border-t border-card pt-5">
             {canCancel && (

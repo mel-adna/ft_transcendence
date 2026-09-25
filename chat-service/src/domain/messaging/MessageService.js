@@ -4,14 +4,18 @@
  */
 class MessageService {
   /**
-   * Verify sender is a member of the room
+   * Verify sender is a full (ACCEPTED) member of the room — the target side
+   * of a pending DM request has a row but can't message until they accept.
    * @param {string} senderId
-   * @param {object} room - { id, members: Array<{ userId }> }
+   * @param {object} room - { id, members: Array<{ userId, status }> }
    */
   assertSenderIsMember(senderId, room) {
-    const isMember = room.members.some((m) => m.userId === senderId);
-    if (!isMember) {
+    const membership = room.members.find((m) => m.userId === senderId);
+    if (!membership) {
       throw new Error('MESSAGE_SENDER_NOT_IN_ROOM');
+    }
+    if (membership.status && membership.status !== 'ACCEPTED') {
+      throw new Error('MESSAGE_SENDER_REQUEST_PENDING');
     }
   }
 

@@ -26,8 +26,9 @@ function startPresenceCleanup(intervalMs = 5 * 60 * 1000) {
  * @param {import('http').Server} server
  * @param {import('./infrastructure/socket/SocketServer')} socketServer
  * @param {NodeJS.Timeout|null} cleanupTimer
+ * @param {{ stop: () => Promise<void> }} [notificationSubscriber]
  */
-async function gracefulShutdown(server, socketServer, cleanupTimer = null) {
+async function gracefulShutdown(server, socketServer, cleanupTimer = null, notificationSubscriber = null) {
   console.log('[Server] Graceful shutdown initiated…');
 
   if (cleanupTimer) clearInterval(cleanupTimer);
@@ -36,6 +37,7 @@ async function gracefulShutdown(server, socketServer, cleanupTimer = null) {
     server.close(resolve);
   });
 
+  if (notificationSubscriber) await notificationSubscriber.stop();
   await socketServer.shutdown();
   await prisma.$disconnect();
 

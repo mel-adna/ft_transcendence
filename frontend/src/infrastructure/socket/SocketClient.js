@@ -37,7 +37,8 @@ class SocketClient {
       this._socket = null;
     }
 
-    this._socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:5005', {
+    this._socket = io(import.meta.env.VITE_WS_URL || undefined, {    // <----- zid had line 3andk
+      path: '/api/chat/socket.io',                                   // <----- zid had line 3andk
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,

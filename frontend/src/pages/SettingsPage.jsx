@@ -3,52 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import { Download, LogOut, Trash2, Upload } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { downloadFile } from '../lib/csv';
-import { validatePassword, validateRequired } from '../lib/validation';
+import { PASSWORD_HINT, validatePassword, validateRequired } from '../lib/validation';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { buildDataExport } from '../features/settings/dataExport';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
+import PageHeader from '../components/PageHeader';
+import ErrorBanner from '../components/ErrorBanner';
+import SuccessBanner from '../components/SuccessBanner';
+import { inputClass } from '../components/inputClass';
 
 const EXPORT_FILENAME = 'team-pulse-my-data.json';
 const DELETE_CONFIRMATION_WORD = 'DELETE';
-
-const passwordHint =
-  'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas px-3 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
 
 const cardClass = 'rounded-2xl border border-card bg-panel p-5 sm:p-6';
 
 const primaryButtonClass =
   'flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60';
-
-function ErrorBanner({ message }) {
-  if (!message) return null;
-  return (
-    <div
-      role="alert"
-      className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-    >
-      {message}
-    </div>
-  );
-}
-
-function SuccessBanner({ show, message }) {
-  if (!show) return null;
-  return (
-    <div
-      role="status"
-      className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400"
-    >
-      {message}
-    </div>
-  );
-}
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -206,7 +180,7 @@ function ProfileCard({ user, onSaved }) {
         </Field>
 
         <ErrorBanner message={serverError} />
-        <SuccessBanner show={success} message="Profile updated." />
+        {success && <SuccessBanner message="Profile updated." />}
 
         <div className="flex justify-end border-t border-card pt-4">
           <button type="submit" disabled={submitting} className={primaryButtonClass}>
@@ -286,7 +260,7 @@ function PasswordCard() {
           label="New Password"
           id="newPassword"
           error={errors.newPassword}
-          hint={passwordHint}
+          hint={PASSWORD_HINT}
         >
           <input
             id="newPassword"
@@ -310,7 +284,7 @@ function PasswordCard() {
         </Field>
 
         <ErrorBanner message={serverError} />
-        <SuccessBanner show={success} message="Password updated." />
+        {success && <SuccessBanner message="Password updated." />}
 
         <div className="flex justify-end border-t border-card pt-4">
           <button type="submit" disabled={submitting} className={primaryButtonClass}>
@@ -330,7 +304,7 @@ function DataExportCard({ user, workspaces }) {
     setExporting(true);
     setError(null);
     try {
-      const payload = await buildDataExport(api, user, workspaces);
+      const payload = await buildDataExport(user, workspaces);
       downloadFile(EXPORT_FILENAME, JSON.stringify(payload, null, 2), 'application/json');
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -360,11 +334,7 @@ function DataExportCard({ user, workspaces }) {
         </button>
       </div>
 
-      {error && (
-        <div className="mt-4">
-          <ErrorBanner message={error} />
-        </div>
-      )}
+      <ErrorBanner message={error} className="mt-4" />
     </section>
   );
 }
@@ -418,7 +388,16 @@ function DeleteAccountCard({ onDeleted }) {
         </button>
       </div>
 
-      <Modal open={open} onClose={closeModal} title="Delete account">
+      <ConfirmModal
+        open={open}
+        onClose={closeModal}
+        title="Delete account"
+        confirmLabel="Delete account"
+        onConfirm={confirmDelete}
+        busy={deleting}
+        disabled={!canConfirm}
+        error={error}
+      >
         <div className="space-y-4">
           <p className="text-sm text-muted">
             This permanently deletes your account, signs you out everywhere, and cannot be
@@ -437,29 +416,8 @@ function DeleteAccountCard({ onDeleted }) {
               className={inputClass}
             />
           </Field>
-
-          <ErrorBanner message={error} />
-
-          <div className="flex justify-end gap-3 border-t border-card pt-4">
-            <button
-              type="button"
-              onClick={closeModal}
-              disabled={deleting}
-              className="rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDelete}
-              disabled={!canConfirm || deleting}
-              className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {deleting ? <Spinner /> : 'Delete account'}
-            </button>
-          </div>
         </div>
-      </Modal>
+      </ConfirmModal>
     </section>
   );
 }
@@ -474,19 +432,10 @@ export default function SettingsPage() {
     navigate('/login', { replace: true });
   }
 
-  async function handleAccountDeleted() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white sm:text-3xl">Account Settings</h1>
-            <p className="mt-2 text-sm text-muted">Manage your profile, password and data.</p>
-          </div>
+        <PageHeader title="Account Settings" description="Manage your profile, password and data.">
           <button
             type="button"
             onClick={handleLogout}
@@ -495,13 +444,13 @@ export default function SettingsPage() {
             <LogOut size={16} />
             Log out
           </button>
-        </div>
+        </PageHeader>
 
         <div className="mt-6 space-y-6">
           <ProfileCard user={user} onSaved={refreshUser} />
           <PasswordCard />
           <DataExportCard user={user} workspaces={workspaces} />
-          <DeleteAccountCard onDeleted={handleAccountDeleted} />
+          <DeleteAccountCard onDeleted={handleLogout} />
         </div>
       </div>
     </div>

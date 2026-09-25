@@ -1,7 +1,4 @@
-export function fullName(user) {
-  const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
-  return name || user?.email || 'Unknown user';
-}
+import { personName } from '../../lib/people';
 
 export function buildRoster(members, ownerId) {
   const seen = new Map();
@@ -19,7 +16,7 @@ export function buildRoster(members, ownerId) {
   return [...seen.values()].sort((left, right) => {
     if (left.role === 'OWNER') return -1;
     if (right.role === 'OWNER') return 1;
-    return fullName(left.user).localeCompare(fullName(right.user));
+    return personName(left.user).localeCompare(personName(right.user));
   });
 }
 

@@ -11,19 +11,19 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
+import { personName } from '../lib/people';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
+import LegalLinks from './LegalLinks';
 
 const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true, mobile: true },
-  { to: '/tasks', label: 'Tasks', icon: CheckSquare, mobile: true },
-  { to: '/chat', label: 'Chat', icon: MessageSquare, mobile: true },
-  { to: '/colleagues', label: 'Colleagues', icon: Users, mobile: true },
-  { to: '/teams', label: 'Teams', icon: Building2, mobile: true },
-  { to: '/settings', label: 'Settings', icon: Settings, mobile: true },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/chat', label: 'Chat', icon: MessageSquare },
+  { to: '/colleagues', label: 'Colleagues', icon: Users },
+  { to: '/teams', label: 'Teams', icon: Building2 },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
-
-const MOBILE_NAV = NAV.filter((item) => item.mobile);
 
 function desktopNavClass({ isActive }) {
   return `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -69,7 +69,7 @@ export default function AppLayout() {
     return <Navigate to="/teams/new" replace />;
   }
 
-  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'Account';
+  const fullName = personName(user, 'Account');
 
   return (
     <div className="flex min-h-screen bg-canvas text-white">
@@ -173,20 +173,14 @@ export default function AppLayout() {
             <Outlet />
           </div>
 
-          <footer className="flex items-center justify-center gap-2 px-4 py-6 text-[11px] text-muted">
-            <Link to="/privacy" className="transition-colors hover:text-white">
-              Privacy Policy
-            </Link>
-            <span>&bull;</span>
-            <Link to="/terms" className="transition-colors hover:text-white">
-              Terms of Service
-            </Link>
+          <footer className="px-4 py-6">
+            <LegalLinks />
           </footer>
         </main>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 flex items-stretch justify-around border-t border-card bg-sidebar py-1.5 md:hidden">
-        {MOBILE_NAV.map((item) => (
+        {NAV.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

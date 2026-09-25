@@ -4,16 +4,14 @@ import { LayoutGrid, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage, isEmailNotVerified } from '../lib/api';
 import { getGoogleClientId } from '../lib/googleIdentity';
+import { PASSWORD_HINT, validateEmail, validatePassword, validateRequired } from '../lib/validation';
 import GoogleSignInButton from '../components/GoogleSignInButton';
-import { validateEmail, validatePassword, validateRequired } from '../lib/validation';
+import AuthCard from '../components/AuthCard';
 import Field from '../components/Field';
+import IconInput from '../components/IconInput';
+import ErrorBanner from '../components/ErrorBanner';
+import LegalLinks from '../components/LegalLinks';
 import Spinner from '../components/Spinner';
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
-
-const passwordHint =
-  'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
 
 export default function LoginPage() {
   const { user, login, signup, loginWithGoogle } = useAuth();
@@ -108,178 +106,132 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-muted/20 bg-panel p-8 shadow-2xl">
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
-            <LayoutGrid size={26} className="text-primary" />
+    <AuthCard
+      icon={LayoutGrid}
+      title="Team Pulse"
+      subtitle="SaaS Workspace"
+      footer={<LegalLinks className="mt-6" />}
+    >
+      <div className="mt-6 flex rounded-lg border border-muted/20 bg-canvas p-1">
+        <button
+          type="button"
+          onClick={() => switchMode('login')}
+          className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
+            mode === 'login' ? 'bg-card text-white' : 'text-muted hover:text-white'
+          }`}
+        >
+          Log In
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode('signup')}
+          className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
+            mode === 'signup' ? 'bg-card text-white' : 'text-muted hover:text-white'
+          }`}
+        >
+          Sign Up
+        </button>
+      </div>
+
+      {googleEnabled && (
+        <div className="mt-6 space-y-4">
+          <GoogleSignInButton
+            onCredential={handleGoogleCredential}
+            text={mode === 'signup' ? 'signup_with' : 'signin_with'}
+          />
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-muted/20" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              or
+            </span>
+            <span className="h-px flex-1 bg-muted/20" />
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-white">Team Pulse</h1>
-          <p className="mt-1 text-sm text-muted">SaaS Workspace</p>
         </div>
+      )}
 
-        <div className="mt-6 flex rounded-lg border border-muted/20 bg-canvas p-1">
-          <button
-            type="button"
-            onClick={() => switchMode('login')}
-            className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-              mode === 'login' ? 'bg-card text-white' : 'text-muted hover:text-white'
-            }`}
-          >
-            Log In
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('signup')}
-            className={`flex-1 rounded-md py-2 text-sm font-semibold transition-colors ${
-              mode === 'signup' ? 'bg-card text-white' : 'text-muted hover:text-white'
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
-
-        {googleEnabled && (
-          <div className="mt-6 space-y-4">
-            <GoogleSignInButton
-              onCredential={handleGoogleCredential}
-              text={mode === 'signup' ? 'signup_with' : 'signin_with'}
-            />
-            <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-muted/20" />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                or
-              </span>
-              <span className="h-px flex-1 bg-muted/20" />
-            </div>
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+        {mode === 'signup' && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First Name" id="firstName" error={errors.firstName}>
+              <IconInput
+                icon={User}
+                id="firstName"
+                type="text"
+                autoComplete="given-name"
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
+                placeholder="Jane"
+              />
+            </Field>
+            <Field label="Last Name" id="lastName" error={errors.lastName}>
+              <IconInput
+                icon={User}
+                id="lastName"
+                type="text"
+                autoComplete="family-name"
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+                placeholder="Doe"
+              />
+            </Field>
           </div>
         )}
 
-        <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-          {mode === 'signup' && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="First Name" id="firstName" error={errors.firstName}>
-                <div className="relative">
-                  <User
-                    size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                  />
-                  <input
-                    id="firstName"
-                    type="text"
-                    autoComplete="given-name"
-                    value={firstName}
-                    onChange={(event) => setFirstName(event.target.value)}
-                    placeholder="Jane"
-                    className={inputClass}
-                  />
-                </div>
-              </Field>
-              <Field label="Last Name" id="lastName" error={errors.lastName}>
-                <div className="relative">
-                  <User
-                    size={16}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                  />
-                  <input
-                    id="lastName"
-                    type="text"
-                    autoComplete="family-name"
-                    value={lastName}
-                    onChange={(event) => setLastName(event.target.value)}
-                    placeholder="Doe"
-                    className={inputClass}
-                  />
-                </div>
-              </Field>
-            </div>
-          )}
+        <Field label="Email Address" id="email" error={errors.email}>
+          <IconInput
+            icon={Mail}
+            id="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@company.com"
+          />
+        </Field>
 
-          <Field label="Email Address" id="email" error={errors.email}>
-            <div className="relative">
-              <Mail
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-              />
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="name@company.com"
-                className={inputClass}
-              />
-            </div>
-          </Field>
-
-          <Field
-            label="Password"
+        <Field
+          label="Password"
+          id="password"
+          error={errors.password}
+          hint={mode === 'signup' ? PASSWORD_HINT : undefined}
+          action={
+            mode === 'login' ? (
+              <Link
+                to="/forgot-password"
+                className="text-[11px] font-semibold text-primary transition-opacity hover:opacity-80"
+              >
+                Forgot?
+              </Link>
+            ) : null
+          }
+        >
+          <IconInput
+            icon={Lock}
             id="password"
-            error={errors.password}
-            hint={mode === 'signup' ? passwordHint : undefined}
-            action={
-              mode === 'login' ? (
-                <Link
-                  to="/forgot-password"
-                  className="text-[11px] font-semibold text-primary transition-opacity hover:opacity-80"
-                >
-                  Forgot?
-                </Link>
-              ) : null
-            }
-          >
-            <div className="relative">
-              <Lock
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-              />
-              <input
-                id="password"
-                type="password"
-                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className={inputClass}
-              />
-            </div>
-          </Field>
+            type="password"
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </Field>
 
-          {serverError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-            >
-              {serverError}
-            </div>
+        <ErrorBanner message={serverError} />
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {submitting ? (
+            <Spinner />
+          ) : (
+            <>
+              Continue
+              <ArrowRight size={16} />
+            </>
           )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? (
-              <Spinner />
-            ) : (
-              <>
-                Continue
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-muted">
-          <Link to="/privacy" className="transition-colors hover:text-white">
-            Privacy Policy
-          </Link>
-          <span>&bull;</span>
-          <Link to="/terms" className="transition-colors hover:text-white">
-            Terms of Service
-          </Link>
-        </div>
-      </div>
-    </div>
+        </button>
+      </form>
+    </AuthCard>
   );
 }
