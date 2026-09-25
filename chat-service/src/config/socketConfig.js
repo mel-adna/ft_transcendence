@@ -2,6 +2,7 @@
  * Socket.io server configuration
  */
 module.exports = {
+  path: '/api/chat/socket.io',    // <----- zid had line 3andk
   cors: {
     origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
     methods: ['GET', 'POST'],

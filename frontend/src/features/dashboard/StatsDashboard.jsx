@@ -8,8 +8,15 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { List, CheckCircle, Users, Activity, AlertTriangle } from 'lucide-react';
+import { List, CheckCircle, Users, Activity } from 'lucide-react';
 import { computeStats } from '../../lib/stats';
+import { buildActivityFeed, deriveActivityFeed } from './activityLog';
+import Avatar from '../../components/Avatar';
+import EmptyState from '../../components/EmptyState';
+import ErrorState from '../../components/ErrorState';
+import Spinner from '../../components/Spinner';
+
+const CHART_HEIGHT = 288;
 
 const CHART = {
   primary: '#3B82F6',
@@ -17,11 +24,6 @@ const CHART = {
   panel: '#181824',
   mutedLine: 'rgba(113, 113, 122, 0.2)',
 };
-import { getErrorMessage } from '../../lib/api';
-import { buildActivityFeed, deriveActivityFeed } from './activityLog';
-import Avatar from '../../components/Avatar';
-import EmptyState from '../../components/EmptyState';
-import Spinner from '../../components/Spinner';
 
 const RANGE_OPTIONS = [
   { value: 7, label: '7 Days' },
@@ -111,8 +113,8 @@ export default function StatsDashboard({
             </div>
           </div>
 
-          <div className="mt-6 h-64 w-full md:h-72">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="mt-6 w-full">
+            <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
               <AreaChart data={stats.completionTrend}>
                 <defs>
                   <linearGradient id="completionGradient" x1="0" y1="0" x2="0" y2="1">
@@ -174,19 +176,10 @@ export default function StatsDashboard({
             </div>
           ) : activityError ? (
             <div className="mt-6">
-              <EmptyState
-                icon={AlertTriangle}
+              <ErrorState
                 title="Could not load activity"
-                message={getErrorMessage(activityError)}
-                action={
-                  <button
-                    type="button"
-                    onClick={onRetryActivity}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-                  >
-                    Retry
-                  </button>
-                }
+                error={activityError}
+                onRetry={onRetryActivity}
               />
             </div>
           ) : activity.length === 0 ? (

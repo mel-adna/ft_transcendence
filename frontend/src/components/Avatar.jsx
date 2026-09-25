@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { personName } from '../lib/people';
 
 export default function Avatar({ user, size = 32 }) {
   const [failedUrl, setFailedUrl] = useState(null);
   const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase() || '?';
-  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || 'User';
+  const displayName = personName(user, 'User');
   const style = { width: size, height: size };
   const showImage = Boolean(user?.avatarUrl) && user.avatarUrl !== failedUrl;
 

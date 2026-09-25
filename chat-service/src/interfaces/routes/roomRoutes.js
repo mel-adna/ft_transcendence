@@ -2,19 +2,24 @@ const express = require('express');
 const roomController = require('../controllers/roomController');
 const presenceController = require('../controllers/presenceController');
 const userController = require('../controllers/userController');
+const notifyController = require('../controllers/notifyController');
 const authMiddleware = require('../../middleware/authMiddleware');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
+router.post('/notify', notifyController.notify);
+
 router.get('/users', userController.listUsers);
 router.get('/users/search', userController.searchUsers);
 
 router.post('/rooms/dm', roomController.createDM);
+router.get('/dm-requests', roomController.listPendingDMRequests);
 router.post('/rooms', roomController.createGroup);
 router.get('/rooms', roomController.listRooms);
 router.post('/rooms/:roomId/invite', roomController.invite);
+router.post('/rooms/:roomId/respond', roomController.respondToDM);
 router.post('/rooms/:roomId/leave', roomController.leaveRoom);
 router.delete('/rooms/:roomId', roomController.deleteRoom);
 router.get('/rooms/:roomId/members', roomController.getMembers);

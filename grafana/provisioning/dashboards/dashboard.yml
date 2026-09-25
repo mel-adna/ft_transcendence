@@ -1,10 +1,12 @@
 apiVersion: 1
+
 providers:
-  - name: 'TeamPulse Dashboards'
+  - name: 'teampulse-dashboards'
     orgId: 1
-    folder: 'TeamPulse'
+    folder: 'TeamPulse Monitoring'
     type: file
-    disableDeletion: false
-    updateIntervalSeconds: 30
+    disableDeletion: true
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
     options:
       path: /etc/grafana/provisioning/dashboards/json

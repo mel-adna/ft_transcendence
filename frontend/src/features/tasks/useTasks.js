@@ -1,36 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import api from '../../lib/api';
+import { useList } from '../../hooks/useList';
 
 export function useTasks(workspaceId) {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const currentRequestRef = useRef(null);
-
-  const reload = useCallback(async () => {
-    if (!workspaceId) return;
-    const requestToken = {};
-    currentRequestRef.current = requestToken;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await api.get(`/tasks/workspace/${workspaceId}`);
-      if (currentRequestRef.current !== requestToken) return;
-      setTasks(response.data);
-    } catch (requestError) {
-      if (currentRequestRef.current !== requestToken) return;
-      setError(requestError);
-    } finally {
-      if (currentRequestRef.current === requestToken) setLoading(false);
-    }
+  const load = useCallback(async () => {
+    if (!workspaceId) return [];
+    const response = await api.get(`/tasks/workspace/${workspaceId}`);
+    return response.data;
   }, [workspaceId]);
 
-  useEffect(() => {
-    function sync() {
-      reload();
-    }
-    sync();
-  }, [reload]);
+  const { items: tasks, setItems: setTasks, loading, error, reload } = useList(load);
 
   const createTask = useCallback(
     async (payload) => {
@@ -38,14 +17,17 @@ export function useTasks(workspaceId) {
       setTasks((previous) => [...previous, response.data]);
       return response.data;
     },
-    [workspaceId],
+    [workspaceId, setTasks],
   );
 
-  const updateTask = useCallback(async (taskId, payload) => {
-    const response = await api.put(`/tasks/${taskId}`, payload);
-    setTasks((previous) => previous.map((task) => (task.id === taskId ? response.data : task)));
-    return response.data;
-  }, []);
+  const updateTask = useCallback(
+    async (taskId, payload) => {
+      const response = await api.put(`/tasks/${taskId}`, payload);
+      setTasks((previous) => previous.map((task) => (task.id === taskId ? response.data : task)));
+      return response.data;
+    },
+    [setTasks],
+  );
 
   const moveTask = useCallback(
     async (taskId, status) => {
@@ -67,13 +49,16 @@ export function useTasks(workspaceId) {
         throw requestError;
       }
     },
-    [tasks],
+    [tasks, setTasks],
   );
 
-  const removeTask = useCallback(async (taskId) => {
-    await api.delete(`/tasks/${taskId}`);
-    setTasks((previous) => previous.filter((task) => task.id !== taskId));
-  }, []);
+  const removeTask = useCallback(
+    async (taskId) => {
+      await api.delete(`/tasks/${taskId}`);
+      setTasks((previous) => previous.filter((task) => task.id !== taskId));
+    },
+    [setTasks],
+  );
 
   return { tasks, loading, error, reload, createTask, updateTask, moveTask, removeTask };
 }

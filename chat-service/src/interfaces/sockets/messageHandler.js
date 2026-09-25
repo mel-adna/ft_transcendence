@@ -3,6 +3,7 @@ const EditMessageUseCase = require('../../application/messaging/EditMessageUseCa
 const DeleteMessageUseCase = require('../../application/messaging/DeleteMessageUseCase');
 const MarkAsReadUseCase = require('../../application/messaging/MarkAsReadUseCase');
 const GetRoomReadReceiptsUseCase = require('../../application/messaging/GetRoomReadReceiptsUseCase');
+const { messagesSentCounter } = require('../../infrastructure/metrics/metrics');
 
 /**
  * messageHandler (Interface Layer)
@@ -46,6 +47,7 @@ function registerMessageHandlers(io, socket) {
       // this message via optimistic append and reconciles it from the ack
       // below — echoing it back would render a duplicate on the sender side.
       socket.to(roomId).emit('message:new', result);
+      messagesSentCounter.inc();
 
       // Acknowledge sender with message id (for optimistic UI reconciliation)
       if (typeof ack === 'function') ack({ ok: true, messageId: result.id });

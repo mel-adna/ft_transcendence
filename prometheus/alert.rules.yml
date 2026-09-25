@@ -1,36 +1,85 @@
 groups:
-  - name: teampulse_alerts
+  - name: teampulse_infrastructure_alerts
     rules:
-      - alert: BackendDown
-        expr: up{job="teampulse-backend"} == 0
+      
+      - alert: ServiceTargetDown
+        expr: up == 0
         for: 30s
         labels:
           severity: critical
         annotations:
-          summary: "Backend service is down"
-          description: "Backend has been unreachable for more than 30 seconds."
+          summary: "Target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} of job {{ $labels.job }} has been unreachable for more than 30 seconds."
 
-      - alert: HighMemoryUsage
-        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.85
+      
+      - alert: HighContainerMemoryUsage
+        expr: (sum(container_memory_working_set_bytes{name!=""}) by (name) / sum(container_spec_memory_limit_bytes{name!=""} > 0) by (name)) * 100 > 85
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "Container {{ $labels.name }} memory usage is high"
-          description: "Memory usage is above 85% for more than 2 minutes."
+          summary: "Container {{ $labels.name }} high memory usage"
+          description: "Container {{ $labels.name }} working set memory usage is above 85% of its limit for more than 2 minutes."
 
-      - alert: HighCpuUsage
-        expr: rate(container_cpu_usage_seconds_total[2m]) > 0.8
+      
+      - alert: HighContainerCpuUsage
+        expr: (sum(rate(container_cpu_usage_seconds_total{name!=""}[5m])) by (name)) * 100 > 80
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} high CPU usage"
+          description: "Container {{ $labels.name }} CPU usage rate is above 80% over the last 5 minutes."
+
+
+  - name: teampulse_application_alerts
+    rules:
+      
+      - alert: NginxHigh5xxErrorRate
+        expr: (sum(rate(nginx_http_requests_total{status=~"5.."}[5m])) / sum(rate(nginx_http_requests_total[5m]))) * 100 > 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nginx high 5xx HTTP error rate"
+          description: "Nginx is reporting more than 5% HTTP 5xx errors over the last 5 minutes."
+
+      
+      - alert: NodejsHeapMemoryHigh
+        expr: (nodejs_heap_size_used_bytes{job="chat-service"} / nodejs_heap_size_total_bytes{job="chat-service"}) * 100 > 85
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "Container {{ $labels.name }} CPU usage is high"
+          summary: "Chat Service (Node.js) Heap memory high"
+          description: "Node.js V8 heap memory usage for chat-service is above 85% for more than 2 minutes."
 
+      
+      - alert: SpringBootJvmHeapMemoryHigh
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spring Boot JVM Heap memory high"
+          description: "JVM Heap memory usage on {{ $labels.instance }} is above 85%."
+
+      
+      - alert: PostgresHighConnections
+        expr: (sum(pg_stat_activity_count) / sum(pg_settings_max_connections)) * 100 > 80
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL active connection pool near limit"
+          description: 'PostgreSQL active connections usage is at {{ $value | printf "%.1f" }}% of max limit.'
+
+      
       - alert: DatabaseDown
         expr: pg_up == 0
-        for: 30s
+        for: 15s
         labels:
           severity: critical
         annotations:
-          summary: "PostgreSQL is unreachable"
+          summary: "PostgreSQL database instance down"
+          description: "PostgreSQL database metrics exporter reports database is down."

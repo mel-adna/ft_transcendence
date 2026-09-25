@@ -19,17 +19,18 @@ What has to be running for the app to actually work:
 
 The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
-Other scripts: `npm run build` produces the production bundle, `npm run lint` runs eslint, `npm test` runs the unit tests (see Testing below).
+Other scripts: `npm run build` produces the production bundle and `npm run lint` runs eslint.
 
 ## Folder map
 
 Read the code in this order:
 
-- `lib/` - logic with no React in it: the shared API client and token storage (`api.js`), the dashboard math (`stats.js`), CSV read and write (`csv.js`), and form validation rules (`validation.js`).
+- `lib/` - logic with no React in it: the shared API client and token storage (`api.js`), the dashboard math (`stats.js`), CSV read and write (`csv.js`), form validation rules (`validation.js`), the Google sign in script loader (`googleIdentity.js`), and the one place a person's display name is built from first name, last name or email (`people.js`).
 - `context/` - the two pieces of state almost every screen needs: who is logged in (`AuthContext`, `useAuth`) and which workspace is currently selected (`WorkspaceContext`, `useWorkspace`).
-- `components/` - small reusable UI pieces with no page-specific logic (`Avatar`, `Modal`, `Spinner`, `EmptyState`, `Field`), plus the app shell (`AppLayout`) and the route guard (`ProtectedRoute`).
+- `hooks/` - `useList`, the one hook behind every list a page loads. It returns `items`, `loading`, `error` and `reload`, and ignores a response that arrives after a newer request has started. `useTasks`, `useMembers` and `useActivityLogs` each hand it the endpoint to call and nothing else.
+- `components/` - small reusable UI pieces with no page-specific logic: `Avatar`, `Spinner`, `Field`, `IconInput` (an input with an icon on the left; the class string every input shares is in `inputClass.js`), `ErrorBanner` and `SuccessBanner`, `EmptyState` and `ErrorState` (an error with a Try again button), `Modal` and `ConfirmModal` (the Cancel or confirm dialog behind every destructive action), `PageHeader`, `AuthCard` (the centred card every sign in page sits in), `LegalPage` and `LegalLinks`, plus the app shell (`AppLayout`) and the route guard (`ProtectedRoute`).
 - `pages/` - one file per route registered in `App.jsx`. A page owns its own data fetching and decides what to render for loading, error, and empty.
-- `features/` - the domain logic and screen pieces too big to live in a single page file, one folder per domain: `dashboard`, `tasks`, `colleagues`, `settings`, `chat`.
+- `features/` - the domain logic and screen pieces too big to live in a single page file, one folder per domain: `dashboard`, `tasks`, `colleagues`, `teams`, `settings`, `chat`. A rule that more than one screen needs lives in a plain file inside the domain folder: `tasks/taskFormat.js` holds the status and priority lists, their labels and badge styles, and `teams/teamForm.js` holds the team name and description limits, the type options and the form validation.
 
 ## How login works
 
@@ -39,21 +40,27 @@ Signing in with an account that has never been verified is now a route, not an e
 
 The resend button sits under the confirm button on a 60 second cooldown, counted down in a `useEffect` so the label reads "Resend code in 43s". The cooldown starts at 60 on arrival, since a code was just sent; someone landing on the page directly, with no router state, starts at zero and gets an email field to fill in. A wrong code leaves the page open, clears the code input and shows the server's message.
 
-`isEmailNotVerified()` checks the `errorCode` first and falls back to matching the message text, so it keeps working against a backend build that has not added the code yet. It lives in `lib/api.js` with the other pure decisions, which is why it is unit tested.
+`isEmailNotVerified()` checks the `errorCode` first and falls back to matching the message text, so it keeps working against a backend build that has not added the code yet. It lives in `lib/api.js` with the other pure decisions.
 
 The login form (`pages/LoginPage.jsx`) posts email and password to `POST /auth/login`. The response carries two tokens. The `accessToken` is written to `localStorage` under the key `token` by `setToken()` in `lib/api.js`, and the `refreshToken` under `refreshToken`. From then on, one axios request interceptor, also in `lib/api.js`, reads the access token on every outgoing request and attaches `Authorization: Bearer <token>` automatically: no page ever sets that header itself.
 
 A matching response interceptor watches every response. When a request comes back with an ended session, it does not log the user out straight away. It calls `POST /auth/refresh` with the stored refresh token, saves the new tokens, and replays the original request, so a session that has been open longer than the access token's lifetime keeps working without the user noticing. Only if the refresh itself fails are both tokens cleared and the browser sent to `/login`.
 
-Refresh tokens rotate: the backend deletes the one you present and returns a new one, so an old token stops working the moment it is used. `setRefreshToken` saves the replacement on every refresh, which is what keeps a session alive. Signing out calls `POST /auth/logout` through `revokeRefreshToken()` so the token is destroyed on the server too, not just forgotten by the browser. That call is wrapped so a failure cannot leave someone stuck signed in: the local session is cleared either way. Three guards keep this from looping: a request is only retried once, `/auth/login`, `/auth/signup`, `/auth/verify-email` and `/auth/refresh` are never retried, and concurrent 401s share a single in-flight refresh instead of each firing their own. That decision is a pure function, `shouldRefresh()`, which is why it can be tested in `lib/api.test.js`.
+Refresh tokens rotate: the backend deletes the one you present and returns a new one, so an old token stops working the moment it is used. `setRefreshToken` saves the replacement on every refresh, which is what keeps a session alive. Signing out calls `POST /auth/logout` through `revokeRefreshToken()` so the token is destroyed on the server too, not just forgotten by the browser. That call is wrapped so a failure cannot leave someone stuck signed in: the local session is cleared either way. Three guards keep this from looping: a request is only retried once, `/auth/login`, `/auth/signup`, `/auth/verify-email` and `/auth/refresh` are never retried, and concurrent 401s share a single in-flight refresh instead of each firing their own. That decision is a plain function, `shouldRefresh()`, kept apart from the interceptor so it can be read on its own.
 
-One detail there is worth knowing, because it is the difference between a session that survives and one that does not. An expired token does **not** produce a `401`. `JwtAuthenticationFilter` catches `ExpiredJwtException`, logs it and calls `doFilter`, so the handler written for that exception never runs; the request arrives at the authorization layer unauthenticated, and with no `AuthenticationEntryPoint` configured Spring answers `403`. Measured with a correctly signed, genuinely expired token, `GET /users/me` returns `403 {"message":"Forbidden"}`. So `isSessionExpired()` accepts a `401`, or a `403` whose body is the literal `Forbidden`. Every `403` the application raises itself carries a real sentence, which is what keeps `EMAIL_NOT_VERIFIED` and the workspace permission errors out of the refresh path.
+One detail there is worth knowing, because it is the difference between a session that survives and one that does not. For a long time an expired token did **not** produce a `401`. `JwtAuthenticationFilter` caught `ExpiredJwtException`, logged it and called `doFilter`, so the handler written for that exception never ran; the request reached the authorization layer unauthenticated, and with no `AuthenticationEntryPoint` configured Spring answered `403 {"message":"Forbidden"}`. So `isSessionExpired()` accepts a `401`, or a `403` whose body is the literal `Forbidden`.
+
+`mdbentaleb` has since registered an entry point that answers a real `401`, so the second half of that test is now dead weight against his backend. It stays until that change is on the branch everyone runs, because deleting it early would kill every session on any older build. Once it is merged everywhere, `isSessionExpired()` collapses to a `401` check and this paragraph goes with it.
+
+The part that is not a workaround is the rule underneath it: every `403` the application raises itself carries a real sentence, never the bare word. That is what keeps `EMAIL_NOT_VERIFIED`, a wrong password and the workspace permission errors out of the refresh path, and it still holds now that those all answer `403` rather than `401`.
+
+Requests that are refused for going too fast get their own sentence. The backend rate limits the auth endpoints and answers `429` with a `retryAfterSeconds` field, so `getErrorMessage()` reads that field and says "Too many attempts. Try again in 15 minutes." rather than the server's bare "Too many requests". The wait is rounded up to the next minute, so the number it prints is never too early to act on. This matters most on the resend button, which the backend caps at three per hour while the button's own cooldown is sixty seconds.
 
 The key has to stay named exactly `token`. The vendored chat module (`features/chat/`, `infrastructure/socket/`) reads `localStorage.getItem('token')` directly to authenticate its own REST calls and its socket connection. Renaming the key, even to something more conventional like `accessToken`, would silently break chat login for no visible reason.
 
 ## How the dashboard gets its numbers
 
-There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," and a day-by-day completion trend. `stats.js` is a pure function (tasks in, numbers out) and has its own tests in `lib/stats.test.js`.
+There is no backend endpoint that returns dashboard statistics. The Analytics Overview page fetches the same task list every other screen uses (`GET /tasks/workspace/{id}`) and counts everything in the browser, in `lib/stats.js`: totals by status, distinct assignees as "active colleagues," and a day-by-day completion trend. `stats.js` is a pure function (tasks in, numbers out).
 
 The Recent Activity panel on the same page is the exception. It reads the real audit trail from `GET /activity-logs/workspace/{id}`, fetched in `DashboardPage` through `features/dashboard/useActivityLogs.js`. That endpoint returns a Spring `Slice`, so the rows are under `response.data.content`, not the response body itself. `features/dashboard/activityLog.js` turns each row into something displayable and is where the action types (`TASK_COMPLETED`, `WORKSPACE_MEMBER_ADDED`, and so on) get their labels. An action type the frontend has never seen is humanized automatically rather than dropped, so new backend events show up without a frontend change.
 
@@ -113,20 +120,6 @@ Two details worth knowing before adding a token:
 **Charts are the exception, and they have to be.** `StatsDashboard` passes colours to recharts as SVG presentation attributes (`stroke`, `stopColor`) and inline styles, which are not class names, so no utility can reach them. `var()` in an SVG presentation attribute is not reliable across browsers either. Those eight values live in a single `CHART` constant at the top of that file, and it has to be kept in step with `@theme` by hand.
 
 The vendored chat under `features/chat/` still uses arbitrary values. That is deliberate: those files are never edited here, for the reason under "Which code is whose".
-
-## Testing
-
-`npm test` runs vitest against seven files, 57 tests total:
-
-- `lib/stats.test.js`
-- `lib/csv.test.js`
-- `lib/api.test.js`
-- `features/colleagues/roster.test.js`
-- `features/settings/dataExport.test.js`
-- `features/tasks/taskFormat.test.js`
-- `features/dashboard/activityLog.test.js`
-
-These seven are the only modules that are pure logic, decoupled from React and the DOM: `stats.js` turns a task array into dashboard numbers, `csv.js` reads and writes the import and export format, `api.js` decides when an expired token should be refreshed, `roster.js` turns the members endpoint into the Colleagues list, and can rebuild that list from tasks when the endpoint cannot supply it, `dataExport.js` assembles the GDPR export payload, `taskFormat.js` formats task references and dates, and `activityLog.js` turns an audit row into a label and a tone. Everything else in the app is JSX: composition, fetching, and rendering. Testing that would mean re-testing React and axios, not logic that was written here.
 
 ## Which code is whose
 

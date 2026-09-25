@@ -23,11 +23,19 @@ class PresenceService {
     return requestedStatus;
   }
 
+  /**
+   * @param {string} userId
+   * @param {string} status
+   * @param {Date|string|null} [lastSeen] - a Date when called with a fresh
+   *   value, but presenceHandler's disconnect path re-broadcasts a payload
+   *   that already went through this method once (already an ISO string) —
+   *   accept both rather than crashing on .toISOString() of a string.
+   */
   buildPresencePayload(userId, status, lastSeen = null) {
     return {
       userId,
       status,
-      lastSeen: lastSeen ? lastSeen.toISOString() : null,
+      lastSeen: lastSeen instanceof Date ? lastSeen.toISOString() : lastSeen ?? null,
     };
   }
 

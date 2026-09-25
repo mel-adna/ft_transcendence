@@ -11,7 +11,12 @@ datasource db {
 
 model User {
   id              String       @id @default(uuid())
-  username        String       @unique
+  // Display name only — NOT an identity key. Two different Java accounts can
+  // legitimately share one (two people named "Said", or two emails whose
+  // local-part happens to match: test@gmail.com vs test@yahoo.com). `id`
+  // (the Java account's UUID) is the only thing this service treats as
+  // unique per person; a duplicate username must never fail a chat request.
+  username        String
   email           String       @unique
   passwordHash    String
   avatarUrl       String?
@@ -49,6 +54,7 @@ model RoomMember {
   roomId    String
   userId    String
   role      String   @default("MEMBER") // MEMBER | ADMIN | OWNER
+  status    String   @default("ACCEPTED") // PENDING | ACCEPTED
   joinedAt  DateTime @default(now())
 
   room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -56,6 +62,7 @@ model RoomMember {
 
   @@id([roomId, userId])
   @@index([userId])
+  @@index([status])
 }
 
 // ─── MESSAGE ──────────────────────────────────────────────────────────────

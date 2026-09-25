@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, UserMinus, UserPlus, Users } from 'lucide-react';
+import { UserMinus, UserPlus, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { useMembers } from '../features/colleagues/useMembers';
 import { useTasks } from '../features/tasks/useTasks';
-import { buildRoster, inferRoster, fullName } from '../features/colleagues/roster';
+import { buildRoster, inferRoster } from '../features/colleagues/roster';
+import { personName } from '../lib/people';
 import AddMemberModal from '../features/colleagues/AddMemberModal';
 import Avatar from '../components/Avatar';
-import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
+import ErrorBanner from '../components/ErrorBanner';
 
 const ROLE_STYLE = {
   OWNER: 'border-primary/30 bg-primary/10 text-primary',
@@ -24,7 +28,7 @@ const ROLE_OPTIONS = ['ADMIN', 'MEMBER', 'VIEWER'];
 function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
   const { user, role } = member;
   const canManage = role !== 'OWNER' && !isSelf;
-  const name = fullName(user);
+  const name = personName(user);
 
   return (
     <div className="flex flex-col justify-between rounded-2xl border border-card bg-panel p-5">
@@ -165,22 +169,7 @@ export default function ColleaguesPage() {
     }
 
     if (error) {
-      return (
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load colleagues"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Try again
-            </button>
-          }
-        />
-      );
+      return <ErrorState title="Could not load colleagues" error={error} onRetry={reload} />;
     }
 
     if (roster.length === 0) {
@@ -220,13 +209,10 @@ export default function ColleaguesPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white sm:text-3xl">Colleagues</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            Everyone who belongs to this team, and what they can do here.
-          </p>
-        </div>
+      <PageHeader
+        title="Colleagues"
+        description="Everyone who belongs to this team, and what they can do here."
+      >
         <button
           type="button"
           onClick={openAddModal}
@@ -235,16 +221,9 @@ export default function ColleaguesPage() {
           <UserPlus size={16} />
           Add Member
         </button>
-      </div>
+      </PageHeader>
 
-      {roleError && (
-        <div
-          role="alert"
-          className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-        >
-          {roleError}
-        </div>
-      )}
+      <ErrorBanner message={roleError} className="mt-4" />
 
       <div className="mt-6">{renderBody()}</div>
 
@@ -256,43 +235,23 @@ export default function ColleaguesPage() {
         onAdded={reload}
       />
 
-      <Modal open={Boolean(pendingRemove)} onClose={closeRemoveModal} title="Remove member">
+      <ConfirmModal
+        open={Boolean(pendingRemove)}
+        onClose={closeRemoveModal}
+        title="Remove member"
+        confirmLabel="Remove"
+        onConfirm={confirmRemove}
+        busy={removing}
+        error={removeError}
+      >
         <p className="text-sm text-muted">
           Are you sure you want to remove{' '}
           <span className="font-semibold text-white">
-            {pendingRemove ? fullName(pendingRemove.user) : ''}
+            {pendingRemove ? personName(pendingRemove.user) : ''}
           </span>{' '}
           from this team?
         </p>
-
-        {removeError && (
-          <div
-            role="alert"
-            className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-          >
-            {removeError}
-          </div>
-        )}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={closeRemoveModal}
-            disabled={removing}
-            className="rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={confirmRemove}
-            disabled={removing}
-            className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {removing ? <Spinner /> : 'Remove'}
-          </button>
-        </div>
-      </Modal>
+      </ConfirmModal>
     </div>
   );
 }

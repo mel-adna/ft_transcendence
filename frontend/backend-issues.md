@@ -1,82 +1,85 @@
 # Backend issues
 
-Status verified 2026-09-13 against the merged backend at `fb26685`, by reading the source and
-measuring every claim against the running API on a freshly migrated database. Everything already
-fixed has been removed, so the numbering has gaps.
+Status checked 2026-09-17 against `4d9fb45` on `mdbentaleb`, by reading every file that commit
+range touched. Four of the five issues that were open are fixed and have been removed, so the
+numbering has gaps: **17** (no rate limiting), **25** (expired token answered 403), **26** (avatars
+served over plain http) and **27** (no real Google OAuth client, Google signup created disabled)
+are all done. What each fix was is summarised at the bottom.
 
-Issue numbers are stable identifiers, not priorities. They never change, so a reference to a
-given issue stays valid. The order of this file is by priority: everything that blocks a
-feature comes first.
+Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
+issue stays valid. The order of this file is by priority.
 
-## Blocking
-
-A mandatory requirement with nothing behind it, or a state a user cannot get out of.
-
-| # | Issue | What breaks | Effort |
-|---|---|---|---|
-| 17 | The public API has keys but no rate limiting | The spec says rate limited, and 150 calls with a valid key all return 200 | Small |
+Nothing here blocks a feature today.
 
 ## Not blocking
 
-Real defects, but nothing visible is broken today. Worth fixing, not urgent.
+Real defects, but nothing visible is broken.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 22 | A failed verification email is swallowed | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
-| 25 | An expired token returns 403, not 401 | Silent refresh cannot fire on the status the spec assumes, so sessions die at 15 minutes | 2 lines |
-| 26 | Avatars are served over plain http from port 9000 | On `https://localhost` the browser blocks every avatar as mixed content | Config |
-| 27 | No real Google OAuth client exists, and a Google signup is created disabled | The Continue with Google button cannot be switched on, and the first Google login makes an account that can never use a password | Config + 1 line |
-
----
-
-# Blocking issues
-
-## 17. The public API is keyed but still not rate limited
-
-`README.md` section 2E lists this under **Core Features (MVP, Mandatory Part)**:
-
-> **Hardened Public API**: Exposes five secure, rate-limited endpoints requiring API keys:
-> `/api/tasks`, `/api/users`, `/api/organizations`, `/api/stats`, `/api/chat`
-
-The key half is now properly done. `PublicApiController` registers all five under
-`/api/v1/public/`, and keys are real records rather than one shared constant: `POST /api-key/rotate`
-issues a `tp_live_...` key to the signed in user, `ApiKeyService` stores only its SHA-256 hash, and
-the plaintext is shown once. `ApiKeyAuthFilter` hashes the incoming `X-API-Key` and looks up an
-active row. Measured on the running backend:
-
-```
-no header      ->  401
-rotate, then use the returned key  ->  200 on all five paths
-```
-
-What is still missing is the word **rate-limited**. Measured with a freshly rotated, valid key:
-150 requests in a row, all 200, none throttled. Searching the backend and the nginx config finds
-no rate limiting of any kind: no bucket4j, no resilience4j, no `@RateLimiter`, no `limit_req` zone.
-
-This is the last piece of the one requirement that is mandatory rather than optional, and it is
-the easiest thing for an evaluator to check: point `curl` at `/public/stats` in a loop with a valid
-key and nothing pushes back.
-
-Cheapest honest implementation is a `limit_req` zone in nginx in front of `/api/v1/public/`, since
-the key is already validated in the filter and nginx is already in the stack. Doing it per key
-rather than per IP needs the limiter inside the application instead.
-
-**Second point, smaller, and now only cleanup.** `application.yaml` still carries
-
-```yaml
-public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
-```
-
-Nothing in Java reads it any more, and that key is rejected with 401, so it is dead config rather
-than a live credential. Worth deleting so nobody mistakes it for a working key.
+| 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
+| 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
+| 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
+| 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
 
 ---
 
 # Not blocking
 
+## 28. The login limit counts successful logins, so ordinary use spends the budget
+
+`RateLimitAspect` advises with `@Before`, so a token is consumed before the method runs and
+regardless of what it returns. A login that succeeds costs exactly as much as one that fails.
+
+`AuthController.login` is annotated:
+
+```java
+@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+```
+
+Worth being precise about what that means, because the numbers read worse than they are. The bucket
+is built with `refillGreedy(capacity, Duration.ofMinutes(durationInMinutes))`, which trickles tokens
+back continuously rather than refunding all five at the quarter hour. Five per fifteen minutes is
+therefore one token every three minutes, with five of them available in a burst. Once the burst is
+spent, the sixth attempt answers 429 and the wait is about three minutes, not fifteen.
+
+So this is a throttle rather than a lockout, and it is not urgent. It is still worth a change,
+because signing in and signing out is a thing a person does on purpose, and doing it five times in
+a row is neither rare nor suspicious. Spending an anti-guessing budget on correct passwords means
+the limit fires for the wrong people.
+
+The protection actually wanted here is against password guessing, which means counting failures:
+
+- Raise the capacity so ordinary use cannot reach it. Twenty per fifteen minutes still stops a
+  guessing run and leaves a demo alone. That is a one number change.
+- Or move the limiter so it only counts a failure. `@Before` cannot see the outcome, but
+  `@AfterThrowing`, or an `@Around` that consumes a token only when the call throws, can.
+
+The other three are fine as they are. `resend-verification` and `forgot-password` are three per hour
+per email, and both are only ever triggered deliberately by a person, so counting attempts there is
+right. `signup` is keyed on address and email together and a new signup uses a new email, so it
+never really binds.
+
+The frontend reads `retryAfterSeconds` off the 429 and says "Too many attempts. Try again in 3
+minutes." rather than the bare server message, so the wait is at least visible while this stands.
+
+## 30. The dead public API key is still in `application.yaml`
+
+Reported last time under issue 17 and still there, now that the rest of 17 is done:
+
+```yaml
+public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
+```
+
+Nothing in Java reads it any more, and the value is rejected with 401, so it is dead config rather
+than a live credential. It is worth deleting anyway for two reasons: anyone reading the file will
+take it for a working key and waste time on it, and it is a credential shaped string sitting in a
+public repository, which is the same tidy up the Gmail password in issue 22 needs.
+
 ## 22. A failed verification email is swallowed, so signup can report success and strand the user
 
-`EmailService.sendEmail` is `@Async` and wraps the send in a try/catch that only logs:
+Unchanged since the last check, and now slightly wider. `EmailService.sendEmail` is still `@Async`
+and still wraps the send in a try/catch that only logs:
 
 ```java
 } catch (Exception e) {
@@ -85,152 +88,92 @@ than a live credential. Worth deleting so nobody mistakes it for a working key.
 ```
 
 Because it is asynchronous, `signup` has already returned 201 by the time a failure is known, and
-because the exception is swallowed, nothing reaches the caller. If the mail send fails, the user
-sees "Verification code has been sent to your email", no code ever arrives, and issue 21 means
-there is no way to ask for another. The only trace is a line in the container log.
+because the exception is swallowed, nothing reaches the caller. If the send fails the user sees
+"Verification code has been sent to your email", no code ever arrives, and the only trace is a line
+in the container log.
 
-Sending really does work today, so this is latent rather than broken: measured on the running
-backend, the log shows `Email successfully sent`. What makes it worth fixing is what it depends
-on. `application.yaml` carries a single personal Gmail account and an app password committed in
-plaintext. Google revokes app passwords on its own, and when that happens every signup in the
-product silently stops working with no failing test and no error surface.
+The new `sendWelcomeEmail` calls straight into the same method, so it inherits the same silence.
+That one matters less, since nobody is blocked by a missing welcome note.
+
+What makes this worth fixing is what it depends on. `application.yaml` still carries a personal
+Gmail account and an app password in plaintext:
+
+```yaml
+username: mohamedbentalebakilo@gmail.com
+password: pyno tbky wasf whvy
+```
+
+Google revokes app passwords on its own, and when that happens every signup in the product stops
+working silently, with no failing test and no error surface.
 
 **Fix:** two separate things. Give the failure a surface, by recording the send outcome or by
 retrying, so a broken mailer is visible. And move the credential to an environment variable, which
-is the same rotation that was already planned for the other secrets.
+is the same rotation already planned for the other secrets. Both of those values are in the public
+repository history now, so the account password wants changing whatever else happens.
 
-## 25. An expired access token returns 403, so a client cannot tell a dead session from a denial
+## 29. Rate limit buckets are never evicted
 
-`frontend-issues.md` asks the frontend to "handle 401 responses" and refresh in the background.
-The interceptor that does this already existed. It never fired, because the backend does not send
-a 401.
-
-`JwtAuthenticationFilter` catches `ExpiredJwtException`, logs it, and calls
-`filterChain.doFilter(...)`. It does not rethrow, so the `@ExceptionHandler(ExpiredJwtException)`
-in `GlobalExceptionHandler` never runs. The request then reaches the authorization layer with no
-authentication set, and because no `AuthenticationEntryPoint` is configured, Spring falls back to
-its default and answers 403 with its generic error body.
-
-Measured with a correctly signed, genuinely expired token:
-
-```
-GET /api/v1/users/me
-  -> 403  {"status":403,"error":"Forbidden","message":"Forbidden","path":"/api/v1/users/me"}
-```
-
-The same 403 comes back for a request with no token at all, so status alone cannot separate
-"your session ended, refresh it" from "you may not do this".
-
-**Fix:** register an `AuthenticationEntryPoint` that writes 401 for unauthenticated requests.
+`RateLimitingService` keeps every bucket it has ever made:
 
 ```java
-.exceptionHandling(e -> e.authenticationEntryPoint(
-        (req, res, ex) -> res.sendError(HttpStatus.UNAUTHORIZED.value(), "Unauthenticated")))
+private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+
+public Bucket resolveBucket(String key, int capacity, int durationInMinutes) {
+    return buckets.computeIfAbsent(key, k -> createNewBucket(capacity, durationInMinutes));
+}
 ```
 
-The frontend now works around this by treating a 403 whose body is the literal `Forbidden` as an
-ended session, since every 403 the application raises itself carries a real sentence. That
-workaround should come out once the entry point exists, because it depends on an error body
-nobody promised to keep stable.
+Nothing removes an entry. For the endpoints keyed on the address alone that is bounded by the
+number of addresses, which is fine. For the four keyed on the email, or on the address and email
+together, the key contains a string the caller chooses, so the number of entries is bounded only by
+how many different emails someone sends. A loop posting to `/auth/login` with a new address each
+time adds a permanent entry per request.
 
-## 26. Avatar URLs are plain http on port 9000, so they are blocked over https
+It grows slowly and it is not reachable without a deliberate script, which is why it is at the
+bottom of this file rather than the top.
 
-`FileStorageService` stores `String.format("%s/%s/%s", publicUrl, bucketName, fileName)`, and
-compose sets `MINIO_PUBLIC_URL=http://localhost:9000`. Uploading works and the object really is
-public:
-
-```
-POST /users/me/avatar  -> 200, avatarUrl http://localhost:9000/teampulse-avatars/avatar-<uuid>.png
-GET  that url          -> 200, content-type image/png
-```
-
-So the report that avatars "store correctly but do not display" is accurate, and the cause is not
-in the upload or the bucket policy. nginx serves the app over TLS on 443, the stored URL is
-plain `http`, and a browser refuses to load `http://` images into an `https://` page. The
-`onError` fallback then draws initials, which is why it looks like the image is missing rather
-than blocked. On `http://localhost:5173` the same avatar displays.
-
-There is a second problem behind it: the URL only resolves at all because port 9000 is published
-to the host. Nothing outside a laptop can reach `localhost:9000`.
-
-**Fix:** serve MinIO through nginx on the same origin, and store a same-origin URL.
-
-```nginx
-location /avatars/ { proxy_pass http://minio:9000/teampulse-avatars/; }
-```
-
-with `MINIO_PUBLIC_URL` pointing at that path. The Vite dev server needs the same proxy entry so
-the two entry points behave alike. Existing rows keep their absolute URLs and would need
-rewriting, which on a wiped database is nothing.
-
-## 27. Google sign in needs a real OAuth client, and `googleLogin` creates the account disabled
-
-The frontend side is built and merged. `LoginPage` renders a Google button above the email form on
-both tabs, and a successful credential is posted to `POST /auth/google` as `{ idToken }`, which is
-the shape `GoogleLoginRequest` already expects. Nothing else is needed from the frontend.
-
-It is switched off until two things exist.
-
-### 1. A real OAuth client, which only you can create
-
-`application.yaml` has:
-
-```yaml
-client-id: ${GOOGLE_CLIENT_ID:407408718192.apps.googleusercontent.com}
-```
-
-That default is the sample client from Google's own documentation. It is not ours, and it has no
-authorized origin for this app, so Google Identity Services refuses to initialize against it and
-the button never becomes clickable.
-
-What is needed, in Google Cloud Console:
-
-1. Create an **OAuth 2.0 Client ID** of type **Web application**.
-2. Add authorized JavaScript origins for **every** entry point we run. They are separate origins
-   as far as Google is concerned, and a missing one fails silently:
-   - `http://localhost:5173` (Vite directly)
-   - `https://localhost` (through nginx)
-3. Configure the OAuth consent screen. While it is in Testing, only accounts added as test users
-   can sign in, which is fine for the evaluation.
-
-The resulting client ID then goes in **two** places, because the browser needs it at render time
-to draw the button and the backend needs it to validate the token:
-
-- backend: `GOOGLE_CLIENT_ID`
-- frontend: `VITE_GOOGLE_CLIENT_ID`, already wired through `docker-compose.yml` and
-  `.env.example`
-
-A client ID is not a secret, so both can be committed or passed as plain environment variables.
-Until `VITE_GOOGLE_CLIENT_ID` is set the button is not rendered at all, so an unconfigured
-environment shows the ordinary email form rather than something broken.
-
-### 2. A one line fix in `googleLogin`
-
-A user arriving through Google for the first time is built like this:
+**Fix:** give the map an expiry. Caffeine with `expireAfterAccess` a little longer than the widest
+window is the usual answer and is a drop in replacement here:
 
 ```java
-User.builder()
-        .email(email)
-        .firstName(firstName)
-        .lastName(lastName)
-        .avatarUrl(pictureUrl)
-        .provider(AuthProvider.GOOGLE)
-        .providerId(googleId)
-        .build()
+Cache<String, Bucket> buckets = Caffeine.newBuilder()
+        .expireAfterAccess(Duration.ofHours(2))
+        .build();
 ```
 
-`enabled` is never set, and `User.enabled` defaults to `false`. Google sign in itself still works,
-because `googleLogin` issues tokens directly rather than going through `authenticationManager`, so
-the disabled check never runs on that path. The damage shows up afterwards: that account is stored
-as unverified forever. If the person ever sets a password and signs in normally they get the 403
-from issue 25's path, and they cannot verify their way out, because no verification code was ever
-issued for them.
+---
 
-Google has already verified the address, which is the whole point of accepting the token, so:
+# What was fixed, for the record
 
-```java
-.enabled(true)
-```
+So nobody reopens these.
 
-Worth noting the same builder stores Google's `picture` URL as the avatar. That one is an
-`https://lh3.googleusercontent.com/...` address, so unlike issue 26 it displays correctly over TLS.
+**17, rate limiting.** bucket4j is on the classpath, `@RateLimit` carries capacity, window and key
+type, `RateLimitAspect` resolves a bucket and consumes a token, and `GlobalExceptionHandler`
+answers 429 with a `Retry-After` header and a `retryAfterSeconds` field. All five public API
+endpoints are annotated, which was the mandatory half of the requirement. The one leftover is the
+dead `public-key` line, which is still in `application.yaml` and is now issue 30.
+
+**25, expired token answered 403.** `SecurityConfig` now registers an `AuthenticationEntryPoint`
+that writes 401 with a real message. Every 403 the application raises now comes from its own
+handlers and carries a sentence, never the bare word `Forbidden`.
+
+One thing to know before that workaround comes out of the frontend. `lib/api.js` still treats a 403
+whose body is the literal `Forbidden` as an ended session, because it has to keep working against a
+backend build from before this fix. It is safe to leave in place with this backend, since nothing
+here produces that body any more, and it should be deleted once this change is on the branch
+everyone runs.
+
+Worth knowing that the same commit moved `UnauthorizedAccessException` from 401 to 403, which
+changed the status of a wrong password at login and of a dead refresh token. The frontend handles
+both correctly, because it separates a session that ended from a request that was refused by the
+message rather than by the status alone.
+
+**26, avatars over plain http.** `MINIO_PUBLIC_URL` is now `https://localhost/avatars` and nginx
+proxies `/avatars/` to MinIO, so a stored avatar URL is same origin and TLS. No mixed content, and
+no dependence on port 9000 being published.
+
+**27, Google sign in.** A real OAuth client exists and its id is in `.env` under both
+`GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. `googleLogin` now sets `enabled(true)` both when it
+creates an account and when it links an existing local account, so a Google user is no longer
+stored unverified forever. The CSP in `nginx.conf` and in `SecurityConfig` allows the Google script,
+its stylesheet, its iframe and its avatars.

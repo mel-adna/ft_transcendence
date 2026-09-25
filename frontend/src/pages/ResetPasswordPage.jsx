@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, LayoutGrid, Lock } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { LayoutGrid, Lock } from 'lucide-react';
 import { getErrorMessage, postWithoutSession } from '../lib/api';
-import { validatePassword } from '../lib/validation';
+import { PASSWORD_HINT, validatePassword } from '../lib/validation';
+import AuthCard from '../components/AuthCard';
 import Field from '../components/Field';
+import IconInput from '../components/IconInput';
+import ErrorBanner from '../components/ErrorBanner';
+import SuccessBanner from '../components/SuccessBanner';
 import Spinner from '../components/Spinner';
-
-const inputClass =
-  'w-full rounded-lg border border-muted/25 bg-canvas py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-muted/50 focus:border-primary focus:outline-none';
-
-const passwordHint =
-  'At least 8 characters, with an uppercase letter, a number and a special character (@$!%*?&#).';
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -51,99 +49,57 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-muted/20 bg-panel p-8 shadow-2xl">
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/20">
-            <LayoutGrid size={24} className="text-primary" />
-          </div>
-          <h1 className="mt-4 text-xl font-bold text-white">Choose a new password</h1>
-        </div>
-
-        {!token ? (
-          <div
-            role="alert"
-            className="mt-6 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-3 text-xs font-medium text-rose-300"
+    <AuthCard icon={LayoutGrid} title="Choose a new password">
+      {!token ? (
+        <ErrorBanner
+          className="mt-6"
+          message="This link is missing its reset token. Request a new link from the sign in page."
+        />
+      ) : done ? (
+        <SuccessBanner
+          className="mt-6"
+          message="Password updated. Taking you to the sign in page."
+        />
+      ) : (
+        <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+          <Field
+            label="New Password"
+            id="newPassword"
+            error={errors.newPassword}
+            hint={PASSWORD_HINT}
           >
-            This link is missing its reset token. Request a new link from the sign in page.
-          </div>
-        ) : done ? (
-          <div
-            role="status"
-            className="mt-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-3 text-xs font-medium text-emerald-400"
-          >
-            Password updated. Taking you to the sign in page.
-          </div>
-        ) : (
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-            <Field
-              label="New Password"
+            <IconInput
+              icon={Lock}
               id="newPassword"
-              error={errors.newPassword}
-              hint={passwordHint}
-            >
-              <div className="relative">
-                <Lock
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                />
-                <input
-                  id="newPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  className={inputClass}
-                />
-              </div>
-            </Field>
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </Field>
 
-            <Field label="Confirm New Password" id="confirmPassword" error={errors.confirmPassword}>
-              <div className="relative">
-                <Lock
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                />
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  className={inputClass}
-                />
-              </div>
-            </Field>
+          <Field label="Confirm New Password" id="confirmPassword" error={errors.confirmPassword}>
+            <IconInput
+              icon={Lock}
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+            />
+          </Field>
 
-            {serverError && (
-              <div
-                role="alert"
-                className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300"
-              >
-                {serverError}
-              </div>
-            )}
+          <ErrorBanner message={serverError} />
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? <Spinner /> : 'Update password'}
-            </button>
-          </form>
-        )}
-
-        <div className="mt-6 border-t border-card pt-4 text-center">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-white"
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <ArrowLeft size={14} />
-            Back to sign in
-          </Link>
-        </div>
-      </div>
-    </div>
+            {submitting ? <Spinner /> : 'Update password'}
+          </button>
+        </form>
+      )}
+    </AuthCard>
   );
 }

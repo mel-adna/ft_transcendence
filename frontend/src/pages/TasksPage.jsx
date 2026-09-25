@@ -1,22 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ClipboardList, Plus, X } from 'lucide-react';
+import { ClipboardList, Plus, X } from 'lucide-react';
 import { getErrorMessage } from '../lib/api';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
 import { useMembers } from '../features/colleagues/useMembers';
 import { buildRoster } from '../features/colleagues/roster';
+import { STATUS_LABEL } from '../features/tasks/taskFormat';
 import TaskCard from '../features/tasks/TaskCard';
 import TaskFormModal from '../features/tasks/TaskFormModal';
 import TaskDetailModal from '../features/tasks/TaskDetailModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
+import PageHeader from '../components/PageHeader';
 
 const COLUMNS = [
-  { status: 'TODO', label: 'To-Do', dotClass: 'bg-muted' },
-  { status: 'DOING', label: 'Doing', dotClass: 'bg-primary' },
-  { status: 'DONE', label: 'Done', dotClass: 'bg-emerald-500' },
+  { status: 'TODO', dotClass: 'bg-muted' },
+  { status: 'DOING', dotClass: 'bg-primary' },
+  { status: 'DONE', dotClass: 'bg-emerald-500' },
 ];
 
 export default function TasksPage() {
@@ -167,20 +170,7 @@ export default function TasksPage() {
   if (error) {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load tasks"
-          message={getErrorMessage(error)}
-          action={
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Retry
-            </button>
-          }
-        />
+        <ErrorState title="Could not load tasks" error={error} onRetry={reload} />
       </div>
     );
   }
@@ -189,10 +179,10 @@ export default function TasksPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white sm:text-3xl">Task Management</h1>
-        <p className="mt-2 text-sm text-muted">Manage project workflow and team assignments.</p>
-      </div>
+      <PageHeader
+        title="Task Management"
+        description="Manage project workflow and team assignments."
+      />
 
       {actionError && (
         <div
@@ -232,7 +222,7 @@ export default function TasksPage() {
                 <div className="flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${column.dotClass}`} />
                   <h2 className="text-xs font-bold uppercase tracking-wide text-white">
-                    {column.label}
+                    {STATUS_LABEL[column.status]}
                   </h2>
                   <span className="rounded-full bg-panel px-2 py-0.5 text-[11px] font-semibold text-muted">
                     {columnTasks.length}
@@ -241,7 +231,7 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={() => openCreateModal(column.status)}
-                  aria-label={`Add task to ${column.label}`}
+                  aria-label={`Add task to ${STATUS_LABEL[column.status]}`}
                   className="rounded-md p-1 text-muted transition-colors hover:bg-white/5 hover:text-white"
                 >
                   <Plus size={16} />
