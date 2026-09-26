@@ -132,7 +132,6 @@ services:
 
   # ----------- Prometheus ---------------
   prometheus:
-    # image: prom/prometheus:latest
     image: prom/prometheus:v3.15.0
     container_name: teampulse-prometheus
     ports:
@@ -184,7 +183,7 @@ services:
 
   # ----------- Postgres Exporter ---------------
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
+    image: prometheuscommunity/postgres-exporter:v0.17.1
     container_name: teampulse-postgres-exporter
     environment:
       - DATA_SOURCE_NAME=postgresql://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
@@ -196,7 +195,7 @@ services:
 
   # ----------- Nginx Exporter ---------------
   nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:latest
+    image: nginx/nginx-prometheus-exporter:1.4.1
     container_name: teampulse-nginx-exporter
     command:
       - '-nginx.scrape-uri=http://nginx:8081/stub_status'
