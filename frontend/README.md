@@ -172,6 +172,17 @@ Everything under `components/` is shared by at least two screens. Nothing in the
 
 A screen that needs a new visual element adds it here once the second screen needs it too. Until then it stays local to the screen, which is why there is no `Card` component yet: `cardClass` is a single string inside the one file that uses it.
 
+## Which browsers it has been checked in
+
+Chrome, and Safari 26.6 on macOS. Firefox has not been checked yet.
+
+Safari was driven with `safaridriver`, Apple's own automation for the real browser, on `https://localhost` with the whole stack running. The run signs up with the code from a real inbox, creates a team and a task, moves the task, invites someone and watches the roster fill in when they accept, creates, copies and revokes an API key, sends a chat message, and has a newcomer accept an invitation from the first-team screen. All 22 checks pass, nothing was logged as an error or warning after each page had loaded, and every screen renders correctly.
+
+Two things differ, or were not covered:
+
+- **The Google button.** Google's script takes two to four seconds in either browser. In two of nine fresh Safari windows it had still not loaded after several seconds, and the space above "OR" stayed empty. `lib/googleIdentity.js` now gives up after 10 seconds, so the page says Google sign in is unavailable instead of leaving a gap. Google draws the button in the computer's language, which is why it can read "Se connecter avec Google".
+- **Drag and drop** on the task board is not in the automated run, because WebDriver cannot drive the browser's own drag and drop. The card menu's "Move to", which does the same job, is.
+
 ## Which code is whose
 
 `features/chat/` and `infrastructure/socket/` are copied unchanged from a teammate's branch (aarab). They are vendored byte for byte so they merge cleanly with his work later, and they are never edited here, including the no-comments and no-console rules that apply to the rest of the app. `eslint.config.js` explicitly ignores both paths for the same reason.
