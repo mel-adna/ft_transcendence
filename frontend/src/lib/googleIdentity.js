@@ -1,4 +1,5 @@
 const GOOGLE_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+const LOAD_TIMEOUT_MS = 10000;
 
 export function getGoogleClientId() {
   const value = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -23,7 +24,13 @@ export function loadGoogleIdentity() {
   if (loadPromise) return loadPromise;
 
   loadPromise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      loadPromise = null;
+      reject(new Error('Google sign in took too long to load.'));
+    }, LOAD_TIMEOUT_MS);
+
     const done = () => {
+      clearTimeout(timer);
       const identity = window.google?.accounts?.id;
       if (!identity) {
         reject(new Error('Google sign in loaded but exposed no API.'));
@@ -51,6 +58,7 @@ export function loadGoogleIdentity() {
     script.addEventListener(
       'error',
       () => {
+        clearTimeout(timer);
         loadPromise = null;
         reject(new Error('Google sign in could not be reached.'));
       },
