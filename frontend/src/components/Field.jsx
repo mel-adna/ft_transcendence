@@ -9,7 +9,7 @@ export default function Field({ label, id, error, hint, action, children }) {
       </div>
       {children}
       {hint && !error && <p className="text-[11px] text-muted">{hint}</p>}
-      {error && <p className="text-[11px] font-medium text-rose-400">{error}</p>}
+      {error && <p className="text-[11px] font-medium text-danger">{error}</p>}
     </div>
   );
 }

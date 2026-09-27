@@ -15,8 +15,8 @@ export const PRIORITY_LABEL = {
 };
 
 export const PRIORITY_STYLE = {
-  HIGH: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
-  MEDIUM: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
+  HIGH: 'border-danger/30 bg-danger/10 text-danger',
+  MEDIUM: 'border-warning/30 bg-warning/10 text-warning',
   LOW: 'border-muted/30 bg-muted/10 text-muted',
 };
 
