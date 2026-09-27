@@ -1,29 +1,50 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    environment: 'production'
+    cluster: 'teampulse-prod'
 
 rule_files:
   - "alert.rules.yml"
 
 scrape_configs:
+
   - job_name: 'teampulse-backend'
     metrics_path: '/api/v1/actuator/prometheus'
+    scrape_timeout: 10s
     static_configs:
       - targets: ['backend:8080']
         labels:
           service: 'backend'
+          tier: 'api'
+
 
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres-exporter:9187']
         labels:
           service: 'database'
+          tier: 'data'
+
 
   - job_name: 'nginx'
     static_configs:
       - targets: ['nginx-exporter:9113']
         labels:
           service: 'nginx'
+          tier: 'edge'
+
+
+  - job_name: 'cadvisor'
+    scrape_timeout: 12s
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'containers'
+          tier: 'infrastructure'
+
 
   - job_name: 'minio'
     metrics_path: '/minio/v2/metrics/cluster'
@@ -31,13 +52,21 @@ scrape_configs:
       - targets: ['minio:9000']
         labels:
           service: 'minio'
+          tier: 'storage'
 
-  - job_name: 'cadvisor'
+
+  - job_name: 'chat-service'
+    metrics_path: '/metrics'
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets: ['chat-service:5005']
         labels:
-          service: 'containers'
+          service: 'chat'
+          tier: 'realtime'
+
 
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          tier: 'monitoring'

@@ -172,6 +172,22 @@ CREATE TABLE api_keys
     CONSTRAINT fk_api_key_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 13. Workspace Invitations
+CREATE TABLE workspace_invitation
+(
+    id                UUID PRIMARY KEY,
+    workspace_id      UUID         NOT NULL,
+    invitee_email     VARCHAR(100) NOT NULL,
+    inviter_id        UUID         NOT NULL,
+    invitation_status VARCHAR(50)  NOT NULL,
+    role              VARCHAR(50)  NOT NULL,
+    created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at        TIMESTAMP    NOT NULL,
+
+    CONSTRAINT fk_workspace_invitation_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id),
+    CONSTRAINT fk_workspace_invitation_user FOREIGN KEY (inviter_id) REFERENCES users (id)
+);
+
 
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
