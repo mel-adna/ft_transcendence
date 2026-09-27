@@ -18,6 +18,7 @@ Real defects, but nothing visible is broken.
 |---|---|---|---|
 | 37 | Any signed in user can read any team's member list | Names and email addresses of teams you do not belong to, from one request | 1 line |
 | 39 | The socket client logs to the console on every page | With chat-service down, every page prints ten connection errors, and the subject rejects a project with console errors | Small |
+| 40 | `GET /api-key` answers 404 when the user has no key yet | Having no key is the normal state, and the browser logs the 404 as a console error on the Settings page | 2 lines |
 | 38 | An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com` | The invitation exists and looks sent, but it is not in the invitee's list | Small |
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
@@ -44,6 +45,24 @@ last name, email and avatar. The ids are UUIDs, so this is not trivially enumera
 in URLs and in the invitation payloads.
 
 **Fix:** the same membership check the other endpoints use, before building the response.
+
+## 40. `GET /api-key` answers 404 when the user has no key yet
+
+`ApiKeyService.getApiKeyInfo` throws `ResourceNotFoundException` when the user has never created a
+key:
+
+```java
+ApiKey apiKey = apiKeyRepository.findByUser(user)
+        .orElseThrow(() -> new ResourceNotFoundException("No active API key found for this user."));
+```
+
+Having no key is the normal state for almost every account, so the Settings page asks a question
+whose usual answer is an error. The page handles it, but Chrome still prints "Failed to load
+resource: 404" in the console, and the subject's general requirements say a project with console
+errors is rejected.
+
+**Fix:** answer 200 with an empty body, or `{"keyPrefix": null}`, when there is no key. 404 stays
+right for a key that was asked for by id.
 
 ## 39. The socket client logs to the console on every page
 

@@ -427,10 +427,10 @@ function ApiKeyCard() {
 
       <div className="mt-5 border-t border-card pt-5">
         {loading ? (
-          <p className="flex items-center gap-2 text-sm text-muted">
+          <div className="flex items-center gap-2 text-sm text-muted">
             <Spinner />
             Loading your key
-          </p>
+          </div>
         ) : key ? (
           <dl className="grid gap-4 sm:grid-cols-3">
             <div>

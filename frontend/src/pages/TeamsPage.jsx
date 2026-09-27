@@ -1,19 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { notifyDataChanged } from '../lib/realtimeNotify';
-import { useSocketEvent } from '../lib/useDataChanged';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
-import { formatDay } from '../lib/dates';
-import Button from '../components/Button';
-import ErrorBanner from '../components/ErrorBanner';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
 import EditTeamModal from '../features/teams/EditTeamModal';
+import InvitationsPanel from '../features/teams/InvitationsPanel';
 import { TYPE_LABEL } from '../features/teams/teamForm';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
@@ -91,51 +88,6 @@ export default function TeamsPage() {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
-  const [invitations, setInvitations] = useState([]);
-  const [invitationError, setInvitationError] = useState(null);
-  const [answeringId, setAnsweringId] = useState(null);
-
-  const loadInvitations = useCallback(async () => {
-    try {
-      const response = await api.get('/workspaces/users/me/invitations');
-      setInvitations(Array.isArray(response.data) ? response.data : []);
-      setInvitationError(null);
-    } catch (requestError) {
-      setInvitationError(getErrorMessage(requestError));
-    }
-  }, []);
-
-  useEffect(() => {
-    function sync() {
-      loadInvitations();
-    }
-    sync();
-  }, [loadInvitations]);
-
-  useSocketEvent('notification:new', (event) => {
-    if (event?.type !== 'WORKSPACE') return;
-    loadInvitations();
-    refresh({ quiet: true });
-  });
-
-  async function answerInvitation(invitation, accept) {
-    setAnsweringId(invitation.id);
-    setInvitationError(null);
-    try {
-      await api.post(`/workspaces/invitations/${invitation.id}/${accept ? 'accept' : 'reject'}`);
-      setInvitations((previous) => previous.filter((item) => item.id !== invitation.id));
-      if (accept) {
-        await refresh();
-        notifyDataChanged('members', null, { workspaceId: invitation.workspaceId });
-      }
-    } catch (requestError) {
-      setInvitationError(getErrorMessage(requestError));
-      await loadInvitations();
-    } finally {
-      setAnsweringId(null);
-    }
-  }
-
   function openTeam(workspace) {
     selectWorkspace(workspace.id);
     navigate('/');
@@ -240,51 +192,7 @@ export default function TeamsPage() {
         </Link>
       </PageHeader>
 
-      {invitations.length > 0 ? (
-        <section className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-5">
-          <h2 className="text-base font-bold text-white">You have been invited</h2>
-          <p className="mt-1 text-sm text-muted">
-            Accept to join the team, or decline to make the invitation go away.
-          </p>
-          <ul className="mt-4 space-y-2">
-            {invitations.map((invitation) => (
-              <li
-                key={invitation.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-card bg-panel px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">
-                    {invitation.workspaceName}
-                  </p>
-                  <p className="text-xs text-muted">
-                    From {invitation.inviterName ?? 'a teammate'}, as{' '}
-                    {invitation.role?.toLowerCase() ?? 'member'}. Expires{' '}
-                    {formatDay(invitation.expiresAt)}.
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={answeringId === invitation.id}
-                    onClick={() => answerInvitation(invitation, false)}
-                  >
-                    Decline
-                  </Button>
-                  <Button
-                    size="sm"
-                    busy={answeringId === invitation.id}
-                    onClick={() => answerInvitation(invitation, true)}
-                  >
-                    Accept
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <ErrorBanner message={invitationError} className="mt-4" />
-        </section>
-      ) : null}
+      <InvitationsPanel onAccepted={refresh} className="mt-6" />
 
       <div className="mt-6">{renderBody()}</div>
 
