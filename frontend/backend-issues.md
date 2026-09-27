@@ -19,6 +19,7 @@ Real defects, but nothing visible is broken.
 | 37 | Any signed in user can read any team's member list | Names and email addresses of teams you do not belong to, from one request | 1 line |
 | 39 | The socket client logs to the console on every page | With chat-service down, every page prints ten connection errors, and the subject rejects a project with console errors | Small |
 | 40 | `GET /api-key` answers 404 when the user has no key yet | Having no key is the normal state, and the browser logs the 404 as a console error on the Settings page | 4 lines |
+| 41 | A new task comes back with `"createdAt": null` | The card of a task you just created has no date until the next reload | 1 line |
 | 38 | An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com` | The invitation exists and looks sent, but it is not in the invitee's list | Small |
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
@@ -90,6 +91,28 @@ will see them.
 
 **Fix:** drop the three console calls, or put them behind `import.meta.env.DEV`. The file is
 aarab's and is vendored here unchanged, so it has to be fixed on his branch.
+
+## 41. A new task comes back with `"createdAt": null`
+
+`POST /tasks/workspace/{id}` answers 201 with `"createdAt": null`. The same task read back from
+`GET /tasks/workspace/{id}`, or returned by `PATCH /tasks/{id}/status`, has its real date.
+
+`TaskService.createTask` builds its reply straight after `save`:
+
+```java
+Task savedTask = taskRepository.save(task);
+...
+return taskMapper.toResponse(savedTask);
+```
+
+`createdAt` is a `@CreationTimestamp`, which Hibernate fills in when the row is actually inserted.
+That happens at the flush, when the transaction commits, which is after the reply has been built.
+The frontend puts the reply on the board as it is, so a task you just created shows no date until
+the page reloads. The card now hides the empty date instead of showing a calendar icon next to
+nothing, but the date is still missing.
+
+**Fix:** `taskRepository.saveAndFlush(task)` instead of `save(task)`, so the insert runs, and the
+timestamp is set, before the reply is built.
 
 ## 38. An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com`
 
