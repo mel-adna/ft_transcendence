@@ -40,7 +40,6 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      controller.abort();
     };
   }, [attempt]);
 
