@@ -1,20 +1,14 @@
 # Backend issues
 
-Status checked 2026-09-21 against `1dadfa2` on `mdbentaleb` and `c3efc42` on `aarab`, merged and run
+Status checked 2026-09-27 against `10ea735` on `mdbentaleb` and `7b7ee2f` on `aarab`, merged and run
 together. Only unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
 
-## Blocking
-
-A state a user cannot get out of.
-
-| # | Issue | What breaks | Effort |
-|---|---|---|---|
-| 34 | The chat-service image never generates the Prisma client | chat-service crashes on start and restarts forever, so chat is offline for everyone | 2 lines |
-| 35 | chat-service checks Java tokens with the wrong key | Once it runs, chat refuses every signed in user | 2 lines |
-| 33 | Two people whose emails start the same way cannot both use chat | The second one is refused by chat for good, and chat shows email fragments instead of names | Both sides |
+Fixed since the last check, and removed from this file: **33** (email prefixes collided in chat),
+**34** (the chat image shipped no Prisma client), **35** (chat rejected every Java token) and
+**32** (the backend never received the token lifetimes). Nothing blocks a feature today.
 
 ## Not blocking
 
@@ -22,120 +16,48 @@ Real defects, but nothing visible is broken.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
+| 37 | Any signed in user can read any team's member list | Names and email addresses of teams you do not belong to, from one request | 1 line |
+| 38 | An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com` | The invitation exists and looks sent, but it is not in the invitee's list | Small |
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
 | 31 | The Google OAuth client does not allow `http://localhost:5173` | Google sign in is refused on the Vite port; `https://localhost` works | Console setting |
-| 32 | The backend never receives the JWT lifetimes from `.env` | `.env` says refresh tokens last 7 days; they last 3 | 2 lines |
-| 36 | A client mistake answers 500 instead of a 4xx | A wrong method, broken JSON or the wrong content type is reported as the server's own failure | Small |
+| 36 | Broken JSON still answers 500 instead of 400 | Half fixed: a wrong method answers 405 now, the rest of the client mistakes do not | Small |
 | 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
 | 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
 
 ---
 
-# Blocking
+# Not blocking
 
-## 34. The chat-service image never generates the Prisma client
+## 37. Any signed in user can read any team's member list
 
-`chat-service/Dockerfile` installs dependencies before it copies the source:
-
-```dockerfile
-COPY package*.json ./
-RUN npm install
-COPY . .
-```
-
-`@prisma/client` builds itself during `npm install` from `prisma/schema.prisma`, and at that moment
-the schema is not in the image yet. So the image ships an empty client, and the service dies on its
-first database call:
-
-```
-@prisma/client did not initialize yet
-```
-
-Docker restarts it and it dies again, forever. nginx answers 502 for every chat path, so the Chat
-page shows its offline panel for everyone.
-
-**Fix:** generate the client once the schema is there, after `COPY . .`:
-
-```dockerfile
-RUN npx prisma generate
-```
-
-and add `chat-service/.dockerignore` containing `node_modules`, so a `node_modules` folder on the
-host is never copied over the one built in the image.
-
-## 35. chat-service checks Java tokens with the wrong key
-
-The Java backend signs tokens with the secret decoded from base64:
+`WorkspaceController.getWorkspaceMembers` takes the caller's `principal` and never uses it:
 
 ```java
-Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret))
+List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId);
 ```
 
-`chat-service/src/application/socket/SocketAuthUseCase.js` checks them with the same secret used as
-plain text:
+Every other workspace endpoint checks membership first. This one does not, so any account can read
+any team's roster by guessing or reusing a workspace id, and each row carries a member's first name,
+last name, email and avatar. The ids are UUIDs, so this is not trivially enumerable, but ids travel
+in URLs and in the invitation payloads.
 
-```js
-payload = jwt.verify(token, process.env.JWT_SECRET);
-```
+**Fix:** the same membership check the other endpoints use, before building the response.
 
-Those are two different keys, so every token from the Java login fails the signature check. Chat
-answers 401 to every request and refuses every socket connection. The dev tokens printed by
-`prisma/seed.js` hide this, because they are signed with the same plain text key.
+## 38. An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com`
 
-**Fix:** decode the secret the way Java does:
+The invitation is stored with the address exactly as typed. The two lookups disagree about case:
 
-```js
-payload = jwt.verify(token, Buffer.from(process.env.JWT_SECRET, 'base64'));
-```
+- `findByInviteeEmailAndStatus` and `existsByWorkspaceIdAndInviteeEmailAndStatus` match exactly, so
+  the list of invitations addressed to a user misses any invitation whose case differs.
+- accept and reject compare with `equalsIgnoreCase`, so the same invitation would be accepted
+  happily if the invitee could see it.
 
-and sign with `Buffer.from(secret, 'base64')` in `prisma/seed.js`, so the seed tokens keep working.
+An admin who types a capital letter creates an invitation nobody can find, and the duplicate check
+does not stop them creating a second one. The frontend lowercases the address before sending, which
+hides it from this app, but not from the API or from Swagger.
 
-This also needs both services to have the same `JWT_SECRET` in the first place. `docker-compose.yml`
-on `aarab` gives it to chat-service but not to the backend, which then signs with the default in
-`application.yaml`. That half is fixed on `szemmouri` by passing `JWT_SECRET=${JWT_SECRET}` to the
-backend.
-
-## 33. Two people whose emails start the same way cannot both use chat
-
-The Java token carries `id` and `sub`, the email, and no name. chat-service fills the gap in
-`SocketAuthUseCase` by taking the part of the email before the `@` and storing it as the user's
-`username`. That column is `@unique` in `chat-service/prisma/schema.prisma`, so the first person
-whose email starts `said@` claims the name, and anyone else whose email starts the same way can
-never get in. Measured on the merged stack with 34 and 35 fixed locally, two fresh accounts one after
-the other:
-
-```
-said1789985261287@example.com  ->  GET /api/chat/rooms 200  {"rooms":[]}
-said1789985261287@example.org  ->  GET /api/chat/rooms 401  {"error":"Unauthorized: Invalid
-                                   `prisma.user.upsert()` invocation: Unique constraint failed ..."}
-```
-
-The second account is refused on every chat request and every socket connection, permanently,
-because the collision is in stored data. An evaluator who makes `test@gmail.com` and
-`test@yahoo.com` hits this on the second one. Two smaller problems ride along:
-
-- The error text is Prisma's own, sent straight to the browser by `authMiddleware`. It should be a
-  plain "Unauthorized" with the detail kept in the log.
-- The same stored `username` is what chat displays, so every member list and message label shows
-  `alice1789984631525` rather than Alice Tester.
-
-`chat-service/INTEGRATION.md` suggests a `username` claim set to the first name. That makes the
-collision more likely, not less: every second Said would be locked out. Do not apply it as written.
-
-The fix is to stop deriving a unique value from something two people can share, and to keep what is
-shown separate from what is unique:
-
-- **chat-service** keys uniqueness on something that already is unique. The Java `id` claim is,
-  and `email` is already `@unique` on its own, so `username` either takes the id or stops being
-  unique. The name shown in the UI goes in a column of its own that is allowed to repeat.
-- **Java** adds a `name` claim, first and last name, in `JwtUtils.generateToken` next to `id`, for
-  chat to fill that display column from. `ensureFromIdentity` already updates stored values on every
-  connect, so existing users pick the name up the next time they open chat.
-
----
-
-# Not blocking
+**Fix:** store the address lowercased, or make both queries case-insensitive.
 
 ## 28. The login limit counts successful logins, so ordinary use spends the budget
 
@@ -189,28 +111,7 @@ Google treats these as separate origins, and only the first is registered. **Fix
 Console. Only people using the Vite port are affected; anyone going through `https://localhost` is
 not.
 
-## 32. The backend never receives the JWT lifetimes from `.env`
-
-`docker-compose.yml` passes the backend its database, MinIO and Google settings, but not the token
-lifetimes. So `application.yaml` falls back to its own defaults, and the values in `.env` are never
-read:
-
-| Key | `.env` says | Backend actually uses |
-|---|---|---|
-| `JWT_REFRESH_EXPIRATION` | 604800000, 7 days | 259200000, 3 days |
-| `JWT_ACCESS_EXPIRATION` | 900000, 15 minutes | 900000, 15 minutes |
-
-Access happens to match. Refresh does not, so a session that `.env` says lasts a week ends after
-three days. This is the same kind of bug as `JWT_SECRET`, which was missing from the backend in the
-same way; that one broke chat outright, because chat-service verified tokens with the `.env` value
-while Spring signed them with the yaml default. It is fixed on `szemmouri` by passing
-`JWT_SECRET=${JWT_SECRET}`.
-
-**Fix:** pass the two lifetimes the same way, or delete them from `.env` so nobody reads a value
-that is not used. `GOOGLE_CLIENT_SECRET` and `SERVER_PORT` are in the same position, and harmless
-today because one is empty and the other matches.
-
-## 36. A client mistake answers 500 instead of a 4xx
+## 36. Broken JSON still answers 500 instead of 400
 
 `GlobalExceptionHandler` ends with a catch-all that answers 500 "An unexpected server error
 occurred":
@@ -219,23 +120,26 @@ occurred":
 @ExceptionHandler(Exception.class)
 ```
 
-Spring's own exceptions for a malformed request have no handler of their own, so they land there
-too. Measured on the merged stack:
+A wrong method is handled now: `HttpRequestMethodNotSupportedException` answers 405, which is why
+`POST /workspaces/{id}/invitations` on the old members path says "not supported" rather than
+"crashed". The other malformed requests still have no handler of their own and fall through to the
+catch-all:
 
-```
-DELETE /api/v1/auth/login                     500, should be 405
-POST   /api/v1/auth/login with broken JSON    500, should be 400
-POST   /api/v1/auth/login as text/plain       500, should be 415
-```
+| Request | Answers | Should answer |
+|---|---|---|
+| Broken JSON in the body | 500 | 400 |
+| `{"role": "admin"}`, a value outside the enum | 500 | 400 |
+| A path id that is not a UUID | 500 | 400 |
+| The wrong `Content-Type` | 500 | 415 |
+| A missing query parameter, such as `email` on `/users/search` | 500 | 400 |
 
-Nothing in the frontend sends these, so no user sees it. It matters for anyone calling the API by
-hand, which is exactly what an evaluator does with the public API: a POST to `/public/tasks`
-answers 500, which reads as a crash rather than "not supported".
+They all arrive as Jackson or Spring binding failures. The enum one is the easiest to hit by hand,
+since `role` has to be upper case and nothing says so.
 
-**Fix:** handle the three in `GlobalExceptionHandler`, next to the others:
+**Fix:** three more handlers next to the 405 one:
 
-- `HttpRequestMethodNotSupportedException` answers 405
 - `HttpMessageNotReadableException` answers 400
+- `MethodArgumentTypeMismatchException` and `MissingServletRequestParameterException` answer 400
 - `HttpMediaTypeNotSupportedException` answers 415
 
 ## 30. The dead public API key is still in `application.yaml`
