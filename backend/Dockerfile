@@ -1,13 +1,21 @@
-FROM node:22-alpine
+FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY pom.xml .
 
-RUN npm install
+RUN mvn dependency:go-offline -B
 
-COPY . .
+COPY src ./src
+RUN mvn clean package -DskipTests
 
-EXPOSE 5000
 
-CMD ["npm", "start"]
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "-Djava.security.egd=file:/dev/./urandom", "app.jar"]
