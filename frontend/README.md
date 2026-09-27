@@ -106,13 +106,20 @@ Tailwind v4 is configured in CSS, so there is no `tailwind.config.js` and its ab
 
 | Token | Value | Reads as |
 |---|---|---|
+| `--font-sans` | Inter, then the system stack | `font-sans`, and the page default |
 | `--color-primary` | `#3B82F6` | `bg-primary`, `text-primary`, `focus:border-primary` |
 | `--color-canvas` | `#0c0c14` | `bg-canvas`, the page behind everything |
 | `--color-panel` | `#181824` | `bg-panel`, cards and modals |
 | `--color-sidebar` | `#0e0e17` | `bg-sidebar` |
 | `--color-card` | `#27273a` | `border-card`, the hairline between surfaces |
+| `--color-ink` | `#f8fafc` | `text-ink`, headings and anything that has to stand out |
 | `--color-body` | `#c2c6d6` | `text-body`, long-form text |
 | `--color-muted` | `#71717A` | `text-muted`, secondary text and icons |
+| `--color-success` | `#34d399` | `text-success`, `bg-success/10`, a task that is done |
+| `--color-warning` | `#fbbf24` | `text-warning`, `bg-warning/10`, due soon |
+| `--color-danger` | `#f43f5e` | `text-danger`, `bg-danger/10`, errors and destructive actions |
+
+The last three are the meaning, not the colour. A failed request is `text-danger` rather than `text-rose-400`, so the same red is used for every error and one line changes all of them. Nothing outside `features/chat/` and `features/dashboard/` names a Tailwind palette colour any more.
 
 This used to be written out by hand: 334 arbitrary values like `bg-[#181824]` and `text-[#71717A]/50` across 26 files, while the `@theme` block sat there unreferenced. Changing one colour meant 334 edits. It is now one line.
 
@@ -123,6 +130,26 @@ Two details worth knowing before adding a token:
 **Charts are the exception, and they have to be.** `StatsDashboard` passes colours to recharts as SVG presentation attributes (`stroke`, `stopColor`) and inline styles, which are not class names, so no utility can reach them. `var()` in an SVG presentation attribute is not reliable across browsers either. Those eight values live in a single `CHART` constant at the top of that file, and it has to be kept in step with `@theme` by hand.
 
 The vendored chat under `features/chat/` still uses arbitrary values. That is deliberate: those files are never edited here, for the reason under "Which code is whose".
+
+## The components, and when to reach for one
+
+Everything under `components/` is shared by at least two screens. Nothing in there knows about tasks, teams or chat, so a screen composes them rather than restyling them.
+
+| Component | What it is for |
+|---|---|
+| `Button` | Every button. `variant` is `primary`, `secondary`, `danger` or `quiet`, `size` is `md` or `sm`, `icon` takes a lucide icon, and `busy` swaps the icon for a spinner and disables it |
+| `Badge` | A status pill. `tone` is `neutral`, `primary`, `success`, `warning` or `danger` |
+| `Field` | A label, a control and an error message under it, with the ids wired together |
+| `IconInput`, `inputClass` | An input with a leading icon, and the class string behind every plain input |
+| `Modal`, `ConfirmModal` | A dialog, and the yes or no version with a busy state and an error line |
+| `PageHeader` | The title, the description and the actions at the top of a screen |
+| `AuthCard`, `GoogleSignInButton` | The signed out screens, and the Google button |
+| `AppLayout`, `ProtectedRoute` | The shell with the sidebar, and the redirect for signed out visitors |
+| `Avatar` | A photo, or the person's initials when there is none |
+| `Spinner`, `EmptyState`, `ErrorState`, `ErrorBanner`, `SuccessBanner` | Loading, nothing here, it broke, and the two banners |
+| `LegalPage`, `LegalLinks` | The privacy and terms pages, and the footer links to them |
+
+A screen that needs a new visual element adds it here once the second screen needs it too. Until then it stays local to the screen, which is why there is no `Card` component yet: `cardClass` is a single string inside the one file that uses it.
 
 ## Which code is whose
 

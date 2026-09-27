@@ -74,7 +74,7 @@ export default function TaskDetailModal({ open, onClose, task, onEdit, onDelete 
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex items-center gap-2 rounded-lg border border-muted/25 px-4 py-2 text-sm font-semibold text-muted transition-colors hover:border-rose-500/40 hover:text-rose-400"
+          className="inline-flex items-center gap-2 rounded-lg border border-muted/25 px-4 py-2 text-sm font-semibold text-muted transition-colors hover:border-danger/40 hover:text-danger"
         >
           <Trash2 size={14} />
           Delete

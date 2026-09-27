@@ -120,7 +120,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
                 type="button"
                 role="menuitem"
                 onClick={() => runAction(onDelete)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-rose-400 hover:bg-rose-500/10"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger hover:bg-danger/10"
               >
                 <Trash2 size={14} />
                 Delete

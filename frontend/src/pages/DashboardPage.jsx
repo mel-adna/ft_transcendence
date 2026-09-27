@@ -185,9 +185,9 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <p className="text-sm text-white">{importResultMessage}</p>
           {importSummary?.errors?.length > 0 && (
-            <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-rose-500/30 bg-rose-500/10 p-3">
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-danger/30 bg-danger/10 p-3">
               {importSummary.errors.map((message, index) => (
-                <p key={index} className="text-xs font-medium text-rose-300">
+                <p key={index} className="text-xs font-medium text-danger">
                   {message}
                 </p>
               ))}

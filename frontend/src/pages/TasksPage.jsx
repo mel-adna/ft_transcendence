@@ -19,7 +19,7 @@ import PageHeader from '../components/PageHeader';
 const COLUMNS = [
   { status: 'TODO', dotClass: 'bg-muted' },
   { status: 'DOING', dotClass: 'bg-primary' },
-  { status: 'DONE', dotClass: 'bg-emerald-500' },
+  { status: 'DONE', dotClass: 'bg-success' },
 ];
 
 export default function TasksPage() {
@@ -187,14 +187,14 @@ export default function TasksPage() {
       {actionError && (
         <div
           role="alert"
-          className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-300"
+          className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger"
         >
           <span>{actionError}</span>
           <button
             type="button"
             onClick={dismissActionError}
             aria-label="Dismiss error"
-            className="shrink-0 text-rose-300 transition-colors hover:text-white"
+            className="shrink-0 text-danger transition-colors hover:text-white"
           >
             <X size={16} />
           </button>

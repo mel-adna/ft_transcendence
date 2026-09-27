@@ -30,7 +30,7 @@ export default function ConfirmModal({
           type="button"
           onClick={onConfirm}
           disabled={busy || disabled}
-          className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex items-center justify-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? <Spinner /> : confirmLabel}
         </button>
