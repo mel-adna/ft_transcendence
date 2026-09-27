@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react';
-import { UserMinus, UserPlus, Users } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { MailPlus, UserMinus, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { notifyDataChanged } from '../lib/realtimeNotify';
+import { useSocketEvent } from '../lib/useDataChanged';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { useMembers } from '../features/colleagues/useMembers';
 import { useTasks } from '../features/tasks/useTasks';
 import { buildRoster, inferRoster } from '../features/colleagues/roster';
 import { personName } from '../lib/people';
-import AddMemberModal from '../features/colleagues/AddMemberModal';
+import { formatDay } from '../lib/dates';
+import InviteMemberModal from '../features/colleagues/InviteMemberModal';
+import Button from '../components/Button';
 import Avatar from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
 import Spinner from '../components/Spinner';
@@ -19,7 +22,7 @@ import ErrorBanner from '../components/ErrorBanner';
 
 const ROLE_STYLE = {
   OWNER: 'border-primary/30 bg-primary/10 text-primary',
-  ADMIN: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
+  ADMIN: 'border-warning/30 bg-warning/10 text-warning',
   MEMBER: 'border-muted/30 bg-muted/10 text-muted',
   VIEWER: 'border-muted/30 bg-muted/10 text-muted',
 };
@@ -72,7 +75,7 @@ function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-muted/25 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-rose-500/40 hover:text-rose-400"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-muted/25 px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-danger/40 hover:text-danger"
           >
             <UserMinus size={14} />
             Remove
@@ -94,7 +97,10 @@ export default function ColleaguesPage() {
   const { members, loading, error, reload } = useMembers(workspaceId);
   const { tasks } = useTasks(workspaceId);
 
-  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [invitations, setInvitations] = useState([]);
+  const [invitationError, setInvitationError] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const [pendingRemove, setPendingRemove] = useState(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(null);
@@ -105,14 +111,70 @@ export default function ColleaguesPage() {
     const fromApi = buildRoster(members, current?.owner?.id);
     return fromApi.length > 0 ? fromApi : inferRoster(current, tasks);
   }, [members, current, tasks]);
-  const rosterIds = useMemo(() => new Set(roster.map((member) => member.user.id)), [roster]);
 
-  function openAddModal() {
-    setAddModalOpen(true);
+  const myRole = roster.find((member) => member.user.id === user?.id)?.role ?? null;
+  const canInvite = myRole === 'OWNER' || myRole === 'ADMIN';
+
+  const rosterEmails = useMemo(
+    () => new Set(roster.map((member) => member.user.email?.toLowerCase()).filter(Boolean)),
+    [roster],
+  );
+  const invitedEmails = useMemo(
+    () => new Set(invitations.map((invitation) => invitation.inviteeEmail?.toLowerCase())),
+    [invitations],
+  );
+
+  const loadInvitations = useCallback(async () => {
+    if (!workspaceId || !canInvite) {
+      setInvitations([]);
+      return;
+    }
+    try {
+      const response = await api.get(`/workspaces/${workspaceId}/invitations`);
+      const now = Date.now();
+      const waiting = (Array.isArray(response.data) ? response.data : []).filter(
+        (invitation) =>
+          invitation.status === 'PENDING' && new Date(invitation.expiresAt).getTime() > now,
+      );
+      setInvitations(waiting);
+      setInvitationError(null);
+    } catch (requestError) {
+      setInvitationError(getErrorMessage(requestError));
+    }
+  }, [workspaceId, canInvite]);
+
+  useEffect(() => {
+    function sync() {
+      loadInvitations();
+    }
+    sync();
+  }, [loadInvitations]);
+
+  useSocketEvent('notification:new', (event) => {
+    if (event?.type !== 'WORKSPACE') return;
+    reload({ quiet: true });
+    loadInvitations();
+  });
+
+  function openInviteModal() {
+    setInviteModalOpen(true);
   }
 
-  function closeAddModal() {
-    setAddModalOpen(false);
+  function closeInviteModal() {
+    setInviteModalOpen(false);
+  }
+
+  async function cancelInvitation(invitation) {
+    setCancellingId(invitation.id);
+    setInvitationError(null);
+    try {
+      await api.delete(`/workspaces/${workspaceId}/invitations/${invitation.id}`);
+      await loadInvitations();
+    } catch (requestError) {
+      setInvitationError(getErrorMessage(requestError));
+    } finally {
+      setCancellingId(null);
+    }
   }
 
   async function changeRole(member, role) {
@@ -124,10 +186,8 @@ export default function ColleaguesPage() {
         email: member.user.email,
         role,
       });
-      // Everyone's roster shows this role; the member themselves also needs it
-      // because their own permissions in the UI depend on it.
       notifyDataChanged('members', null, { workspaceId });
-      await reload();
+      await reload({ quiet: true });
     } catch (requestError) {
       setRoleError(getErrorMessage(requestError));
     } finally {
@@ -151,25 +211,18 @@ export default function ColleaguesPage() {
     setRemoving(true);
     setRemoveError(null);
     try {
-      // Capture the audience BEFORE the delete: afterwards the removed user is
-      // no longer in the workspace, so the server could not resolve them and
-      // they'd never learn the team disappeared.
       const removedId = pendingRemove.user.id;
-      const remainingIds = roster
-        .map((m) => m.user.id)
-        .filter((id) => id !== removedId);
+      const remainingIds = roster.map((member) => member.user.id).filter((id) => id !== removedId);
 
       await api.delete(
         `/workspaces/${workspaceId}/members/${encodeURIComponent(pendingRemove.user.email)}`,
       );
 
-      // The removed member drops the whole team; everyone else just updates
-      // the roster.
       notifyDataChanged('workspaces', [removedId], { workspaceId });
-      notifyDataChanged('members', [removedId, ...remainingIds], { workspaceId });
+      notifyDataChanged('members', remainingIds, { workspaceId });
 
       setPendingRemove(null);
-      await reload();
+      await reload({ quiet: true });
     } catch (requestError) {
       setRemoveError(getErrorMessage(requestError));
     } finally {
@@ -197,13 +250,11 @@ export default function ColleaguesPage() {
           title="No colleagues yet"
           message="Invite a teammate to get started."
           action={
-            <button
-              type="button"
-              onClick={openAddModal}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Add Member
-            </button>
+            canInvite ? (
+              <Button icon={MailPlus} onClick={openInviteModal}>
+                Invite someone
+              </Button>
+            ) : null
           }
         />
       );
@@ -231,26 +282,59 @@ export default function ColleaguesPage() {
         title="Colleagues"
         description="Everyone who belongs to this team, and what they can do here."
       >
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <UserPlus size={16} />
-          Add Member
-        </button>
+        {canInvite ? (
+          <Button icon={MailPlus} onClick={openInviteModal}>
+            Invite someone
+          </Button>
+        ) : null}
       </PageHeader>
 
       <ErrorBanner message={roleError} className="mt-4" />
+      <ErrorBanner message={invitationError} className="mt-4" />
+
+      {canInvite && invitations.length > 0 ? (
+        <section className="mt-6 rounded-2xl border border-card bg-panel p-5">
+          <h2 className="text-base font-bold text-white">Waiting to accept</h2>
+          <p className="mt-1 text-sm text-muted">
+            They join the team as soon as they accept the invitation.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {invitations.map((invitation) => (
+              <li
+                key={invitation.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-card px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {invitation.inviteeEmail}
+                  </p>
+                  <p className="text-xs text-muted">
+                    Invited as {invitation.role.toLowerCase()}, expires {formatDay(invitation.expiresAt)}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  busy={cancellingId === invitation.id}
+                  onClick={() => cancelInvitation(invitation)}
+                >
+                  Cancel
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="mt-6">{renderBody()}</div>
 
-      <AddMemberModal
-        open={addModalOpen}
-        onClose={closeAddModal}
+      <InviteMemberModal
+        open={inviteModalOpen}
+        onClose={closeInviteModal}
         workspaceId={workspaceId}
-        rosterIds={rosterIds}
-        onAdded={reload}
+        rosterEmails={rosterEmails}
+        invitedEmails={invitedEmails}
+        onInvited={loadInvitations}
       />
 
       <ConfirmModal

@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { notifyDataChanged } from '../lib/realtimeNotify';
+import { useSocketEvent } from '../lib/useDataChanged';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
+import { formatDay } from '../lib/dates';
+import Button from '../components/Button';
+import ErrorBanner from '../components/ErrorBanner';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
@@ -68,7 +72,7 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
             type="button"
             onClick={onDelete}
             aria-label={`Delete ${workspace.name}`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-muted/25 text-muted transition-colors hover:border-rose-500/40 hover:text-rose-400"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-muted/25 text-muted transition-colors hover:border-danger/40 hover:text-danger"
           >
             <Trash2 size={16} />
           </button>
@@ -87,6 +91,50 @@ export default function TeamsPage() {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [invitations, setInvitations] = useState([]);
+  const [invitationError, setInvitationError] = useState(null);
+  const [answeringId, setAnsweringId] = useState(null);
+
+  const loadInvitations = useCallback(async () => {
+    try {
+      const response = await api.get('/workspaces/users/me/invitations');
+      setInvitations(Array.isArray(response.data) ? response.data : []);
+      setInvitationError(null);
+    } catch (requestError) {
+      setInvitationError(getErrorMessage(requestError));
+    }
+  }, []);
+
+  useEffect(() => {
+    function sync() {
+      loadInvitations();
+    }
+    sync();
+  }, [loadInvitations]);
+
+  useSocketEvent('notification:new', (event) => {
+    if (event?.type !== 'WORKSPACE') return;
+    loadInvitations();
+    refresh({ quiet: true });
+  });
+
+  async function answerInvitation(invitation, accept) {
+    setAnsweringId(invitation.id);
+    setInvitationError(null);
+    try {
+      await api.post(`/workspaces/invitations/${invitation.id}/${accept ? 'accept' : 'reject'}`);
+      setInvitations((previous) => previous.filter((item) => item.id !== invitation.id));
+      if (accept) {
+        await refresh();
+        notifyDataChanged('members', null, { workspaceId: invitation.workspaceId });
+      }
+    } catch (requestError) {
+      setInvitationError(getErrorMessage(requestError));
+      await loadInvitations();
+    } finally {
+      setAnsweringId(null);
+    }
+  }
 
   function openTeam(workspace) {
     selectWorkspace(workspace.id);
@@ -109,14 +157,12 @@ export default function TeamsPage() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      // Fetch the members BEFORE deleting: afterwards the workspace is gone,
-      // so neither we nor the server could work out who to tell.
       let memberIds = [];
       try {
         const { data } = await api.get(`/workspaces/${pendingDelete.id}/members`);
-        memberIds = data.map((m) => m.member?.id).filter(Boolean);
+        memberIds = data.map((member) => member.member?.id).filter(Boolean);
       } catch {
-        // Non-fatal: the delete still proceeds, the others just refresh later.
+        memberIds = [];
       }
 
       await api.delete(`/workspaces/${pendingDelete.id}`);
@@ -193,6 +239,52 @@ export default function TeamsPage() {
           Create New Team
         </Link>
       </PageHeader>
+
+      {invitations.length > 0 ? (
+        <section className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-5">
+          <h2 className="text-base font-bold text-white">You have been invited</h2>
+          <p className="mt-1 text-sm text-muted">
+            Accept to join the team, or decline to make the invitation go away.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {invitations.map((invitation) => (
+              <li
+                key={invitation.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-card bg-panel px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {invitation.workspaceName}
+                  </p>
+                  <p className="text-xs text-muted">
+                    From {invitation.inviterName ?? 'a teammate'}, as{' '}
+                    {invitation.role?.toLowerCase() ?? 'member'}. Expires{' '}
+                    {formatDay(invitation.expiresAt)}.
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={answeringId === invitation.id}
+                    onClick={() => answerInvitation(invitation, false)}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    busy={answeringId === invitation.id}
+                    onClick={() => answerInvitation(invitation, true)}
+                  >
+                    Accept
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <ErrorBanner message={invitationError} className="mt-4" />
+        </section>
+      ) : null}
 
       <div className="mt-6">{renderBody()}</div>
 
