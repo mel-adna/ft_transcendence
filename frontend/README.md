@@ -174,14 +174,16 @@ A screen that needs a new visual element adds it here once the second screen nee
 
 ## Which browsers it has been checked in
 
-Chrome, and Safari 26.6 on macOS. Firefox has not been checked yet.
+Chrome, Safari 26.6 and Firefox 156, all on macOS.
 
-Safari was driven with `safaridriver`, Apple's own automation for the real browser, on `https://localhost` with the whole stack running. The run signs up with the code from a real inbox, creates a team and a task, moves the task, invites someone and watches the roster fill in when they accept, creates, copies and revokes an API key, sends a chat message, and has a newcomer accept an invitation from the first-team screen. All 22 checks pass, nothing was logged as an error or warning after each page had loaded, and every screen renders correctly.
+Safari and Firefox were each driven through their own automation driver, `safaridriver` and Mozilla's `geckodriver`, on `https://localhost` with the whole stack running. The run signs up with the code from a real inbox, creates a team and a task, moves the task, invites someone and watches the roster fill in when they accept, creates, copies and revokes an API key, sends a chat message, and has a newcomer accept an invitation from the first-team screen. Every check passes in both, and every screen has the same layout in all three browsers. Firefox also hands its whole console to the driver, and nothing was logged there as an error or warning, page loads included.
 
-Two things differ, or were not covered:
+What differs between browsers, or was not covered:
 
-- **The Google button.** Google's script takes two to four seconds in either browser. In two of nine fresh Safari windows it had still not loaded after several seconds, and the space above "OR" stayed empty. `lib/googleIdentity.js` now gives up after 10 seconds, so the page says Google sign in is unavailable instead of leaving a gap. Google draws the button in the computer's language, which is why it can read "Se connecter avec Google".
-- **Drag and drop** on the task board is not in the automated run, because WebDriver cannot drive the browser's own drag and drop. The card menu's "Move to", which does the same job, is.
+- **Dates and times follow the browser's language.** Safari takes it from macOS, en-GB on this Mac, so it writes "27 Sep" and "11:50". Firefox uses its own, en-US by default, so it writes "Sep 27" and "12:50 PM". Both are right for their setting.
+- **Time zone data can disagree.** Both browsers use the Mac's zone, Africa/Casablanca, but Safari reads it from macOS and Firefox from its own copy of the time zone database. During the check they were an hour apart: the same moment showed as 11:50 in Safari and as 12:50 PM in Firefox. One of the two copies is out of date, and an update of that browser or of macOS fixes it. The app has nothing to change.
+- **The Google button.** Google's script takes two to four seconds in any browser. In two of nine fresh Safari windows it had still not loaded after several seconds, and the space above "OR" stayed empty. `lib/googleIdentity.js` now gives up after 10 seconds, so the page says Google sign in is unavailable instead of leaving a gap. Google draws the button in the computer's language, which is why it can read "Se connecter avec Google".
+- **Drag and drop** on the task board is not in the automated runs, because WebDriver cannot drive the browser's own drag and drop. The card menu's "Move to", which does the same job, is.
 
 ## Which code is whose
 
