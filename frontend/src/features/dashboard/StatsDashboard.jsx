@@ -9,7 +9,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { List, CheckCircle, Users, Activity } from 'lucide-react';
-import { computeStats } from '../../lib/stats';
+import { useWorkspaceStats } from './useWorkspaceStats';
 import { buildActivityFeed, deriveActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
 import EmptyState from '../../components/EmptyState';
@@ -51,11 +51,18 @@ function formatRelativeTime(value) {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-function StatCard({ icon: Icon, label, value }) {
+function StatCard({ icon: Icon, label, value, badge }) {
   return (
     <div className="flex h-36 flex-col justify-between rounded-2xl border border-card bg-panel p-6 shadow-lg md:h-44">
-      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-muted/20 bg-canvas/60 text-primary">
-        <Icon size={22} />
+      <div className="flex items-center justify-between">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-muted/20 bg-canvas/60 text-primary">
+          <Icon size={22} />
+        </div>
+        {badge && (
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+            {badge}
+          </span>
+        )}
       </div>
       <div>
         <span className="block text-[10px] font-bold uppercase tracking-widest text-muted">
@@ -70,6 +77,7 @@ function StatCard({ icon: Icon, label, value }) {
 }
 
 export default function StatsDashboard({
+  workspaceId,
   tasks,
   activityLogs,
   activityLoading,
@@ -77,7 +85,7 @@ export default function StatsDashboard({
   onRetryActivity,
 }) {
   const [range, setRange] = useState(7);
-  const stats = useMemo(() => computeStats(tasks, range), [tasks, range]);
+  const { stats } = useWorkspaceStats(workspaceId, tasks, range);
   const activity = useMemo(() => {
     const fromApi = buildActivityFeed(activityLogs);
     return fromApi.length > 0 ? fromApi : deriveActivityFeed(tasks);
@@ -86,9 +94,18 @@ export default function StatsDashboard({
   return (
     <div className="space-y-6 text-left md:space-y-7">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-        <StatCard icon={List} label="Total Tasks" value={stats.total} />
-        <StatCard icon={CheckCircle} label="Completed Tasks" value={stats.completed} />
-        <StatCard icon={Users} label="Active Colleagues" value={stats.activeColleagues} />
+        <StatCard icon={List} label="Total Tasks" value={stats.totalTasks ?? stats.total} />
+        <StatCard
+          icon={CheckCircle}
+          label="Completed Tasks"
+          value={stats.completedCount ?? stats.completed}
+          badge={stats.completionRate != null ? `${stats.completionRate}% rate` : null}
+        />
+        <StatCard
+          icon={Users}
+          label="Active Colleagues"
+          value={stats.activeColleaguesCount ?? stats.activeColleagues}
+        />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">

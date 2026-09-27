@@ -173,6 +173,7 @@ export default function DashboardPage() {
 
       <div className="mt-6">
         <StatsDashboard
+          workspaceId={workspaceId}
           tasks={tasks}
           activityLogs={activityLogs}
           activityLoading={activityLoading}
