@@ -1,9 +1,12 @@
 import axios from 'axios';
+import { socketClient } from '../infrastructure/socket/SocketClient';
 
 const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
 const baseURL = import.meta.env.VITE_CORE_API_URL ?? 'http://localhost:8080/api/v1';
+
+export const CHAT_API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/api';
 
 const AUTH_PATHS = [
   '/auth/login',
@@ -104,6 +107,7 @@ function refreshAccessToken() {
       .then((response) => {
         setToken(response.data.accessToken);
         setRefreshToken(response.data.refreshToken);
+        socketClient.updateToken(response.data.accessToken);
         return response.data.accessToken;
       })
       .finally(() => {

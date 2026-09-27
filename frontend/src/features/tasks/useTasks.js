@@ -5,9 +5,6 @@ import { notifyDataChanged } from '../../lib/realtimeNotify';
 import { useList } from '../../hooks/useList';
 
 export function useTasks(workspaceId) {
-  // Ask the chat service to tell everyone else in this workspace to refetch;
-  // the Java backend has no realtime channel of its own. Audience is resolved
-  // server-side from workspaceId (null = "the whole team").
   const announceChange = useCallback(() => {
     if (workspaceId) notifyDataChanged('tasks', null, { workspaceId });
   }, [workspaceId]);
@@ -73,8 +70,7 @@ export function useTasks(workspaceId) {
     [setTasks, announceChange],
   );
 
-  // A task was created/moved/edited/deleted by someone else in this workspace.
-  useDataChanged('tasks', reload);
+  useDataChanged('tasks', () => reload({ quiet: true }));
 
   return { tasks, loading, error, reload, createTask, updateTask, moveTask, removeTask };
 }

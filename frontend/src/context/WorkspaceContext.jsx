@@ -13,8 +13,6 @@ export function WorkspaceProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // `quiet` skips the loading flag: a push-triggered background refresh
-  // shouldn't blank the page out behind a spinner the user didn't ask for.
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
     setError(null);
@@ -39,7 +37,6 @@ export function WorkspaceProvider({ children }) {
     sync();
   }, [user, load]);
 
-  // Someone added us to (or removed us from) a workspace elsewhere.
   useDataChanged('workspaces', useCallback(() => load({ quiet: true }), [load]));
 
   const selectWorkspace = useCallback((id) => {

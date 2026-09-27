@@ -62,9 +62,6 @@ export function AuthProvider({ children }) {
     await revokeRefreshToken();
     clearToken();
     localStorage.removeItem('workspaceId');
-    // Pages outside chat hold the socket open for live updates, so it no
-    // longer dies just because ChatPage unmounted — close it explicitly or
-    // the previous user's authenticated connection would outlive their session.
     socketClient.forceClose();
     setUser(null);
   }, []);
