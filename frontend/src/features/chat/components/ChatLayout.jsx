@@ -23,7 +23,9 @@ export function ChatLayout({ currentUserId }) {
     leaveRoom,
     setActiveRoom,
     displayName,
-  } = useRooms();
+    pendingRequests,
+    respondToDM,
+  } = useRooms(currentUserId);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   // Mobile master-detail: which pane is showing.
@@ -31,8 +33,9 @@ export function ChatLayout({ currentUserId }) {
 
   // Resolve the active room from the live list so its members/roles stay fresh
   // (and so a deleted room falls back to the first available one).
+  const roomList = rooms ?? [];
   const activeRoom =
-    rooms.find((r) => r.id === selectedRoomId) ?? rooms[0] ?? null;
+    roomList.find((r) => r.id === selectedRoomId) ?? roomList[0] ?? null;
 
   // Tell useRooms which room is in view so its messages don't count as unread
   // and its badge clears on open.
@@ -49,6 +52,13 @@ export function ChatLayout({ currentUserId }) {
       ));
 
   const canLeave = activeRoom?.type === 'GROUP' && !isOwner;
+
+  // The requester's own membership is ACCEPTED right away, but the other
+  // side can't see the room until they respond, so this stops messages
+  // getting sent into a conversation nobody's on the other end of yet.
+  const isPendingDM =
+    activeRoom?.type === 'DIRECT' &&
+    activeRoom.members?.some((m) => m.userId !== currentUserId && m.status === 'PENDING');
 
   const handleSelect = (room) => {
     setSelectedRoomId(room.id);
@@ -83,12 +93,14 @@ export function ChatLayout({ currentUserId }) {
         } md:flex w-full md:w-56 shrink-0`}
       >
         <RoomSidebar
-          rooms={rooms}
+          rooms={roomList}
           selectedRoomId={activeRoom?.id}
           onSelect={handleSelect}
           displayName={displayName}
           onCreateClick={() => setModalOpen(true)}
           isLoading={isLoading}
+          pendingRequests={pendingRequests}
+          onRespondToDM={respondToDM}
         />
       </div>
 
@@ -105,6 +117,7 @@ export function ChatLayout({ currentUserId }) {
             currentUserId={currentUserId}
             roomName={displayName(activeRoom)}
             roomType={activeRoom.type}
+            isPendingDM={isPendingDM}
             canDelete={isOwner}
             canLeave={canLeave}
             onDeleteRoom={handleDeleteRoom}

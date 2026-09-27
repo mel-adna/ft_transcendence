@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import api from '../../lib/api';
+import { useDataChanged } from '../../lib/useDataChanged';
 import { useList } from '../../hooks/useList';
 
 export function useMembers(workspaceId) {
@@ -10,6 +11,9 @@ export function useMembers(workspaceId) {
   }, [workspaceId]);
 
   const { items: members, loading, error, reload } = useList(load);
+
+  // The roster changed elsewhere (someone was added or removed).
+  useDataChanged('members', reload);
 
   return { members, loading, error, reload };
 }

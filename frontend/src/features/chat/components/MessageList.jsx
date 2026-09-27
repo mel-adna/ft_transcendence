@@ -36,7 +36,7 @@ export function MessageList({
   onDiscard,
   lastOwnMessageId = null,
   lastOwnMessageRead = false,
-  emptyLabel = 'No messages yet — say hi 👋',
+  emptyLabel = 'No messages yet, say hi 👋',
 }) {
   const listRef = useRef(null);
   const bottomRef = useRef(null);
