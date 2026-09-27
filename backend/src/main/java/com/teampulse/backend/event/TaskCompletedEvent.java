@@ -11,8 +11,7 @@ import com.teampulse.backend.model.Task;
 import lombok.Getter;
 
 @Getter
-public class TaskCompletedEvent extends ApplicationEvent{
-
+public class TaskCompletedEvent extends ApplicationEvent {
 	private final Task task;
 	private final User completedBy;
 	private final Instant timeAt;
@@ -20,9 +19,8 @@ public class TaskCompletedEvent extends ApplicationEvent{
 	public TaskCompletedEvent(Object source, Task task, User completedBy) {
 		super(source);
 
-		if (task == null) {
+		if (task == null)
             throw new IllegalArgumentException("Task payload inside TaskCompletedEvent cannot be null");
-        }
 
 		this.task = task;
 		this.completedBy = completedBy;

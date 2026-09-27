@@ -9,6 +9,7 @@ const ROOM_SELECT = {
     select: {
       userId: true,
       role: true,
+      status: true,
       joinedAt: true,
       user: {
         select: {
@@ -39,17 +40,35 @@ const RoomRepository = {
   },
 
   /**
-   * All rooms a user belongs to
+   * Rooms a user actively belongs to. Excludes DMs the user was invited to
+   * but hasn't accepted yet — those surface separately via
+   * findPendingDMRequestsFor until accepted.
    * @param {string} userId
    * @returns {Promise<object[]>}
    */
   async findAllForUser(userId) {
     return prisma.room.findMany({
       where: {
-        members: { some: { userId } },
+        members: { some: { userId, status: 'ACCEPTED' } },
       },
       select: ROOM_SELECT,
       orderBy: { updatedAt: 'desc' },
+    });
+  },
+
+  /**
+   * DM rooms where the user has been invited but hasn't responded yet.
+   * @param {string} userId
+   * @returns {Promise<object[]>}
+   */
+  async findPendingDMRequestsFor(userId) {
+    return prisma.room.findMany({
+      where: {
+        type: 'DIRECT',
+        members: { some: { userId, status: 'PENDING' } },
+      },
+      select: ROOM_SELECT,
+      orderBy: { createdAt: 'desc' },
     });
   },
 
@@ -103,12 +122,25 @@ const RoomRepository = {
    * @param {string} roomId
    * @param {string} userId
    * @param {string} [role='MEMBER']
+   * @param {string} [status='ACCEPTED'] - 'PENDING' for an unconfirmed DM request
    */
-  async addMember(roomId, userId, role = 'MEMBER') {
+  async addMember(roomId, userId, role = 'MEMBER', status = 'ACCEPTED') {
     return prisma.roomMember.upsert({
       where: { roomId_userId: { roomId, userId } },
-      update: { role },
-      create: { roomId, userId, role },
+      update: { role, status },
+      create: { roomId, userId, role, status },
+    });
+  },
+
+  /**
+   * @param {string} roomId
+   * @param {string} userId
+   * @param {string} status - 'PENDING' | 'ACCEPTED'
+   */
+  async setMemberStatus(roomId, userId, status) {
+    return prisma.roomMember.update({
+      where: { roomId_userId: { roomId, userId } },
+      data: { status },
     });
   },
 
@@ -132,6 +164,7 @@ const RoomRepository = {
       select: {
         userId: true,
         role: true,
+        status: true,
         joinedAt: true,
         user: {
           select: {

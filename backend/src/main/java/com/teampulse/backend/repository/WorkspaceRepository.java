@@ -16,13 +16,14 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface WorkspaceRepository extends JpaRepository<Workspace, UUID> {
 	List<Workspace> findByOwnerId(UUID id);
-	boolean existsByNameAndOwnerId(String name, UUID ownerId);
-	Optional<Workspace> findByNameAndOwnerId(String name, UUID ownerId);
 
 	@Query("SELECT m.workspace FROM WorkspaceMember m WHERE m.user.email = :email AND m.workspace.deleted = false")
-    List<Workspace> findAllByMembersUserEmail(@Param("email") String email);
+	List<Workspace> findAllByMembersUserEmail(@Param("email") String email);
 
 	@Modifying
-    @Query("UPDATE Workspace w SET w.deleted = true, w.updatedAt = CURRENT_TIMESTAMP WHERE w.id = :id")
-    void softDeleteById(@Param("id") UUID id);
+	@Query("UPDATE Workspace w SET w.deleted = true, w.updatedAt = CURRENT_TIMESTAMP WHERE w.id = :id")
+	void softDeleteById(@Param("id") UUID id);
+
+	@Query("SELECT COUNT(w) > 0 FROM Workspace w WHERE w.owner.id = :userId AND LOWER(w.name) = LOWER(:name) AND w.deleted = false")
+	boolean existsByUserIdAndWorkspaceName(@Param("userId") UUID userId, @Param("name") String name);
 }

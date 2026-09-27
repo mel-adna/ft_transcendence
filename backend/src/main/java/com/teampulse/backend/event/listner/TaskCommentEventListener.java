@@ -31,33 +31,33 @@ public class TaskCommentEventListener {
 		if (comment == null)
 			return;
 
-		Task task = comment.getTask();
-		User author = comment.getAuthor();
-
-		if (task.getAssignee() != null && !task.getAssignee().getId().equals(author.getId()))
-			sendCommentNotification(task.getAssignee(), author, task, comment);
-
-		if (task.getCreator() != null
-				&& !task.getCreator().getId().equals(author.getId())
-				&& (task.getAssignee() == null || task.getCreator().getId().equals(task.getAssignee().getId()))) {
-			sendCommentNotification(task.getCreator(), author, task, comment);
-		}
+//		Task task = comment.getTask();
+//		User author = comment.getAuthor();
+//
+//		if (task.getAssignee() != null && !task.getAssignee().getId().equals(author.getId()))
+//			sendCommentNotification(task.getAssignee(), author, task, comment);
+//
+//		if (task.getCreator() != null
+//				&& !task.getCreator().getId().equals(author.getId())
+//				&& (task.getAssignee() == null || task.getCreator().getId().equals(task.getAssignee().getId()))) {
+//			sendCommentNotification(task.getCreator(), author, task, comment);
+//		}
 	}
-
-	private void sendCommentNotification(User recipient, User author, Task task, TaskComment comment) {
-		String msg = String.format("%s commented on task '%s': \"%s\"",
-				author.getFirstName(), task.getTitle(), comment.getContent());
-
-		notificationService.createNotification(
-				recipient,
-				NotificationType.TASK_COMMENTED,
-				EntityType.TASK_COMMENT,
-				task.getId(),
-				msg);
-
-		emailService.sendEmail(
-				recipient.getEmail(),
-				"New Comment on Task: " + task.getTitle(),
-				msg);
-	}
+//
+//	private void sendCommentNotification(User recipient, User author, Task task, TaskComment comment) {
+//		String msg = String.format("%s commented on task '%s': \"%s\"",
+//				author.getFirstName(), task.getTitle(), comment.getContent());
+//
+//		notificationService.createNotification(
+//				recipient,
+//				NotificationType.TASK_COMMENTED,
+//				EntityType.TASK_COMMENT,
+//				task.getId(),
+//				msg);
+//
+//		emailService.sendEmail(
+//				recipient.getEmail(),
+//				"New Comment on Task: " + task.getTitle(),
+//				msg);
+//	}
 }

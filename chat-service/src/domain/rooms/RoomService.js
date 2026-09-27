@@ -62,6 +62,7 @@ class RoomService {
     return {
       userId: member.userId,
       role: member.role,
+      status: member.status ?? 'ACCEPTED',
       joinedAt: member.joinedAt instanceof Date
         ? member.joinedAt.toISOString()
         : member.joinedAt,
