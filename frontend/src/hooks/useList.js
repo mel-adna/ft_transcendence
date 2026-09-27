@@ -6,10 +6,10 @@ export function useList(load) {
   const [error, setError] = useState(null);
   const currentRequestRef = useRef(null);
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async ({ quiet = false } = {}) => {
     const requestToken = {};
     currentRequestRef.current = requestToken;
-    setLoading(true);
+    if (!quiet) setLoading(true);
     setError(null);
     try {
       const result = await load();

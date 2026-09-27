@@ -12,8 +12,7 @@ export function useMembers(workspaceId) {
 
   const { items: members, loading, error, reload } = useList(load);
 
-  // The roster changed elsewhere (someone was added or removed).
-  useDataChanged('members', reload);
+  useDataChanged('members', () => reload({ quiet: true }));
 
   return { members, loading, error, reload };
 }
