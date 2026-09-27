@@ -100,6 +100,27 @@ The description field prefills from the workspace the list endpoint already retu
 **Colleagues** turns the role badge into a select, sending `PUT /workspaces/{id}/members/role` with the member's email and the new role. It stays a plain badge for the workspace owner and for yourself, matching the rule the Remove button already used, so you cannot lock yourself out of your own team. Only admins may call it; anyone else gets refused by the backend.
 
 
+## How somebody joins a team
+
+Nobody is added to a team any more, they are invited. The backend dropped `POST /workspaces/{id}/members` in favour of an invitation with its own lifetime, so the old Colleagues button answered 405 until this changed.
+
+**Colleagues**, for an admin or the owner only, opens `InviteMemberModal`. It searches accounts by email and sends `POST /workspaces/{id}/invitations` with `{email, role}`. The address is lowercased first: the backend stores it as typed and looks it up exactly, so `Foo@Bar.com` would create an invitation the invitee can never see (tracked as issue 38 in `backend-issues.md`). An address with no account can be invited too, which is deliberate: the backend emails it, and the invitation is waiting once that person signs up. Below the roster, the same screen lists who has not answered yet, with a Cancel that sends `DELETE .../invitations/{id}`.
+
+The admin list endpoint returns every invitation, including accepted, rejected and expired ones, despite being named for pending ones, so the page filters to `PENDING` with an `expiresAt` in the future. The list addressed to you, `GET /workspaces/users/me/invitations`, is already filtered by the backend. Note the path: it hangs off `/workspaces`, not `/users`.
+
+**Teams** shows the invitations addressed to you above your teams, with Accept and Decline, which post to `/workspaces/invitations/{id}/accept` or `/reject` and return an empty body. Accepting refetches the workspace list, so the new team appears without a reload, and tells the rest of the team to refetch their roster.
+
+## Live updates, and why they are quiet
+
+Teams, colleagues and tasks live in the Java backend, which has no socket of its own. Two paths make a change by one person show up for everyone else, both riding the socket the chat service already holds open:
+
+- **`notifyDataChanged`** (`lib/realtimeNotify.js`) posts to the chat service after a mutation, which pushes `data:changed` to the other people affected. `useDataChanged` listens and refetches.
+- **The backend's own events** reach the same socket as `notification:new`, relayed from Redis by chat-service. `useSocketEvent` subscribes to those, which is how an invitation appears without polling.
+
+Both refetches are **quiet**: `useList.reload({ quiet: true })` skips the loading flag. Without that, a teammate moving a card raised `loading` on your board, the page returned its full-screen spinner, and every modal under it unmounted, including a task form somebody was typing into. The loading spinner is for the first load only.
+
+One more thing worth knowing: the socket takes its token when it connects, and it now stays open for the whole session rather than just while the Chat page is mounted. So `lib/api.js` calls `socketClient.updateToken` when it refreshes the access token, or the next reconnect would authenticate with the expired one and live updates would stop for the rest of the session.
+
 ## Colours come from tokens, not from the markup
 
 Tailwind v4 is configured in CSS, so there is no `tailwind.config.js` and its absence is correct. The palette lives in the `@theme` block at the top of `src/index.css`, and that block is the only place a hex value for a UI colour is written:
