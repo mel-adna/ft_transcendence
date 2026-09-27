@@ -17,6 +17,7 @@ Real defects, but nothing visible is broken.
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
 | 37 | Any signed in user can read any team's member list | Names and email addresses of teams you do not belong to, from one request | 1 line |
+| 39 | The socket client logs to the console on every page | With chat-service down, every page prints ten connection errors, and the subject rejects a project with console errors | Small |
 | 38 | An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com` | The invitation exists and looks sent, but it is not in the invitee's list | Small |
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
@@ -43,6 +44,24 @@ last name, email and avatar. The ids are UUIDs, so this is not trivially enumera
 in URLs and in the invitation payloads.
 
 **Fix:** the same membership check the other endpoints use, before building the response.
+
+## 39. The socket client logs to the console on every page
+
+`infrastructure/socket/SocketClient.js` prints on connect, on disconnect and on every failed
+attempt:
+
+```js
+console.error('[SocketClient] Connection error:', err.message);
+```
+
+That used to be limited to the Chat page. The live update work holds the socket open on every
+page now, so when chat-service is down, ten failed attempts print on the dashboard, the task board
+and everywhere else. The subject's general requirements say the project is rejected if warnings or
+errors appear in the browser console, and an evaluator who stops one container to see what happens
+will see them.
+
+**Fix:** drop the three console calls, or put them behind `import.meta.env.DEV`. The file is
+aarab's and is vendored here unchanged, so it has to be fixed on his branch.
 
 ## 38. An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com`
 
