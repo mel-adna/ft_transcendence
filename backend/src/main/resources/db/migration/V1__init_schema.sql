@@ -15,7 +15,19 @@ CREATE TABLE users
     updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-
+-- 2. Workspaces
+CREATE TABLE workspaces
+(
+    id          UUID PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    type        VARCHAR(50)  NOT NULL, -- Enum: PERSONAL, ORGANIZATION
+    owner_id    UUID         NOT NULL,
+    deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_workspaces_owner FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE RESTRICT
+);
 
 
 
