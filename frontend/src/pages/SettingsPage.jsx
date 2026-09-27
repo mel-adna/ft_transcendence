@@ -349,7 +349,7 @@ function ApiKeyCard() {
     api
       .get('/api-key')
       .then((response) => {
-        if (!cancelled) setKey(response.data);
+        if (!cancelled) setKey(response.data?.keyPrefix ? response.data : null);
       })
       .catch((requestError) => {
         if (cancelled) return;
