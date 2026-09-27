@@ -364,9 +364,9 @@ export default function StatsDashboard({
       </div>
 
       {/* Row 2: Priority Distribution (1 col) & Recent Activity (2 cols) */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Priority Distribution Bar Chart */}
-        <div className="flex flex-col justify-between rounded-2xl border border-card bg-panel p-6 shadow-lg">
+        <div className="flex h-full flex-col justify-between rounded-2xl border border-card bg-panel p-6 shadow-lg lg:h-[380px]">
           <div>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -381,8 +381,8 @@ export default function StatsDashboard({
                 <p className="text-xs text-muted">No tasks in workspace</p>
               </div>
             ) : (
-              <div className="mt-6 w-full">
-                <ResponsiveContainer width="100%" height={170}>
+              <div className="mt-4 w-full">
+                <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={priorityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.muted} opacity={0.12} vertical={false} />
                     <XAxis
@@ -444,18 +444,18 @@ export default function StatsDashboard({
         </div>
 
         {/* Recent Activity Feed */}
-        <div className="rounded-2xl border border-card bg-panel p-6 shadow-lg lg:col-span-2">
-          <div className="flex items-center justify-between">
+        <div className="flex h-[360px] flex-col rounded-2xl border border-card bg-panel p-6 shadow-lg lg:col-span-2 lg:h-[380px]">
+          <div className="flex shrink-0 items-center justify-between">
             <h3 className="text-base font-bold text-white">Recent Activity</h3>
             <span className="text-xs text-muted">Latest task events</span>
           </div>
 
           {activityLoading ? (
-            <div className="mt-6 flex min-h-[14rem] items-center justify-center">
+            <div className="flex flex-1 items-center justify-center p-6">
               <Spinner />
             </div>
           ) : activityError ? (
-            <div className="mt-6">
+            <div className="mt-4">
               <ErrorState
                 title="Could not load activity"
                 error={activityError}
@@ -463,7 +463,7 @@ export default function StatsDashboard({
               />
             </div>
           ) : activity.length === 0 ? (
-            <div className="mt-6">
+            <div className="flex flex-1 items-center justify-center p-6">
               <EmptyState
                 icon={Activity}
                 title="No activity yet"
@@ -471,8 +471,8 @@ export default function StatsDashboard({
               />
             </div>
           ) : (
-            <ul className="mt-6 space-y-4">
-              {activity.slice(0, 6).map((entry) => (
+            <ul className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1.5 [scrollbar-color:rgba(113,113,122,0.3)_transparent] [scrollbar-width:thin]">
+              {activity.map((entry) => (
                 <li key={entry.id} className="flex items-start gap-3 rounded-xl p-1.5 transition-colors hover:bg-white/[0.02]">
                   <Avatar user={entry.user} size={32} />
                   <div className="min-w-0 flex-1">
