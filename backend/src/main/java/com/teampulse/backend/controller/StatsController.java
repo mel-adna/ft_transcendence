@@ -43,7 +43,7 @@ public class StatsController {
 	@GetMapping(value = {"/workspaces/{workspaceId}/stats", "/stats/workspace/{workspaceId}"})
 	public ResponseEntity<WorkspaceStatsResponse> getWorkspaceStats(
 			@Parameter(description = "UUID of the workspace") @PathVariable UUID workspaceId,
-			@Parameter(description = "Number of trend days (default: 7)") @RequestParam(defaultValue = "7") int days,
+			@Parameter(description = "Number of trend days (default: 7, 0 for all time)") @RequestParam(defaultValue = "7") int days,
 			Principal principal) {
 		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, principal.getName(), days);
 		return ResponseEntity.ok(response);
