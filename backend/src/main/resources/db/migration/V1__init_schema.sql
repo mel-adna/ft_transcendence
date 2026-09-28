@@ -48,3 +48,4 @@ CREATE TABLE workspace_members
 
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
+CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
