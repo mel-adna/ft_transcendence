@@ -115,8 +115,8 @@ services:
       - POSTGRES_DB=${DB_NAME}
     secrets:
       - db_password
-    # ports:
-    #   - "5433:5432"
+    ports:
+      - "5433:5432"
     networks:
       - teampulse_net
     restart: unless-stopped

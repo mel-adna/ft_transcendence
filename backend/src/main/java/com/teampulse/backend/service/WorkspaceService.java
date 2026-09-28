@@ -121,7 +121,14 @@ public class WorkspaceService {
 
 
 	@Transactional(readOnly = true)
-	public List<WorkspaceMemberResponse> getWorkspaceMembers(UUID workspaceId) {
+	public List<WorkspaceMemberResponse> getWorkspaceMembers(UUID workspaceId, String email) {
+		if (workspaceId == null)
+			throw new BadRequestException("Workspace ID cannot be null");
+
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
+		if (!isMember)
+			throw new UnauthorizedAccessException("You are not a member of this workspace.");
+
 		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
 
 		return members.stream()

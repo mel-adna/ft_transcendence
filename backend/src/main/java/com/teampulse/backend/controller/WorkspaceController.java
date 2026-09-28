@@ -89,7 +89,7 @@ public class WorkspaceController {
 			@Parameter(description = "UUID of the workspace to fetch members for") @PathVariable UUID workspaceId,
 			@Parameter(hidden = true) Principal principal) {
 
-		List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId);
+		List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId, principal.getName());
 
 		return ResponseEntity.ok(members);
 	}

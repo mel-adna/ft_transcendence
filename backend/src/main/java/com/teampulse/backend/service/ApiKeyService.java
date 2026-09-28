@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -81,22 +82,20 @@ public class ApiKeyService {
 	}
 
 	@Transactional(readOnly = true)
-	public ApiKeyResponse getApiKeyInfo(String userEmail) {
+	public Optional<ApiKeyResponse> getApiKeyInfo(String userEmail) {
 		User user = userRepository.findByEmail(userEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
-		ApiKey apiKey = apiKeyRepository.findByUser(user)
-				.orElseThrow(() -> new ResourceNotFoundException("No active API key found for this user."));
-
-		return ApiKeyResponse.builder()
-				.keyPrefix(apiKey.getKeyPrefix())
-				.active(apiKey.isActive())
-				.lastUsedAt(apiKey.getLastUsedAt())
-				.createdAt(apiKey.getCreatedAt())
-				.build();
+		return apiKeyRepository.findByUser(user)
+				.map(apiKey -> ApiKeyResponse.builder()
+						.keyPrefix(apiKey.getKeyPrefix())
+						.active(apiKey.isActive())
+						.lastUsedAt(apiKey.getLastUsedAt())
+						.createdAt(apiKey.getCreatedAt())
+						.build());
 	}
 
-	public static String hashKey(String input) {
+	private static String hashKey(String input) {
 		try {
 			MessageDigest digest = MessageDigest.getInstance("SHA-256");
 			byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
