@@ -79,3 +79,8 @@ logs
 .pnp.js
 
 .vscode
+
+
+# secrets/*.txt
+# !secrets/*.txt.example
+# .env

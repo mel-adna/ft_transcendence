@@ -7,7 +7,7 @@ import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
 import PageHeader from '../components/PageHeader';
 
-const CHAT_API = import.meta.env.VITE_API_URL ?? '/api';     // <----- zid had line 3andk
+const CHAT_API = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/api';
 const PROBE_TIMEOUT_MS = 4000;
 
 export default function ChatPage() {
@@ -29,8 +29,8 @@ export default function ChatPage() {
       signal: controller.signal,
       headers: { Authorization: `Bearer ${getToken() ?? ''}` },
     })
-      .then(() => {
-        if (!cancelled) setServiceStatus('online');
+      .then((response) => {
+        if (!cancelled) setServiceStatus(response.status >= 500 ? 'offline' : 'online');
       })
       .catch(() => {
         if (!cancelled) setServiceStatus('offline');
@@ -40,7 +40,6 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      controller.abort();
     };
   }, [attempt]);
 

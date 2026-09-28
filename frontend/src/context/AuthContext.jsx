@@ -8,6 +8,7 @@ import api, {
   postWithoutSession,
 } from '../lib/api';
 import { AuthContext } from './useAuth';
+import { socketClient } from '../infrastructure/socket/SocketClient';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -61,6 +62,7 @@ export function AuthProvider({ children }) {
     await revokeRefreshToken();
     clearToken();
     localStorage.removeItem('workspaceId');
+    socketClient.forceClose();
     setUser(null);
   }, []);
 

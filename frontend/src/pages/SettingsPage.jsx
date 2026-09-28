@@ -1,12 +1,14 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, LogOut, Trash2, Upload } from 'lucide-react';
+import { Check, Copy, Download, KeyRound, LogOut, Trash2, Upload } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
 import { downloadFile } from '../lib/csv';
+import { formatDay } from '../lib/dates';
 import { PASSWORD_HINT, validatePassword, validateRequired } from '../lib/validation';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { buildDataExport } from '../features/settings/dataExport';
+import Button from '../components/Button';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
@@ -18,11 +20,9 @@ import { inputClass } from '../components/inputClass';
 
 const EXPORT_FILENAME = 'team-pulse-my-data.json';
 const DELETE_CONFIRMATION_WORD = 'DELETE';
+const API_DOCS_URL = '/api/v1/swagger-ui/index.html';
 
 const cardClass = 'rounded-2xl border border-card bg-panel p-5 sm:p-6';
-
-const primaryButtonClass =
-  'flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -119,15 +119,16 @@ function ProfileCard({ user, onSaved }) {
           <Avatar user={previewUser} size={56} />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-muted">Profile photo</p>
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Upload}
+              busy={uploading}
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="mt-2 inline-flex items-center gap-2 rounded-lg border border-muted/25 px-3 py-2 text-xs font-semibold text-muted transition-colors hover:border-primary/40 hover:text-white disabled:opacity-60"
+              className="mt-2"
             >
-              {uploading ? <Spinner /> : <Upload size={14} />}
               {uploading ? 'Uploading' : 'Upload a photo'}
-            </button>
+            </Button>
             <input
               ref={fileInputRef}
               type="file"
@@ -139,7 +140,7 @@ function ProfileCard({ user, onSaved }) {
               JPEG or PNG, up to 5 MB. Saved as soon as you pick it.
             </p>
             {avatarError && (
-              <p className="mt-1 text-[11px] font-medium text-rose-400">{avatarError}</p>
+              <p className="mt-1 text-[11px] font-medium text-danger">{avatarError}</p>
             )}
           </div>
         </div>
@@ -183,9 +184,9 @@ function ProfileCard({ user, onSaved }) {
         {success && <SuccessBanner message="Profile updated." />}
 
         <div className="flex justify-end border-t border-card pt-4">
-          <button type="submit" disabled={submitting} className={primaryButtonClass}>
-            {submitting ? <Spinner /> : 'Save changes'}
-          </button>
+          <Button type="submit" busy={submitting}>
+            Save changes
+          </Button>
         </div>
       </form>
     </section>
@@ -287,9 +288,9 @@ function PasswordCard() {
         {success && <SuccessBanner message="Password updated." />}
 
         <div className="flex justify-end border-t border-card pt-4">
-          <button type="submit" disabled={submitting} className={primaryButtonClass}>
-            {submitting ? <Spinner /> : 'Update password'}
-          </button>
+          <Button type="submit" busy={submitting}>
+            Update password
+          </Button>
         </div>
       </form>
     </section>
@@ -323,18 +324,173 @@ function DataExportCard({ user, workspaces }) {
 
       <div className="mt-5 flex flex-col gap-3 border-t border-card pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted">Saved as a single JSON file.</p>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-muted/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {exporting ? <Spinner /> : <Download size={16} />}
+        <Button variant="secondary" icon={Download} busy={exporting} onClick={handleExport}>
           Download my data
-        </button>
+        </Button>
       </div>
 
       <ErrorBanner message={error} className="mt-4" />
+    </section>
+  );
+}
+
+function ApiKeyCard() {
+  const [key, setKey] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get('/api-key')
+      .then((response) => {
+        if (!cancelled) setKey(response.data?.keyPrefix ? response.data : null);
+      })
+      .catch((requestError) => {
+        if (cancelled) return;
+        if (requestError?.response?.status === 404) setKey(null);
+        else setError(getErrorMessage(requestError));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleCreate() {
+    setBusy(true);
+    setError(null);
+    setCopied(false);
+    try {
+      const created = await api.post('/api-key/rotate');
+      setNewKey(created.data?.apiKey ?? '');
+      const current = await api.get('/api-key');
+      setKey(current.data);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevoke() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete('/api-key');
+      setKey(null);
+      setNewKey('');
+      setRevokeOpen(false);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(newKey);
+      setCopied(true);
+    } catch {
+      setError('Copying failed. Select the key and copy it by hand.');
+    }
+  }
+
+  const lastUsed = formatDay(key?.lastUsedAt);
+  const created = formatDay(key?.createdAt);
+
+  return (
+    <section className={cardClass}>
+      <h2 className="text-base font-bold text-white">API key</h2>
+      <p className="mt-1 text-sm text-muted">
+        Call the public API from your own scripts with an <span className="font-mono">X-API-Key</span>{' '}
+        header, without signing in.{' '}
+        <a
+          href={API_DOCS_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-primary hover:underline"
+        >
+          See what it can do
+        </a>
+        .
+      </p>
+
+      <div className="mt-5 border-t border-card pt-5">
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted">
+            <Spinner />
+            Loading your key
+          </div>
+        ) : key ? (
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted">Key</dt>
+              <dd className="mt-1 font-mono text-sm text-white">{key.keyPrefix}...</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Created</dt>
+              <dd className="mt-1 text-sm text-white">{created ?? 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Last used</dt>
+              <dd className="mt-1 text-sm text-white">{lastUsed ?? 'Never'}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="text-sm text-muted">You do not have a key yet.</p>
+        )}
+
+        {newKey ? (
+          <div className="mt-5 rounded-lg border border-primary/40 bg-primary/5 p-4">
+            <p className="text-sm font-semibold text-white">Copy it now. It is shown only once.</p>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <code className="flex-1 overflow-x-auto rounded-lg bg-canvas px-3 py-2 font-mono text-xs text-white">
+                {newKey}
+              </code>
+              <Button variant="secondary" icon={copied ? Check : Copy} onClick={handleCopy}>
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          {key ? (
+            <Button variant="secondary" icon={Trash2} disabled={busy} onClick={() => setRevokeOpen(true)}>
+              Revoke
+            </Button>
+          ) : null}
+          <Button icon={KeyRound} busy={busy} onClick={handleCreate}>
+            {key ? 'Replace key' : 'Create key'}
+          </Button>
+        </div>
+      </div>
+
+      <ErrorBanner message={error} className="mt-4" />
+
+      <ConfirmModal
+        open={revokeOpen}
+        onClose={() => (busy ? null : setRevokeOpen(false))}
+        title="Revoke API key"
+        confirmLabel="Revoke key"
+        onConfirm={handleRevoke}
+        busy={busy}
+      >
+        <p className="text-sm text-muted">
+          Any script using this key stops working straight away. You can create a new one whenever
+          you need it.
+        </p>
+      </ConfirmModal>
     </section>
   );
 }
@@ -371,21 +527,16 @@ function DeleteAccountCard({ onDeleted }) {
   const canConfirm = confirmText === DELETE_CONFIRMATION_WORD;
 
   return (
-    <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-5 sm:p-6">
-      <h2 className="text-base font-bold text-rose-400">Delete account</h2>
+    <section className="rounded-2xl border border-danger/30 bg-danger/5 p-5 sm:p-6">
+      <h2 className="text-base font-bold text-danger">Delete account</h2>
       <p className="mt-1 text-sm text-muted">
         Permanently delete your account and everything tied to it. This action is irreversible.
       </p>
 
-      <div className="mt-5 border-t border-rose-500/20 pt-5">
-        <button
-          type="button"
-          onClick={openModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <Trash2 size={16} />
+      <div className="mt-5 border-t border-danger/20 pt-5">
+        <Button variant="danger" icon={Trash2} onClick={openModal}>
           Delete account
-        </button>
+        </Button>
       </div>
 
       <ConfirmModal
@@ -436,20 +587,16 @@ export default function SettingsPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-2xl">
         <PageHeader title="Account Settings" description="Manage your profile, password and data.">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-muted/30 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5"
-          >
-            <LogOut size={16} />
+          <Button variant="secondary" icon={LogOut} onClick={handleLogout}>
             Log out
-          </button>
+          </Button>
         </PageHeader>
 
         <div className="mt-6 space-y-6">
           <ProfileCard user={user} onSaved={refreshUser} />
           <PasswordCard />
           <DataExportCard user={user} workspaces={workspaces} />
+          <ApiKeyCard />
           <DeleteAccountCard onDeleted={handleLogout} />
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
+import { notifyDataChanged } from '../lib/realtimeNotify';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
@@ -9,6 +10,7 @@ import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
 import ConfirmModal from '../components/ConfirmModal';
 import EditTeamModal from '../features/teams/EditTeamModal';
+import InvitationsPanel from '../features/teams/InvitationsPanel';
 import { TYPE_LABEL } from '../features/teams/teamForm';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
@@ -67,7 +69,7 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
             type="button"
             onClick={onDelete}
             aria-label={`Delete ${workspace.name}`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-muted/25 text-muted transition-colors hover:border-rose-500/40 hover:text-rose-400"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-muted/25 text-muted transition-colors hover:border-danger/40 hover:text-danger"
           >
             <Trash2 size={16} />
           </button>
@@ -86,7 +88,6 @@ export default function TeamsPage() {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
-
   function openTeam(workspace) {
     selectWorkspace(workspace.id);
     navigate('/');
@@ -108,7 +109,18 @@ export default function TeamsPage() {
     setDeleting(true);
     setDeleteError(null);
     try {
+      let memberIds = [];
+      try {
+        const { data } = await api.get(`/workspaces/${pendingDelete.id}/members`);
+        memberIds = data.map((member) => member.member?.id).filter(Boolean);
+      } catch {
+        memberIds = [];
+      }
+
       await api.delete(`/workspaces/${pendingDelete.id}`);
+
+      notifyDataChanged('workspaces', memberIds, { workspaceId: pendingDelete.id });
+
       setPendingDelete(null);
       await refresh();
     } catch (requestError) {
@@ -179,6 +191,8 @@ export default function TeamsPage() {
           Create New Team
         </Link>
       </PageHeader>
+
+      <InvitationsPanel onAccepted={refresh} className="mt-6" />
 
       <div className="mt-6">{renderBody()}</div>
 

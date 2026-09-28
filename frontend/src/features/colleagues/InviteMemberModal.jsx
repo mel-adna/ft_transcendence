@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { Mail, Search } from 'lucide-react';
 import api, { getErrorMessage } from '../../lib/api';
+import { validateEmail } from '../../lib/validation';
 import { useAuth } from '../../context/useAuth';
 import { personName } from '../../lib/people';
 import Modal from '../../components/Modal';
 import Field from '../../components/Field';
+import Button from '../../components/Button';
 import Spinner from '../../components/Spinner';
 import EmptyState from '../../components/EmptyState';
 import Avatar from '../../components/Avatar';
@@ -13,16 +15,23 @@ import ErrorBanner from '../../components/ErrorBanner';
 
 const DEBOUNCE_MS = 300;
 
-export default function AddMemberModal({ open, onClose, workspaceId, rosterIds = new Set(), onAdded }) {
+export default function InviteMemberModal({
+  open,
+  onClose,
+  workspaceId,
+  rosterEmails = new Set(),
+  invitedEmails = new Set(),
+  onInvited,
+}) {
   const { user: currentUser } = useAuth();
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(null);
-  const [addedIds, setAddedIds] = useState(() => new Set());
-  const [addingId, setAddingId] = useState(null);
-  const [addError, setAddError] = useState(null);
+  const [sentEmails, setSentEmails] = useState(() => new Set());
+  const [sendingEmail, setSendingEmail] = useState(null);
+  const [inviteError, setInviteError] = useState(null);
 
   useEffect(() => {
     function sync() {
@@ -31,9 +40,9 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
       setResults([]);
       setSearching(false);
       setSearchError(null);
-      setAddedIds(new Set());
-      setAddingId(null);
-      setAddError(null);
+      setSentEmails(new Set());
+      setSendingEmail(null);
+      setInviteError(null);
     }
     sync();
   }, [open]);
@@ -83,25 +92,39 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
     };
   }, [query, open]);
 
-  async function handleAdd(candidate) {
-    setAddError(null);
-    setAddingId(candidate.id);
+  async function handleInvite(email) {
+    const address = email.trim().toLowerCase();
+    setInviteError(null);
+    setSendingEmail(address);
     try {
-      await api.post(`/workspaces/${workspaceId}/members`, {
-        email: candidate.email,
-        role: 'MEMBER',
-      });
-      setAddedIds((previous) => new Set(previous).add(candidate.id));
-      await onAdded();
+      await api.post(`/workspaces/${workspaceId}/invitations`, { email: address, role: 'MEMBER' });
+      setSentEmails((previous) => new Set(previous).add(address));
+      await onInvited();
     } catch (requestError) {
-      setAddError(getErrorMessage(requestError));
+      setInviteError(getErrorMessage(requestError));
     } finally {
-      setAddingId(null);
+      setSendingEmail(null);
     }
+  }
+
+  function statusOf(email) {
+    const address = email.toLowerCase();
+    if (rosterEmails.has(address)) return 'member';
+    if (sentEmails.has(address) || invitedEmails.has(address)) return 'invited';
+    return 'none';
   }
 
   const trimmedQuery = query.trim();
   const visibleResults = results.filter((candidate) => candidate.id !== currentUser?.id);
+  const queryIsEmail = !validateEmail(trimmedQuery);
+  const queryStatus = queryIsEmail ? statusOf(trimmedQuery) : 'none';
+
+  function renderStatus(status) {
+    if (status === 'member') {
+      return <span className="shrink-0 text-[11px] font-semibold text-muted">In the team</span>;
+    }
+    return <span className="shrink-0 text-[11px] font-semibold text-success">Invited</span>;
+  }
 
   function renderResults() {
     if (!trimmedQuery || searchError) return null;
@@ -115,19 +138,47 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
     }
 
     if (visibleResults.length === 0) {
+      if (queryIsEmail && queryStatus === 'none') {
+        return (
+          <div className="rounded-lg border border-card px-3 py-3">
+            <p className="text-sm text-white">{trimmedQuery}</p>
+            <p className="mt-1 text-xs text-muted">
+              Nobody uses this address yet. They get an email, and join the team once they sign up
+              and accept.
+            </p>
+            <Button
+              size="sm"
+              icon={Mail}
+              busy={sendingEmail === trimmedQuery.toLowerCase()}
+              onClick={() => handleInvite(trimmedQuery)}
+              className="mt-3"
+            >
+              Send an invitation
+            </Button>
+          </div>
+        );
+      }
+
+      if (queryIsEmail) {
+        return (
+          <div className="rounded-lg border border-card px-3 py-3">
+            <p className="text-sm text-white">{trimmedQuery}</p>
+            <p className="mt-1 text-xs text-muted">
+              {queryStatus === 'member' ? 'Already in the team.' : 'Already invited.'}
+            </p>
+          </div>
+        );
+      }
+
       return (
-        <EmptyState
-          icon={Search}
-          title="No users found"
-          message="Try a different email address."
-        />
+        <EmptyState icon={Search} title="No users found" message="Try a full email address." />
       );
     }
 
     return (
       <ul className="max-h-64 space-y-2 overflow-y-auto">
         {visibleResults.map((candidate) => {
-          const alreadyMember = rosterIds.has(candidate.id) || addedIds.has(candidate.id);
+          const status = statusOf(candidate.email ?? '');
 
           return (
             <li
@@ -143,24 +194,17 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
                   <p className="truncate text-xs text-muted">{candidate.email}</p>
                 </div>
               </div>
-              {alreadyMember ? (
-                <span className="shrink-0 text-[11px] font-semibold text-muted">
-                  Already added
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleAdd(candidate)}
-                  disabled={addingId === candidate.id}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              {status === 'none' ? (
+                <Button
+                  size="sm"
+                  icon={Mail}
+                  busy={sendingEmail === candidate.email?.toLowerCase()}
+                  onClick={() => handleInvite(candidate.email)}
                 >
-                  {addingId === candidate.id ? (
-                    <Spinner className="h-3.5 w-3.5 border-2" />
-                  ) : (
-                    <UserPlus size={14} />
-                  )}
-                  Add
-                </button>
+                  Invite
+                </Button>
+              ) : (
+                renderStatus(status)
               )}
             </li>
           );
@@ -170,13 +214,13 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add member">
+    <Modal open={open} onClose={onClose} title="Invite to the team">
       <div className="space-y-4">
         <Field
           label="Search by email"
           id="member-search"
           error={searchError}
-          hint="Type at least part of an email address."
+          hint="They join the team once they accept the invitation."
         >
           <IconInput
             icon={Search}
@@ -188,7 +232,7 @@ export default function AddMemberModal({ open, onClose, workspaceId, rosterIds =
           />
         </Field>
 
-        <ErrorBanner message={addError} />
+        <ErrorBanner message={inviteError} />
 
         <div className="border-t border-card pt-4">{renderResults()}</div>
       </div>

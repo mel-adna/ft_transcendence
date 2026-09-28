@@ -11,11 +11,14 @@ Team Pulse is a task and team collaboration app: workspaces, a kanban task board
 What has to be running for the app to actually work:
 
 - The Java backend on port 8080. Everything except the static `/privacy` and `/terms` pages depends on it: login and signup, the dashboard, tasks, colleagues, teams, and settings all call it directly.
-- The separate Node chat backend on port 5005. Only the `/chat` route needs it. Every other page works
-  fine without it. That service is not in this branch: it lives in `backend/` on `origin/aarab`, which is
-  an Express + socket.io + Prisma app, not the Java one. With nothing listening on 5005 the Chat page
-  detects it and shows an offline panel with a retry, rather than the browser's raw `Failed to fetch`.
-  How that check works, and why it lives outside the vendored components, is under "Which code is whose".
+- The Node chat service, in `chat-service/` at the repository root. It is an Express + Socket.io + Prisma
+  app, not the Java one, and only the `/chat` route needs it: every other page works fine without it.
+  `docker compose up` starts it together with Redis, and it keeps its tables in their own `chat` schema
+  in the same Postgres. The browser never talks to it directly. nginx forwards `/api/chat/` and
+  `/socket.io/` to it, and Vite's dev server on port 5173 forwards the same two paths, so both entry
+  points behave alike. When it is down the Chat page shows an offline panel with a retry rather than an
+  empty chat. How that check works, and why it lives outside the vendored components, is under "Which
+  code is whose".
 
 The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
 
@@ -97,19 +100,47 @@ The description field prefills from the workspace the list endpoint already retu
 **Colleagues** turns the role badge into a select, sending `PUT /workspaces/{id}/members/role` with the member's email and the new role. It stays a plain badge for the workspace owner and for yourself, matching the rule the Remove button already used, so you cannot lock yourself out of your own team. Only admins may call it; anyone else gets refused by the backend.
 
 
+## How somebody joins a team
+
+Nobody is added to a team any more, they are invited. The backend dropped `POST /workspaces/{id}/members` in favour of an invitation with its own lifetime, so the old Colleagues button answered 405 until this changed.
+
+**Colleagues**, for an admin or the owner only, opens `InviteMemberModal`. It searches accounts by email and sends `POST /workspaces/{id}/invitations` with `{email, role}`. The address is lowercased first: the backend stores it as typed and looks it up exactly, so `Foo@Bar.com` would create an invitation the invitee can never see (tracked as issue 38 in `backend-issues.md`). An address with no account can be invited too, which is deliberate: the backend emails it, and the invitation is waiting once that person signs up. Below the roster, the same screen lists who has not answered yet, with a Cancel that sends `DELETE .../invitations/{id}`.
+
+The admin list endpoint returns every invitation, including accepted, rejected and expired ones, despite being named for pending ones, so the page filters to `PENDING` with an `expiresAt` in the future. The list addressed to you, `GET /workspaces/users/me/invitations`, is already filtered by the backend. Note the path: it hangs off `/workspaces`, not `/users`.
+
+**Teams** shows the invitations addressed to you above your teams, with Accept and Decline, which post to `/workspaces/invitations/{id}/accept` or `/reject` and return an empty body. Accepting refetches the workspace list, so the new team appears without a reload, and tells the rest of the team to refetch their roster.
+
+## Live updates, and why they are quiet
+
+Teams, colleagues and tasks live in the Java backend, which has no socket of its own. Two paths make a change by one person show up for everyone else, both riding the socket the chat service already holds open:
+
+- **`notifyDataChanged`** (`lib/realtimeNotify.js`) posts to the chat service after a mutation, which pushes `data:changed` to the other people affected. `useDataChanged` listens and refetches.
+- **The backend's own events** reach the same socket as `notification:new`, relayed from Redis by chat-service. `useSocketEvent` subscribes to those, which is how an invitation appears without polling.
+
+Both refetches are **quiet**: `useList.reload({ quiet: true })` skips the loading flag. Without that, a teammate moving a card raised `loading` on your board, the page returned its full-screen spinner, and every modal under it unmounted, including a task form somebody was typing into. The loading spinner is for the first load only.
+
+One more thing worth knowing: the socket takes its token when it connects, and it now stays open for the whole session rather than just while the Chat page is mounted. So `lib/api.js` calls `socketClient.updateToken` when it refreshes the access token, or the next reconnect would authenticate with the expired one and live updates would stop for the rest of the session.
+
 ## Colours come from tokens, not from the markup
 
 Tailwind v4 is configured in CSS, so there is no `tailwind.config.js` and its absence is correct. The palette lives in the `@theme` block at the top of `src/index.css`, and that block is the only place a hex value for a UI colour is written:
 
 | Token | Value | Reads as |
 |---|---|---|
+| `--font-sans` | Inter, then the system stack | `font-sans`, and the page default |
 | `--color-primary` | `#3B82F6` | `bg-primary`, `text-primary`, `focus:border-primary` |
 | `--color-canvas` | `#0c0c14` | `bg-canvas`, the page behind everything |
 | `--color-panel` | `#181824` | `bg-panel`, cards and modals |
 | `--color-sidebar` | `#0e0e17` | `bg-sidebar` |
 | `--color-card` | `#27273a` | `border-card`, the hairline between surfaces |
+| `--color-ink` | `#f8fafc` | `text-ink`, headings and anything that has to stand out |
 | `--color-body` | `#c2c6d6` | `text-body`, long-form text |
 | `--color-muted` | `#71717A` | `text-muted`, secondary text and icons |
+| `--color-success` | `#34d399` | `text-success`, `bg-success/10`, a task that is done |
+| `--color-warning` | `#fbbf24` | `text-warning`, `bg-warning/10`, due soon |
+| `--color-danger` | `#f43f5e` | `text-danger`, `bg-danger/10`, errors and destructive actions |
+
+The last three are the meaning, not the colour. A failed request is `text-danger` rather than `text-rose-400`, so the same red is used for every error and one line changes all of them. Nothing outside `features/chat/` and `features/dashboard/` names a Tailwind palette colour any more.
 
 This used to be written out by hand: 334 arbitrary values like `bg-[#181824]` and `text-[#71717A]/50` across 26 files, while the `@theme` block sat there unreferenced. Changing one colour meant 334 edits. It is now one line.
 
@@ -121,11 +152,44 @@ Two details worth knowing before adding a token:
 
 The vendored chat under `features/chat/` still uses arbitrary values. That is deliberate: those files are never edited here, for the reason under "Which code is whose".
 
+## The components, and when to reach for one
+
+Everything under `components/` is shared by at least two screens. Nothing in there knows about tasks, teams or chat, so a screen composes them rather than restyling them.
+
+| Component | What it is for |
+|---|---|
+| `Button` | Every button. `variant` is `primary`, `secondary`, `danger` or `quiet`, `size` is `md` or `sm`, `icon` takes a lucide icon, and `busy` swaps the icon for a spinner and disables it |
+| `Badge` | A status pill. `tone` is `neutral`, `primary`, `success`, `warning` or `danger` |
+| `Field` | A label, a control and an error message under it, with the ids wired together |
+| `IconInput`, `inputClass` | An input with a leading icon, and the class string behind every plain input |
+| `Modal`, `ConfirmModal` | A dialog, and the yes or no version with a busy state and an error line |
+| `PageHeader` | The title, the description and the actions at the top of a screen |
+| `AuthCard`, `GoogleSignInButton` | The signed out screens, and the Google button |
+| `AppLayout`, `ProtectedRoute` | The shell with the sidebar, and the redirect for signed out visitors |
+| `Avatar` | A photo, or the person's initials when there is none |
+| `Spinner`, `EmptyState`, `ErrorState`, `ErrorBanner`, `SuccessBanner` | Loading, nothing here, it broke, and the two banners |
+| `LegalPage`, `LegalLinks` | The privacy and terms pages, and the footer links to them |
+
+A screen that needs a new visual element adds it here once the second screen needs it too. Until then it stays local to the screen, which is why there is no `Card` component yet: `cardClass` is a single string inside the one file that uses it.
+
+## Which browsers it has been checked in
+
+Chrome, Safari 26.6 and Firefox 156, all on macOS.
+
+Safari and Firefox were each driven through their own automation driver, `safaridriver` and Mozilla's `geckodriver`, on `https://localhost` with the whole stack running. The run signs up with the code from a real inbox, creates a team and a task, moves the task, invites someone and watches the roster fill in when they accept, creates, copies and revokes an API key, sends a chat message, and has a newcomer accept an invitation from the first-team screen. Every check passes in both, and every screen has the same layout in all three browsers. Firefox also hands its whole console to the driver, and nothing was logged there as an error or warning, page loads included.
+
+What differs between browsers, or was not covered:
+
+- **Dates and times follow the browser's language.** Safari takes it from macOS, en-GB on this Mac, so it writes "27 Sep" and "11:50". Firefox uses its own, en-US by default, so it writes "Sep 27" and "12:50 PM". Both are right for their setting.
+- **Time zone data can disagree.** Both browsers use the Mac's zone, Africa/Casablanca, but Safari reads it from macOS and Firefox from its own copy of the time zone database. During the check they were an hour apart: the same moment showed as 11:50 in Safari and as 12:50 PM in Firefox. One of the two copies is out of date, and an update of that browser or of macOS fixes it. The app has nothing to change.
+- **The Google button.** Google's script takes two to four seconds in any browser. In two of nine fresh Safari windows it had still not loaded after several seconds, and the space above "OR" stayed empty. `lib/googleIdentity.js` now gives up after 10 seconds, so the page says Google sign in is unavailable instead of leaving a gap. Google draws the button in the computer's language, which is why it can read "Se connecter avec Google".
+- **Drag and drop** on the task board is not in the automated runs, because WebDriver cannot drive the browser's own drag and drop. The card menu's "Move to", which does the same job, is.
+
 ## Which code is whose
 
 `features/chat/` and `infrastructure/socket/` are copied unchanged from a teammate's branch (aarab). They are vendored byte for byte so they merge cleanly with his work later, and they are never edited here, including the no-comments and no-console rules that apply to the rest of the app. `eslint.config.js` explicitly ignores both paths for the same reason.
 
-`pages/ChatPage.jsx` is the exception, and it is ours. Because the vendored components cannot be edited, the check for whether the chat service is even up has to live outside them. `ChatPage` probes the same base URL `chatApi.js` uses, and only mounts `SocketProvider` and `ChatLayout` once something answers. If nothing does, it shows an offline panel with a retry instead. Any HTTP reply counts as up, including a 401 or a 404; only a network-level failure counts as down, which is the same failure the vendored client would hit. Gating the provider also stops socket.io from retrying a dead port forever in the background. The base URL is duplicated rather than imported, so it has to stay identical to the one in `chatApi.js`.
+`pages/ChatPage.jsx` is the exception, and it is ours. Because the vendored components cannot be edited, the check for whether the chat service is even up has to live outside them. `ChatPage` probes the same base URL `chatApi.js` uses, and only mounts `SocketProvider` and `ChatLayout` once something answers. If nothing does, it shows an offline panel with a retry instead. A reply below 500 counts as up, including a 401 or a 404, since only a running service sends those. A reply of 500 or more counts as down, and so does a network failure. The 500 rule exists because chat sits behind a proxy: when chat-service is gone, nginx and Vite answer 502 themselves instead of failing at the network level, and counting that as up used to mount an empty chat that read "No rooms yet". Gating the provider also stops socket.io from retrying a dead port forever in the background. The base URL is duplicated rather than imported, so it has to stay identical to the one in `chatApi.js`.
 
 Everything else under `frontend/src` was written for this task list.
 
@@ -135,8 +199,9 @@ Everything else under `frontend/src` was written for this task list.
 |---|---|---|
 | `VITE_CORE_API_URL` | `/api/v1`, a relative path | Everything except chat: auth, tasks, workspaces, colleagues, settings (`lib/api.js`) |
 | `CORE_API_PROXY_TARGET` | Java backend, `http://localhost:8080` | Where Vite forwards `/api/v1` during development. Not read by app code |
-| `VITE_API_URL` | Node chat backend, port 5005, base path `/api` | Chat's own REST calls: rooms, messages, search (`features/chat/services/chatApi.js`, vendored) |
-| `VITE_WS_URL` | Node chat backend, port 5005 | The chat socket connection (`infrastructure/socket/SocketClient.js`, vendored) |
+| `VITE_API_URL` | `/api`, a relative path | Chat's own REST calls: rooms, messages, search (`features/chat/services/chatApi.js`, vendored). The client appends `/chat/...` itself and chat-service mounts at `/api/chat`, so the base stops at `/api`; setting it to `/api/chat` doubles the segment and every call returns 404 |
+| `VITE_WS_URL` | `/`, the page's own origin | The chat socket connection, at `/socket.io/` (`infrastructure/socket/SocketClient.js`, vendored) |
+| `CHAT_PROXY_TARGET` | chat-service, `http://localhost:5005` | Where Vite forwards `/api/chat` and `/socket.io` during development. Not read by app code |
 | `VITE_GOOGLE_CLIENT_ID` | Google OAuth web client id | Renders the Continue with Google button. Unset means the button is not rendered at all, which is the default. |
 
 ### Why the core API is a relative path and goes through a proxy

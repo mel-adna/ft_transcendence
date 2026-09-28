@@ -1,5 +1,4 @@
 server:
-#  forward-headers-strategy: framework
   port: ${SERVER_PORT:8080}
   servlet:
     context-path: /api/v1
@@ -17,9 +16,9 @@ spring:
       max-request-size: 10MB
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:teampulsedb}
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:teampulsedb}
     username: ${DB_USERNAME:med}
-    password: ${DB_PASSWORD:123}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DB_POOL_MAX:20}
@@ -53,8 +52,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: mohamedbentalebakilo@gmail.com
-    password: pyno tbky wasf whvy
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -68,18 +67,18 @@ spring:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:134844523141-hc2f2nse0eabva72ep33hiiql8ltn3l8.apps.googleusercontent.com}
-            client-secret: ${GOOGLE_CLIENT_SECRET:client secrets}
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
             scope:
               - email
               - profile
-  
+
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   public-url: ${MINIO_PUBLIC_URL:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY}
   bucket-name: ${MINIO_BUCKET_NAME:teampulse-avatars}
 
 management:
@@ -98,13 +97,13 @@ management:
 
 
 app:
-  frontend-url: ${FRONTEND_URL:http://localhost:8080}
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
   jwt:
-    secret: ${JWT_SECRET:eb44fd25026958f973cf6a447902fbc44d9689d095b27db5cadf55d8f3077177}
-    access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}       # 15min
-    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:259200000}  # 3 days
+    secret: ${JWT_SECRET}
+    access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:259200000}
   api:
-    public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
+    public-key: ${PUBLIC_API_KEY}
 
   redis:
     channel: ${REDIS_CHANNEL:teampulse-realtime-events}

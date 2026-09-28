@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api, { getErrorMessage } from '../../lib/api';
+import { notifyDataChanged } from '../../lib/realtimeNotify';
 import {
   NAME_MAX,
   DESCRIPTION_MAX,
@@ -49,6 +50,7 @@ export default function EditTeamModal({ open, onClose, workspace, onSaved }) {
         description: description.trim(),
         type,
       });
+      notifyDataChanged('workspaces', null, { workspaceId: workspace.id });
       await onSaved();
       onClose();
     } catch (requestError) {

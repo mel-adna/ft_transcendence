@@ -1,15 +1,14 @@
 # Backend issues
 
-Status checked 2026-09-17 against `4d9fb45` on `mdbentaleb`, by reading every file that commit
-range touched. Four of the five issues that were open are fixed and have been removed, so the
-numbering has gaps: **17** (no rate limiting), **25** (expired token answered 403), **26** (avatars
-served over plain http) and **27** (no real Google OAuth client, Google signup created disabled)
-are all done. What each fix was is summarised at the bottom.
+Status checked 2026-09-27 against `10ea735` on `mdbentaleb` and `7b7ee2f` on `aarab`, merged and run
+together. Only unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
 
-Nothing here blocks a feature today.
+Fixed since the last check, and removed from this file: **33** (email prefixes collided in chat),
+**34** (the chat image shipped no Prisma client), **35** (chat rejected every Java token) and
+**32** (the backend never received the token lifetimes). Nothing blocks a feature today.
 
 ## Not blocking
 
@@ -17,14 +16,118 @@ Real defects, but nothing visible is broken.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
+| 37 | Any signed in user can read any team's member list | Names and email addresses of teams you do not belong to, from one request | 1 line |
+| 39 | The socket client logs to the console on every page | With chat-service down, every page prints ten connection errors, and the subject rejects a project with console errors | Small |
+| 40 | `GET /api-key` answers 404 when the user has no key yet | Having no key is the normal state, and the browser logs the 404 as a console error on the Settings page | 4 lines |
+| 41 | A new task comes back with `"createdAt": null` | The card of a task you just created has no date until the next reload | 1 line |
+| 38 | An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com` | The invitation exists and looks sent, but it is not in the invitee's list | Small |
 | 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
+| 31 | The Google OAuth client does not allow `http://localhost:5173` | Google sign in is refused on the Vite port; `https://localhost` works | Console setting |
+| 36 | Broken JSON still answers 500 instead of 400 | Half fixed: a wrong method answers 405 now, the rest of the client mistakes do not | Small |
 | 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
 | 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
 
 ---
 
 # Not blocking
+
+## 37. Any signed in user can read any team's member list
+
+`WorkspaceController.getWorkspaceMembers` takes the caller's `principal` and never uses it:
+
+```java
+List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId);
+```
+
+Every other workspace endpoint checks membership first. This one does not, so any account can read
+any team's roster by guessing or reusing a workspace id, and each row carries a member's first name,
+last name, email and avatar. The ids are UUIDs, so this is not trivially enumerable, but ids travel
+in URLs and in the invitation payloads.
+
+**Fix:** the same membership check the other endpoints use, before building the response.
+
+## 40. `GET /api-key` answers 404 when the user has no key yet
+
+`ApiKeyService.getApiKeyInfo` throws `ResourceNotFoundException` when the user has never created a
+key:
+
+```java
+ApiKey apiKey = apiKeyRepository.findByUser(user)
+        .orElseThrow(() -> new ResourceNotFoundException("No active API key found for this user."));
+```
+
+Having no key is the normal state for almost every account, so the Settings page asks a question
+whose usual answer is an error. The page handles it, but Chrome still prints "Failed to load
+resource: 404" in the console, and the subject's general requirements say a project with console
+errors is rejected.
+
+**Fix:** answer 204 No Content when there is no key. `getApiKeyInfo` returns an `Optional`
+instead of throwing, and `ApiKeyController` becomes:
+
+```java
+return apiKeyService.getApiKeyInfo(currentUser.getUsername())
+        .map(ResponseEntity::ok)
+        .orElseGet(() -> ResponseEntity.noContent().build());
+```
+
+The frontend is already ready for it: it reads a 204, an empty 200 or a missing `keyPrefix` as
+"no key yet", so this is a backend only change. 404 stays right for a key that was asked for by id.
+
+## 39. The socket client logs to the console on every page
+
+`infrastructure/socket/SocketClient.js` prints on connect, on disconnect and on every failed
+attempt:
+
+```js
+console.error('[SocketClient] Connection error:', err.message);
+```
+
+That used to be limited to the Chat page. The live update work holds the socket open on every
+page now, so when chat-service is down, ten failed attempts print on the dashboard, the task board
+and everywhere else. The subject's general requirements say the project is rejected if warnings or
+errors appear in the browser console, and an evaluator who stops one container to see what happens
+will see them.
+
+**Fix:** drop the three console calls, or put them behind `import.meta.env.DEV`. The file is
+aarab's and is vendored here unchanged, so it has to be fixed on his branch.
+
+## 41. A new task comes back with `"createdAt": null`
+
+`POST /tasks/workspace/{id}` answers 201 with `"createdAt": null`. The same task read back from
+`GET /tasks/workspace/{id}`, or returned by `PATCH /tasks/{id}/status`, has its real date.
+
+`TaskService.createTask` builds its reply straight after `save`:
+
+```java
+Task savedTask = taskRepository.save(task);
+...
+return taskMapper.toResponse(savedTask);
+```
+
+`createdAt` is a `@CreationTimestamp`, which Hibernate fills in when the row is actually inserted.
+That happens at the flush, when the transaction commits, which is after the reply has been built.
+The frontend puts the reply on the board as it is, so a task you just created shows no date until
+the page reloads. The card now hides the empty date instead of showing a calendar icon next to
+nothing, but the date is still missing.
+
+**Fix:** `taskRepository.saveAndFlush(task)` instead of `save(task)`, so the insert runs, and the
+timestamp is set, before the reply is built.
+
+## 38. An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com`
+
+The invitation is stored with the address exactly as typed. The two lookups disagree about case:
+
+- `findByInviteeEmailAndStatus` and `existsByWorkspaceIdAndInviteeEmailAndStatus` match exactly, so
+  the list of invitations addressed to a user misses any invitation whose case differs.
+- accept and reject compare with `equalsIgnoreCase`, so the same invitation would be accepted
+  happily if the invitee could see it.
+
+An admin who types a capital letter creates an invitation nobody can find, and the duplicate check
+does not stop them creating a second one. The frontend lowercases the address before sending, which
+hides it from this app, but not from the API or from Swagger.
+
+**Fix:** store the address lowercased, or make both queries case-insensitive.
 
 ## 28. The login limit counts successful logins, so ordinary use spends the budget
 
@@ -63,9 +166,55 @@ never really binds.
 The frontend reads `retryAfterSeconds` off the 429 and says "Too many attempts. Try again in 3
 minutes." rather than the bare server message, so the wait is at least visible while this stands.
 
+## 31. The Google OAuth client does not allow `http://localhost:5173`
+
+Google sign in works through nginx and is refused on the Vite port. Measured on both login pages:
+
+```
+https://localhost        no failed requests, no complaint from Google
+http://localhost:5173    403 from https://accounts.google.com/gsi/button
+                         [GSI_LOGGER]: The given origin is not allowed for the given client ID.
+```
+
+Google treats these as separate origins, and only the first is registered. **Fix:** add
+`http://localhost:5173` under Authorized JavaScript origins for this client in Google Cloud
+Console. Only people using the Vite port are affected; anyone going through `https://localhost` is
+not.
+
+## 36. Broken JSON still answers 500 instead of 400
+
+`GlobalExceptionHandler` ends with a catch-all that answers 500 "An unexpected server error
+occurred":
+
+```java
+@ExceptionHandler(Exception.class)
+```
+
+A wrong method is handled now: `HttpRequestMethodNotSupportedException` answers 405, which is why
+`POST /workspaces/{id}/invitations` on the old members path says "not supported" rather than
+"crashed". The other malformed requests still have no handler of their own and fall through to the
+catch-all:
+
+| Request | Answers | Should answer |
+|---|---|---|
+| Broken JSON in the body | 500 | 400 |
+| `{"role": "admin"}`, a value outside the enum | 500 | 400 |
+| A path id that is not a UUID | 500 | 400 |
+| The wrong `Content-Type` | 500 | 415 |
+| A missing query parameter, such as `email` on `/users/search` | 500 | 400 |
+
+They all arrive as Jackson or Spring binding failures. The enum one is the easiest to hit by hand,
+since `role` has to be upper case and nothing says so.
+
+**Fix:** three more handlers next to the 405 one:
+
+- `HttpMessageNotReadableException` answers 400
+- `MethodArgumentTypeMismatchException` and `MissingServletRequestParameterException` answer 400
+- `HttpMediaTypeNotSupportedException` answers 415
+
 ## 30. The dead public API key is still in `application.yaml`
 
-Reported last time under issue 17 and still there, now that the rest of 17 is done:
+`application.yaml` still contains an unused API key:
 
 ```yaml
 public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
@@ -140,40 +289,3 @@ Cache<String, Bucket> buckets = Caffeine.newBuilder()
         .expireAfterAccess(Duration.ofHours(2))
         .build();
 ```
-
----
-
-# What was fixed, for the record
-
-So nobody reopens these.
-
-**17, rate limiting.** bucket4j is on the classpath, `@RateLimit` carries capacity, window and key
-type, `RateLimitAspect` resolves a bucket and consumes a token, and `GlobalExceptionHandler`
-answers 429 with a `Retry-After` header and a `retryAfterSeconds` field. All five public API
-endpoints are annotated, which was the mandatory half of the requirement. The one leftover is the
-dead `public-key` line, which is still in `application.yaml` and is now issue 30.
-
-**25, expired token answered 403.** `SecurityConfig` now registers an `AuthenticationEntryPoint`
-that writes 401 with a real message. Every 403 the application raises now comes from its own
-handlers and carries a sentence, never the bare word `Forbidden`.
-
-One thing to know before that workaround comes out of the frontend. `lib/api.js` still treats a 403
-whose body is the literal `Forbidden` as an ended session, because it has to keep working against a
-backend build from before this fix. It is safe to leave in place with this backend, since nothing
-here produces that body any more, and it should be deleted once this change is on the branch
-everyone runs.
-
-Worth knowing that the same commit moved `UnauthorizedAccessException` from 401 to 403, which
-changed the status of a wrong password at login and of a dead refresh token. The frontend handles
-both correctly, because it separates a session that ended from a request that was refused by the
-message rather than by the status alone.
-
-**26, avatars over plain http.** `MINIO_PUBLIC_URL` is now `https://localhost/avatars` and nginx
-proxies `/avatars/` to MinIO, so a stored avatar URL is same origin and TLS. No mixed content, and
-no dependence on port 9000 being published.
-
-**27, Google sign in.** A real OAuth client exists and its id is in `.env` under both
-`GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. `googleLogin` now sets `enabled(true)` both when it
-creates an account and when it links an existing local account, so a Google user is no longer
-stored unverified forever. The CSP in `nginx.conf` and in `SecurityConfig` allows the Google script,
-its stylesheet, its iframe and its avatars.

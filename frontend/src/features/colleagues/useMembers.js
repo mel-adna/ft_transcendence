@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import api from '../../lib/api';
+import { useDataChanged } from '../../lib/useDataChanged';
 import { useList } from '../../hooks/useList';
 
 export function useMembers(workspaceId) {
@@ -10,6 +11,8 @@ export function useMembers(workspaceId) {
   }, [workspaceId]);
 
   const { items: members, loading, error, reload } = useList(load);
+
+  useDataChanged('members', () => reload({ quiet: true }));
 
   return { members, loading, error, reload };
 }

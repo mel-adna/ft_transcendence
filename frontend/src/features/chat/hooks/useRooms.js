@@ -5,18 +5,22 @@ import { useSocketEvent } from './useSocketEvent';
 /**
  * useRooms
  * Fetches and manages the user's room list with realtime join updates.
+ * @param {string} [currentUserId] - used to exclude yourself from a DM's
+ *   displayed name; a DIRECT room's `members` includes both sides, and
+ *   without this a DM shows as "You, TheirName" instead of just their name.
  */
-export function useRooms() {
+export function useRooms(currentUserId) {
   const [rooms, setRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const { rooms: fetched } = await chatApi.listRooms();
-      setRooms(fetched);
+      setRooms(fetched ?? []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -24,9 +28,41 @@ export function useRooms() {
     }
   }, []);
 
+  const refreshPendingRequests = useCallback(async () => {
+    try {
+      const { requests } = await chatApi.listPendingDMRequests();
+      setPendingRequests(requests ?? []);
+    } catch {
+      // Non-critical — the badge just won't update until the next refresh.
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    refreshPendingRequests();
+  }, [refresh, refreshPendingRequests]);
+
+  // Someone sent us a DM request — surface it in the pending list.
+  useSocketEvent(
+    'dm:requested',
+    useCallback(() => {
+      refreshPendingRequests();
+    }, [refreshPendingRequests]),
+  );
+
+  // The other side responded to a request WE sent.
+  useSocketEvent(
+    'dm:responded',
+    useCallback(
+      ({ roomId, action, room }) => {
+        if (action === 'ACCEPT' && room) {
+          setRooms((prev) => [room, ...prev.filter((r) => r.id !== room.id)]);
+        }
+        setPendingRequests((prev) => prev.filter((r) => r.id !== roomId));
+      },
+      [],
+    ),
+  );
 
   useSocketEvent(
     'room:joined',
@@ -118,6 +154,15 @@ export function useRooms() {
     return room;
   }, []);
 
+  const respondToDM = useCallback(async (roomId, action) => {
+    const { room } = await chatApi.respondToDM(roomId, action);
+    setPendingRequests((prev) => prev.filter((r) => r.id !== roomId));
+    if (action === 'ACCEPT' && room) {
+      setRooms((prev) => [room, ...prev.filter((r) => r.id !== room.id)]);
+    }
+    return room;
+  }, []);
+
   const deleteRoom = useCallback(async (roomId) => {
     await chatApi.deleteRoom(roomId);
     // Optimistically drop it; the room:deleted broadcast will also arrive but
@@ -130,14 +175,19 @@ export function useRooms() {
     setRooms((prev) => prev.filter((r) => r.id !== roomId));
   }, []);
 
-  const displayName = useCallback((room) => {
-    if (room.type === 'DIRECT') {
-      const others = room.members?.filter((m) => m.user?.username);
-      if (others?.length) return others.map((m) => m.user.username).join(', ');
-      return room.name?.startsWith('dm:') ? 'Direct Message' : room.name ?? 'Direct';
-    }
-    return room.name ?? 'Unnamed channel';
-  }, []);
+  const displayName = useCallback(
+    (room) => {
+      if (room.type === 'DIRECT') {
+        const others = room.members?.filter(
+          (m) => m.user?.username && m.userId !== currentUserId,
+        );
+        if (others?.length) return others.map((m) => m.user.username).join(', ');
+        return room.name?.startsWith('dm:') ? 'Direct Message' : room.name ?? 'Direct';
+      }
+      return room.name ?? 'Unnamed channel';
+    },
+    [currentUserId],
+  );
 
   return {
     rooms,
@@ -151,5 +201,7 @@ export function useRooms() {
     leaveRoom,
     setActiveRoom,
     displayName,
+    pendingRequests,
+    respondToDM,
   };
 }

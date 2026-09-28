@@ -9,6 +9,7 @@ import {
   TYPE_OPTIONS,
   validateTeamForm,
 } from '../features/teams/teamForm';
+import InvitationsPanel from '../features/teams/InvitationsPanel';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
 import ErrorBanner from '../components/ErrorBanner';
@@ -65,8 +66,16 @@ export default function CreateTeamPage() {
     }
   }
 
+  async function handleInvitationAccepted() {
+    await refresh();
+    navigate('/');
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto w-full max-w-2xl">
+        <InvitationsPanel onAccepted={handleInvitationAccepted} className="mb-6" />
+      </div>
       <div className="mx-auto w-full max-w-2xl rounded-2xl border border-card bg-panel p-6 sm:p-8">
         <div className="flex items-center justify-between gap-4 border-b border-card pb-5">
           <div className="flex items-center gap-3">

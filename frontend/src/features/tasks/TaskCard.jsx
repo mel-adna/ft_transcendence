@@ -38,6 +38,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
 
   const isDone = task.status === 'DONE';
   const otherStatuses = STATUSES.filter((status) => status !== task.status);
+  const created = shortDate(task.createdAt);
 
   function handleDragStart(event) {
     event.dataTransfer.effectAllowed = 'move';
@@ -120,7 +121,7 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
                 type="button"
                 role="menuitem"
                 onClick={() => runAction(onDelete)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-rose-400 hover:bg-rose-500/10"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger hover:bg-danger/10"
               >
                 <Trash2 size={14} />
                 Delete
@@ -141,10 +142,12 @@ export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
       )}
 
       <div className="mt-4 flex items-center gap-3 border-t border-card pt-3">
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
-          <CalendarDays size={13} />
-          {shortDate(task.createdAt)}
-        </span>
+        {created && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+            <CalendarDays size={13} />
+            {created}
+          </span>
+        )}
         <span className="ml-auto font-mono text-[11px] text-muted">{taskRef(task)}</span>
         {task.assignee && (
           <>

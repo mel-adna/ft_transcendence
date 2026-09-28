@@ -10,6 +10,8 @@ class SocketClient {
     /** @type {import('socket.io-client').Socket | null} */
     this._socket = null;
     this._tokenGetter = null;
+    /** Consumers outside the chat UI keeping the connection alive. */
+    this._holders = 0;
   }
 
   /**
@@ -27,7 +29,14 @@ class SocketClient {
    * @returns {import('socket.io-client').Socket}
    */
   connect() {
-    if (this._socket?.connected) return this._socket;
+    // Reuse a socket that is connected OR still completing its handshake.
+    // Checking only `.connected` meant a second caller during the async
+    // handshake would tear the in-flight socket down and start over — an
+    // endless reconnect loop that also orphaned every listener already
+    // attached to the discarded instance.
+    if (this._socket && (this._socket.connected || this._socket.active)) {
+      return this._socket;
+    }
 
     const token = this._tokenGetter?.();
     if (!token) throw new Error('SOCKET_NO_AUTH_TOKEN');
@@ -37,8 +46,7 @@ class SocketClient {
       this._socket = null;
     }
 
-    this._socket = io(import.meta.env.VITE_WS_URL || undefined, {    // <----- zid had line 3andk
-      path: '/api/chat/socket.io',                                   // <----- zid had line 3andk
+    this._socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:5005', {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -53,8 +61,45 @@ class SocketClient {
 
   /**
    * Disconnect and destroy the socket.
+   *
+   * No-op while something outside the chat feature is holding the connection
+   * open (see retain/release). ChatPage unmounts whenever the user navigates
+   * to Teams or Tasks, and those pages listen for `data:changed` on this same
+   * socket — without this guard, leaving chat would silently kill their
+   * live updates.
    */
   disconnect() {
+    if (this._holders > 0) return;
+    this._forceDisconnect();
+  }
+
+  /**
+   * Keep the connection alive independently of the chat UI's lifecycle.
+   * Returns a release function; the socket is torn down once the last
+   * holder releases and the chat provider is also gone.
+   * @returns {() => void}
+   */
+  retain() {
+    this._holders += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this._holders = Math.max(0, this._holders - 1);
+    };
+  }
+
+  /**
+   * Tear the connection down regardless of holders, and drop them.
+   * For logout: the socket is authenticated as the outgoing user, so it must
+   * not survive into the next session.
+   */
+  forceClose() {
+    this._holders = 0;
+    this._forceDisconnect();
+  }
+
+  _forceDisconnect() {
     this._stopHeartbeat();
     if (this._socket) {
       this._socket.disconnect();
