@@ -43,6 +43,27 @@ CREATE TABLE workspace_members
     CONSTRAINT fk_members_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
+-- 4. Tasks
+CREATE TABLE tasks
+(
+    id           UUID PRIMARY KEY,
+    workspace_id UUID         NOT NULL,
+    title        VARCHAR(150) NOT NULL,
+    description  VARCHAR(40000),
+    status       VARCHAR(50)  NOT NULL DEFAULT 'TODO',   -- Enum: TODO, DOING, DONE
+    priority     VARCHAR(50)  NOT NULL DEFAULT 'MEDIUM', -- Enum: LOW, MEDIUM, HIGH
+    assignee_id  UUID,
+    creator_id   UUID         NOT NULL,
+    deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_tasks_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
+    CONSTRAINT fk_tasks_assignee FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE RESTRICT
+);
+
+
 
 
 
