@@ -29,7 +29,19 @@ CREATE TABLE workspaces
     CONSTRAINT fk_workspaces_owner FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
+-- 3. Workspace Members junction table
+CREATE TABLE workspace_members
+(
+    workspace_id UUID        NOT NULL,
+    user_id      UUID        NOT NULL,
+    role         VARCHAR(50) NOT NULL, -- Enum: ADMIN, MEMBER, VIEWER
+    created_at   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (workspace_id, user_id),
 
+    CONSTRAINT fk_members_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
+    CONSTRAINT fk_members_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT
+);
 
 
 
