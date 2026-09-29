@@ -118,6 +118,19 @@ CREATE TABLE activity_logs
     CONSTRAINT fk_logs_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
 );
 
+-- 9. Password Reset Tokens
+CREATE TABLE password_reset_tokens
+(
+    id          UUID PRIMARY KEY,
+    token       VARCHAR(255) NOT NULL,
+    user_id     UUID         NOT NULL,
+    expiry_date TIMESTAMP    NOT NULL,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_password_reset_token UNIQUE (token),
+    CONSTRAINT uk_password_reset_user UNIQUE (user_id),
+    CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
 
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
