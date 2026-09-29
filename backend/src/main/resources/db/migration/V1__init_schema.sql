@@ -113,3 +113,4 @@ CREATE INDEX idx_tasks_assignee_active ON tasks (assignee_id) WHERE deleted = FA
 CREATE INDEX idx_tasks_workspace ON tasks (workspace_id);
 CREATE INDEX idx_task_comments_task_created ON task_comments (task_id, created_at DESC);
 CREATE INDEX idx_chat_workspace_created ON chat_messages (workspace_id, created_at DESC);
+CREATE INDEX idx_notifications_recipient ON notifications (recipient_id, created_at DESC);
