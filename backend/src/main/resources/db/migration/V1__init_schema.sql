@@ -157,6 +157,20 @@ CREATE TABLE verification_codes
     CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+CREATE TABLE api_keys
+(
+    id           UUID PRIMARY KEY,
+    hash_key     VARCHAR(64)  NOT NULL UNIQUE,
+    key_prefix   varchar(100) NOT NULL,
+    user_id      UUID         NOT NULL,
+    active       BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_used_at TIMESTAMP,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_api_key_user UNIQUE (user_id),
+    CONSTRAINT fk_api_key_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
 CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
