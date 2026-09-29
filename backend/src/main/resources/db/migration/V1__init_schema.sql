@@ -132,6 +132,18 @@ CREATE TABLE password_reset_tokens
     CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 10. Refresh Tokens
+CREATE TABLE refresh_tokens
+(
+    id          UUID PRIMARY KEY,
+    user_id     UUID         NOT NULL,
+    token       VARCHAR(255) NOT NULL UNIQUE,
+    expiry_date TIMESTAMP    NOT NULL,
+    revoked     BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
 CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
