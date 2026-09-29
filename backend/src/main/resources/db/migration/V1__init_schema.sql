@@ -90,6 +90,20 @@ CREATE TABLE chat_messages
     CONSTRAINT fk_chat_sender FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
+-- 7, Notifications
+CREATE TABLE notifications
+(
+    id           UUID PRIMARY KEY,
+    recipient_id UUID         NOT NULL,
+    type         VARCHAR(100) NOT NULL, -- TASK_ASSIGNED, TASK_COMMENTED, WORKSPACE_MEMBER_ADDED
+    entity_type  VARCHAR(50),           -- TASK, WORKSPACE, TASK_COMMENT
+    entity_id    UUID,
+    message      VARCHAR(500) NOT NULL,
+    is_read      BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
