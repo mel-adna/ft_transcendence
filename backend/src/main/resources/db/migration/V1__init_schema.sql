@@ -76,6 +76,19 @@ CREATE TABLE task_comments
     CONSTRAINT fk_comments_author FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
+-- 6. Chat Messages
+CREATE TABLE chat_messages
+(
+    id                UUID PRIMARY KEY,
+    workspace_id      UUID          NOT NULL,
+    sender_id         UUID          NOT NULL,
+    sender_name       VARCHAR(50)   NOT NULL,
+    sender_avatar_url VARCHAR(255),
+    content           VARCHAR(2000) NOT NULL,
+    created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_chat_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_sender FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE RESTRICT
+);
 
 
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
