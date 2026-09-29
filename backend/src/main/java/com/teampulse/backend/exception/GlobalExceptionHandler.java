@@ -7,14 +7,18 @@ import java.util.Map;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mail.MailException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.teampulse.backend.dto.response.ErrorResponse;
@@ -209,6 +213,45 @@ public class GlobalExceptionHandler {
 		return buildResponseEntity(
 				HttpStatus.SERVICE_UNAVAILABLE,
 				"Unable to send email at this time. Please check your mail service configuration or try again later.",
+				request,
+				null
+		);
+	}
+
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
+	                                                                  HttpServletRequest request) {
+		log.warn("Malformed JSON request or invalid payload structure at path: {}", request.getRequestURI());
+
+		return buildResponseEntity(
+				HttpStatus.BAD_REQUEST,
+				"Malformed JSON request payload or invalid field format.",
+				request,
+				null
+		);
+	}
+
+	@ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
+	public ResponseEntity<ErrorResponse> handleTypeMismatchAndMissingParams(Exception ex,
+	                                                                        HttpServletRequest request) {
+		log.warn("Invalid parameter or type mismatch at path: {} | Details: {}", request.getRequestURI(), ex.getMessage());
+
+		return buildResponseEntity(
+				HttpStatus.BAD_REQUEST,
+				"Invalid request parameter or argument type mismatch.",
+				request,
+				null
+		);
+	}
+
+	@ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+	public ResponseEntity<ErrorResponse> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException ex,
+	                                                                 HttpServletRequest request) {
+		log.warn("Unsupported media type: {} for path: {}", ex.getContentType(), request.getRequestURI());
+
+		return buildResponseEntity(
+				HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+				"The requested media type is not supported.",
 				request,
 				null
 		);
