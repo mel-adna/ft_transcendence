@@ -12,17 +12,24 @@ import com.teampulse.backend.model.User;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface UserMapper {
+
 	UserResponse toResponse(User user);
 
 	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "passwordHashed", ignore = true)
+	@Mapping(target = "enabled", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "updatedAt", ignore = true)
-	User toEntity(SignupRequest request);
+	User toEntitcy(SignupRequest request);
 
 	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "email", ignore = true)
 	@Mapping(target = "passwordHashed", ignore = true)
+	@Mapping(target = "provider", ignore = true)
+	@Mapping(target = "providerId", ignore = true)
+	@Mapping(target = "enabled", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "updatedAt", ignore = true)
 	void updateUserFromRequest(ProfileUpdateRequest request, @MappingTarget User user);

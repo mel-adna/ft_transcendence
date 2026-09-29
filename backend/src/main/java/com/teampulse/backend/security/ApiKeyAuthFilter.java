@@ -45,6 +45,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 			}
 
 			UserPrincipal userPrincipal = new UserPrincipal(user);
+
+			if (!userPrincipal.isAccountNonLocked() || !userPrincipal.isEnabled()) {
+				sendUnauthorizedError(response, "User account is disabled or deleted");
+				return;
+			}
+
 			UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
 					userPrincipal, null, userPrincipal.getAuthorities());
 

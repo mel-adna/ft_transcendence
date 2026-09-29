@@ -55,6 +55,9 @@ public class UserService {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final WorkspaceRepository workspaceRepository;
 	private final WorkspaceInvitationRepository workspaceInvitationRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final ApiKeyRepository apiKeyRepository;
+	private final NotificationRepository notificationRepository;
 
 
 	@Value("${app.frontend-url}")
@@ -285,17 +288,19 @@ public class UserService {
 
 		UUID userId = user.getId();
 
-		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
+		String originalEmail = user.getEmail();
+		String originalName = (user.getFirstName() != null && !user.getFirstName().isBlank()) ? user.getFirstName() : "there";
 
+		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
 		List<String> blockingWorkspaces = new ArrayList<>();
-		List<Workspace> workdpcesToDelete = new ArrayList<>();
+		List<Workspace> workspacesToDelete = new ArrayList<>();
 		List<Workspace> workspacesToTransfer = new ArrayList<>();
 
 		for (Workspace ws : ownedWorkspaces) {
 			long memeberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
 
 			if (memeberCont == 1)
-				workdpcesToDelete.add(ws);
+				workspacesToDelete.add(ws);
 			else {
 				boolean hasOtherAdmin = workspaceMemberRepository.existsByWorkspaceIdAndUserIdNotAndRole(
 						ws.getId(), userId, WorkspaceMemberRole.ADMIN);
@@ -312,11 +317,11 @@ public class UserService {
 					"You must add another admin to your workspace(s) [%s] or delete them before deleting your account.",
 					String.join(", ", blockingWorkspaces)
 			);
-			throw new IllegalArgumentException(message);
+			throw new BadRequestException(message);
 		}
 
-		if (!workdpcesToDelete.isEmpty())
-			workspaceRepository.deleteAll(workdpcesToDelete);
+		if (!workspacesToDelete.isEmpty())
+			workspaceRepository.deleteAll(workspacesToDelete);
 
 		for (Workspace ws : workspacesToTransfer) {
 			WorkspaceMember nextAdmin = workspaceMemberRepository
@@ -327,29 +332,47 @@ public class UserService {
 			workspaceRepository.save(ws);
 		}
 
-		workspaceMemberRepository.deleteByUserId(userId);
-		workspaceInvitationRepository.deleteByInviter(user);
-		workspaceInvitationRepository.deleteByInviteeEmail(email);
+		taskRepository.unassignTasksByUserId(userId);
 
-		userRepository.delete(user);
+		notificationRepository.deleteByRecipientId(userId);
+		workspaceMemberRepository.deleteByUserId(userId);
+		workspaceInvitationRepository.deleteByInviterId(userId);
+		workspaceInvitationRepository.deleteByInviteeEmail(originalEmail);
+		refreshTokenRepository.deleteByUserId(userId);
+		apiKeyRepository.deleteByUserId(userId);
+		passwordResetTokenRepository.deleteByUser(user);
+
+		user.setEmail("deleted_" + userId + "@teampulse.local");
+		user.setFirstName("Deleted");
+		user.setLastName("User");
+		user.setProviderId(null);
+		user.setPasswordHashed(passwordEncoder.encode(UUID.randomUUID().toString()));
+		user.setEnabled(false);
+		user.setDeleted(true);
+
+		if (user.getAvatarUrl() != null)
+			fileStorageService.deleteAvatar(user.getAvatarUrl());
+
+		user.setAvatarUrl(null);
+
+		userRepository.save(user);
 
 		log.info("User account with email {} has been successfully soft-deleted.", email);
 
 		try {
-			String name = (user.getFirstName() != null && !user.getFirstName().isBlank()) ? user.getFirstName() : "there";
 			String subject = "Account Deletion Confirmation - Team-Pulse";
 			String body = String.format(
 					"Hello %s,\n\n" +
 							"Your Team-Pulse account (%s) has been successfully deleted.\n" +
 							"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
 							"Best regards,\nThe Team-Pulse Team",
-					name, email
+					originalName, originalEmail
 			);
 
-			emailService.sendEmail(email, subject, body);
-			log.info("Account deletion confirmation email sent to: {}", email);
+			emailService.sendEmail(originalEmail, subject, body);
+			log.info("Account deletion confirmation email sent to: {}", originalEmail);
 		} catch (Exception ex) {
-			log.warn("Account deleted for [{}], but failed to send confirmation email: {}", email, ex.getMessage());
+			log.warn("Account deleted for [{}], but failed to send confirmation email: {}", originalEmail, ex.getMessage());
 		}
 	}
 

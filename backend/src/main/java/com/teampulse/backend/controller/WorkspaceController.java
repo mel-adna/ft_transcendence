@@ -80,9 +80,9 @@ public class WorkspaceController {
 
 	@Operation(summary = "Get all members for this current workspace", description = "test test test")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "test"),
-			@ApiResponse(responseCode = "400", description = "test"),
-			@ApiResponse(responseCode = "403", description = "test")
+			@ApiResponse(responseCode = "200", description = "Workspace members retrieved successfully"),
+			@ApiResponse(responseCode = "400", description = "Invalid workspace ID"),
+			@ApiResponse(responseCode = "403", description = "Forbidden - User is not a member of this workspace")
 	})
 	@GetMapping("/{workspaceId}/members")
 	public ResponseEntity<List<WorkspaceMemberResponse>> getWorkspaceMembers(

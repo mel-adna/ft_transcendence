@@ -14,25 +14,29 @@ import com.teampulse.backend.dto.response.WorkspaceResponse;
 import com.teampulse.backend.model.Workspace;
 import com.teampulse.backend.model.WorkspaceMember;
 
-@Mapper (
-	componentModel = "spring",
-	unmappedTargetPolicy = ReportingPolicy.IGNORE,
-	uses = {UserMapper.class}
+
+@Mapper(
+		componentModel = "spring",
+		unmappedTargetPolicy = ReportingPolicy.IGNORE,
+		uses = {UserMapper.class}
 )
 public interface WorkspaceMapper {
-    WorkspaceResponse toResponse(Workspace workspace);
+
+	WorkspaceResponse toResponse(Workspace workspace);
 
 	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "owner", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "updatedAt", ignore = true)
-    Workspace toEntity(WorkspaceCreateRequest request);
+	Workspace toEntity(WorkspaceCreateRequest request);
 
-   	@Mapping(target = "id", ignore = true)
+	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "owner", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "updatedAt", ignore = true)
-    void updateWorkspaceFromRequest(WorkspaceUpdateRequest request, @MappingTarget Workspace workspace);
+	void updateWorkspaceFromRequest(WorkspaceUpdateRequest request, @MappingTarget Workspace workspace);
 
 	@Mapping(target = "member", source = "user")
 	@Mapping(target = "joinedAt", source = "createdAt")
@@ -43,12 +47,12 @@ public interface WorkspaceMapper {
 	@Mapping(target = "user", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "updatedAt", ignore = true)
-	WorkspaceMember	toMemberEntity(WorkspaceMemberAddRequest request);
+	WorkspaceMember toMemberEntity(WorkspaceMemberAddRequest request);
 
 	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "workspace", ignore = true)
 	@Mapping(target = "user", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "updatedAt", ignore = true)
-	void	updateMemberFromRequest(WorkspaceMemberRoleUpdateRequest request, @MappingTarget WorkspaceMember member);
+	void updateMemberFromRequest(WorkspaceMemberRoleUpdateRequest request, @MappingTarget WorkspaceMember member);
 }

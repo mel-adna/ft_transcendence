@@ -3,20 +3,18 @@ package com.teampulse.backend.service;
 import java.io.InputStream;
 import java.util.UUID;
 
+import io.minio.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.teampulse.backend.exception.BadRequestException;
 
-import io.minio.BucketExistsArgs;
-import io.minio.MakeBucketArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
-import io.minio.SetBucketPolicyArgs;
 import lombok.RequiredArgsConstructor;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class FileStorageService {
 
@@ -83,6 +81,25 @@ public class FileStorageService {
 
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to upload image to MinIO: " + e.getMessage(), e);
+		}
+	}
+
+	public void deleteAvatar(String avatarUrl) {
+		if (avatarUrl == null || avatarUrl.isBlank()) {
+			return;
+		}
+
+		try {
+			String fileName = avatarUrl.substring(avatarUrl.lastIndexOf('/') + 1);
+
+			minioClient.removeObject(
+					RemoveObjectArgs.builder()
+							.bucket(bucketName)
+							.object(fileName)
+							.build()
+			);
+		} catch (Exception e) {
+			log.warn("Failed to delete avatar object from MinIO: {}", e.getMessage());
 		}
 	}
 }

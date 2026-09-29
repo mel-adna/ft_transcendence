@@ -38,7 +38,7 @@ public class Notification {
 	private UUID id;
 
 	@ManyToOne(fetch=FetchType.LAZY)
-	@JoinColumn(name="recipient_id", nullable=false)
+	@JoinColumn(name="recipient_id")
 	@NotFound(action=NotFoundAction.IGNORE)
 	private User recipient;
 

@@ -6,6 +6,7 @@ import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.event.WorkspaceDeletedEvent;
 import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
 import com.teampulse.backend.event.WorkspaceUpdatedEvent;
+import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.service.NotificationService;
@@ -35,13 +36,12 @@ public class WorkspaceEventListener {
 	@Transactional
 	public void handleWorkspaceUpdatedEvent(WorkspaceUpdatedEvent event) {
 		UUID adminId = event.getUser() != null ? event.getUser().getId() : null;
-		String adminName = event.getUser() != null ? event.getUser().getFirstName() : "Admin";
+		String adminName = getSafeAdminName(event.getUser());
 
 		String msg = String.format("Workspace name has been updated to '%s' by %s.",
 				event.getWorkspace().getName(), adminName);
 
 		UUID workspaceId = event.getWorkspace().getId();
-
 		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
 
 		members.forEach(member -> {
@@ -73,7 +73,7 @@ public class WorkspaceEventListener {
 	@Transactional
 	public void handleWorkspaceDeletedEvent(WorkspaceDeletedEvent event) {
 		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;
-		String adminName = event.getAdmin() != null ? event.getAdmin().getFirstName() : "Admin";
+		String adminName = getSafeAdminName(event.getAdmin());
 
 		String msg = String.format("The workspace '%s' has been deleted by %s.",
 				event.getWorkspaceName(), adminName);
@@ -107,35 +107,45 @@ public class WorkspaceEventListener {
 	@Transactional
 	public void handleWorkspaceMemberRemovedEvent(WorkspaceMemberRemovedEvent event) {
 		boolean isAdminNull = event.getAdmin() == null;
-		String adminName = isAdminNull ? "Workspace Admin" : event.getAdmin().getFirstName();
-		UUID adminId = isAdminNull ? null : event.getAdmin().getId();
+		String adminName = getSafeAdminName(event.getAdmin());
+		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;
 
 		String msg = String.format("You have been removed from workspace '%s' by %s.",
 				event.getWorkspace().getName(), adminName);
 
-		notificationService.createNotification(
-				event.getRemovedUser(),
-				NotificationType.WORKSPACE_MEMBER_REMOVED,
-				EntityType.WORKSPACE,
-				event.getWorkspace().getId(),
-				msg);
+		if (event.getRemovedUser() != null) {
+			notificationService.createNotification(
+					event.getRemovedUser(),
+					NotificationType.WORKSPACE_MEMBER_REMOVED,
+					EntityType.WORKSPACE,
+					event.getWorkspace().getId(),
+					msg);
 
-		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
-				.eventId(UUID.randomUUID())
-				.type("WORKSPACE")
-				.action("MEMBER_REMOVED")
-				.recipientId(event.getRemovedUser().getId())
-				.senderId(adminId)
-				.entityType(EntityType.WORKSPACE.name())
-				.entityId(event.getWorkspace().getId().toString())
-				.payload(Map.of(
-						"workspaceName", event.getWorkspace().getName(),
-						"adminName", adminName,
-						"message", msg
-				))
-				.timestamp(Instant.now())
-				.build();
+			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+					.eventId(UUID.randomUUID())
+					.type("WORKSPACE")
+					.action("MEMBER_REMOVED")
+					.recipientId(event.getRemovedUser().getId())
+					.senderId(adminId)
+					.entityType(EntityType.WORKSPACE.name())
+					.entityId(event.getWorkspace().getId().toString())
+					.payload(Map.of(
+							"workspaceName", event.getWorkspace().getName(),
+							"adminName", adminName,
+							"message", msg
+					))
+					.timestamp(Instant.now())
+					.build();
 
-		redisEventPublisherService.publish(realTimeEvent);
+			redisEventPublisherService.publish(realTimeEvent);
+		}
+	}
+
+	private String getSafeAdminName(User user) {
+		if (user == null) return "Admin";
+		String first = user.getFirstName() != null ? user.getFirstName().trim() : "";
+		String last = user.getLastName() != null ? user.getLastName().trim() : "";
+		String full = (first + " " + last).trim();
+		return full.isEmpty() ? "Admin" : full;
 	}
 }

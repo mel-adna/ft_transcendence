@@ -11,39 +11,44 @@ import com.teampulse.backend.dto.request.TaskUpdateRequest;
 import com.teampulse.backend.dto.response.TaskResponse;
 import com.teampulse.backend.model.Task;
 
+
 @Mapper(
-	componentModel="spring",
-	unmappedTargetPolicy = ReportingPolicy.IGNORE,
-	uses = {UserMapper.class, TaskCommentMapper.class}
+		componentModel = "spring",
+		unmappedTargetPolicy = ReportingPolicy.IGNORE,
+		uses = {UserMapper.class}
 )
 public interface TaskMapper {
+
 	@Mapping(source = "workspace.id", target = "workspaceId")
-    TaskResponse toResponse(Task task);
+	TaskResponse toResponse(Task task);
 
-    @Mapping (target = "id", ignore = true)
+	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "workspace", ignore = true)
 	@Mapping(target = "creator", ignore = true)
 	@Mapping(target = "assignee", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    Task toEntity(TaskCreateRequest request);
+	@Mapping(target = "updatedAt", ignore = true)
+	Task toEntity(TaskCreateRequest request);
 
-	@Mapping (target = "id", ignore = true)
+	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "workspace", ignore = true)
 	@Mapping(target = "creator", ignore = true)
 	@Mapping(target = "assignee", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
-    void updateTaskFromRequest(TaskUpdateRequest request, @MappingTarget Task task);
+	@Mapping(target = "updatedAt", ignore = true)
+	void updateTaskFromRequest(TaskUpdateRequest request, @MappingTarget Task task);
 
-	@Mapping (target = "id", ignore = true)
+	@Mapping(target = "id", ignore = true)
 	@Mapping(target = "workspace", ignore = true)
 	@Mapping(target = "title", ignore = true)
 	@Mapping(target = "description", ignore = true)
 	@Mapping(target = "priority", ignore = true)
 	@Mapping(target = "creator", ignore = true)
 	@Mapping(target = "assignee", ignore = true)
+	@Mapping(target = "deleted", ignore = true)
 	@Mapping(target = "createdAt", ignore = true)
-    @Mapping(target = "updatedAt", ignore = true)
+	@Mapping(target = "updatedAt", ignore = true)
 	void updateTaskStatusFromRequest(TaskStatusUpdateRequest request, @MappingTarget Task task);
 }

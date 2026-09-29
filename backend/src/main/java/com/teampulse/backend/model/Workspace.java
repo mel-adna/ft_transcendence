@@ -48,7 +48,7 @@ public class Workspace {
 
     @NotFound(action = NotFoundAction.IGNORE)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name="owner_id", nullable=false)
+    @JoinColumn(name="owner_id")
     private User owner;
 
     @Column(name="deleted", nullable=false)

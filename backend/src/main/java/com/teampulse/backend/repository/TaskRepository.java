@@ -10,10 +10,15 @@ import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.model.Task;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 
 @Repository
 public interface TaskRepository extends JpaRepository<Task, UUID> {
 	List<Task> findByWorkspaceId(UUID workspaceId);
+
+	@Modifying
+	@Query("UPDATE Task t SET t.assignee = NULL WHERE t.assignee.id = :userId")
+	void unassignTasksByUserId(@Param("userId") UUID userId);
 }

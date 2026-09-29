@@ -63,7 +63,7 @@ public class ApiKeyService {
 		ApiKey apiKey = apiKeyRepository.findByHashKeyAndActiveTrue(hashKey)
 				.orElse(null);
 
-		if (apiKey == null)
+		if (apiKey == null || apiKey.getUser() == null || apiKey.getUser().isDeleted())
 			return null;
 
 		apiKey.setLastUsedAt(Instant.now());
