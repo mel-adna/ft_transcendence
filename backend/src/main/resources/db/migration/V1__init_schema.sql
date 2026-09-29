@@ -143,4 +143,5 @@ CREATE INDEX idx_chat_workspace_created ON chat_messages (workspace_id, created_
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_id, created_at DESC);
 CREATE INDEX idx_notifications_unread ON notifications (recipient_id) WHERE is_read = FALSE;
 CREATE INDEX idx_logs_workspace_timestamp ON activity_logs (workspace_id, created_at DESC);
+CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens (token);
 
