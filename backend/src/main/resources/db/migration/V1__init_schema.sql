@@ -157,6 +157,7 @@ CREATE TABLE verification_codes
     CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 12. Api keys
 CREATE TABLE api_keys
 (
     id           UUID PRIMARY KEY,
