@@ -84,3 +84,4 @@ CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
 CREATE INDEX idx_tasks_workspace_active ON tasks (workspace_id) WHERE deleted = FALSE;
 CREATE INDEX idx_tasks_assignee_active ON tasks (assignee_id) WHERE deleted = FALSE AND assignee_id IS NOT NULL;
 CREATE INDEX idx_tasks_workspace ON tasks (workspace_id);
+CREATE INDEX idx_task_comments_task_created ON task_comments (task_id, created_at DESC);
