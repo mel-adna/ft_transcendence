@@ -70,7 +70,7 @@ public class TaskService {
 			task.setAssignee(assignee);
 		}
 
-		Task savedTask = taskRepository.save(task);
+		Task savedTask = taskRepository.saveAndFlush(task);
 
 		String logDescription = String.format("%s %s created task '%s'", creator.getFirstName(), creator.getLastName(), savedTask.getTitle());
 		activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(), "TASK_CREATED", logDescription);

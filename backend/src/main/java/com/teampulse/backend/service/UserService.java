@@ -64,11 +64,13 @@ public class UserService {
 
 	@Transactional
 	public String signup(SignupRequest request) {
+		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
 		if (userRepository.findByEmail(request.getEmail()).isPresent())
 			throw new ResourceAlreadyExistsException("Email '" + request.getEmail() + "' is already registered!");
 
 		User user = new User();
-		user.setEmail(request.getEmail());
+		user.setEmail(cleanEmail);
 		user.setPasswordHashed(passwordEncoder.encode(request.getPassword()));
 		user.setFirstName(request.getFirstName());
 		user.setLastName(request.getLastName());
@@ -83,8 +85,10 @@ public class UserService {
 
 	@Transactional
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
-		User user = userRepository.findByEmail(request.getEmail())
-				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
+		User user = userRepository.findByEmail(cleanEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + cleanEmail));
 
 		verificationService.validateAndConsumeCode(user, request.getCode());
 
@@ -112,9 +116,11 @@ public class UserService {
 
 	@Transactional
 	public AuthResponse login(LoginRequest request) {
+		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
 		try {
 			Authentication authentication = authenticationManager.authenticate(
-					new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+					new UsernamePasswordAuthenticationToken(cleanEmail, request.getPassword()));
 
 			UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 			User user = userPrincipal.getUser();
@@ -131,7 +137,7 @@ public class UserService {
 					.build();
 
 		} catch (DisabledException ex) {
-			verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
+			verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
 			throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
@@ -352,7 +358,7 @@ public class UserService {
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
-			String email = payload.getEmail();
+			String email = payload.getEmail().trim().toLowerCase(Locale.ROOT);
 			String googleId = payload.getSubject();
 			String firstName = (String) payload.get("given_name");
 			String lastName = (String) payload.get("family_name");

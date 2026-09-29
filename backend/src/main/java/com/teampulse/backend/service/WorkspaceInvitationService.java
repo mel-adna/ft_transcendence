@@ -29,8 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
 
 @Service
 @Slf4j
@@ -53,7 +55,14 @@ public class WorkspaceInvitationService {
 			throw new BadRequestException("Workspace ID cannot be null");
 		}
 
-		verifyUserIsAdmin(workspaceId, inviterEmail);
+		if (request.getEmail() == null || request.getEmail().isBlank()) {
+			throw new BadRequestException("Invitee email cannot be empty.");
+		}
+
+		String targetEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+		String cleanInviterEmail = inviterEmail.trim().toLowerCase(Locale.ROOT);
+
+		verifyUserIsAdmin(workspaceId, cleanInviterEmail);
 
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
@@ -62,25 +71,26 @@ public class WorkspaceInvitationService {
 			throw new BadRequestException("Cannot invite members to a personal workspace.");
 		}
 
-		User inviter = userRepository.findByEmail(inviterEmail)
+		User inviter = userRepository.findByEmail(cleanInviterEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("Inviter user not found"));
 
-		User inviteeUser = userRepository.findByEmail(request.getEmail()).orElse(null);
+		User inviteeUser = userRepository.findByEmail(targetEmail).orElse(null);
 
 		if (inviteeUser != null) {
-			boolean isAlreadyMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, request.getEmail());
+			boolean isAlreadyMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, targetEmail);
 			if (isAlreadyMember) {
 				throw new BadRequestException("User is already a member of this workspace.");
 			}
 		}
 
 		boolean hasPendingInvite = invitationRepository.existsByWorkspaceIdAndInviteeEmailAndStatus(
-				workspaceId, request.getEmail(), InvitationStatus.PENDING);
+				workspaceId, targetEmail, InvitationStatus.PENDING);
 		if (hasPendingInvite) {
 			throw new BadRequestException("A pending invitation already exists for this email.");
 		}
 
 		WorkspaceInvitation invitation = invitationMapper.toEntity(request);
+		invitation.setInviteeEmail(targetEmail);
 		invitation.setWorkspace(workspace);
 		invitation.setInviter(inviter);
 		invitation.setStatus(InvitationStatus.PENDING);
@@ -91,7 +101,7 @@ public class WorkspaceInvitationService {
 
 		eventPublisher.publishEvent(new WorkspaceInvitationSentEvent(this, workspace, savedInvitation, inviter, inviteeUser));
 
-		log.info("Invitation sent successfully to {} for workspace {}", request.getEmail(), workspace.getName());
+		log.info("Invitation sent successfully to {} for workspace {}", targetEmail, workspace.getName());
 
 		return invitationMapper.toResponse(savedInvitation);
 	}
@@ -99,7 +109,9 @@ public class WorkspaceInvitationService {
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceInvitationResponse> getMyPendingInvitations(String userEmail) {
-		return invitationRepository.findByInviteeEmailAndStatus(userEmail, InvitationStatus.PENDING)
+		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+
+		return invitationRepository.findByInviteeEmailAndStatus(cleanEmail, InvitationStatus.PENDING)
 				.stream()
 				.filter(invitation -> invitation.getExpiresAt().isAfter(Instant.now()))
 				.map(invitationMapper::toResponse)
@@ -109,7 +121,8 @@ public class WorkspaceInvitationService {
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceInvitationResponse> getWorkspacePendingInvitations(UUID workspaceId, String adminEmail) {
-		verifyUserIsAdmin(workspaceId, adminEmail);
+		String cleanAdminEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
+		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
 
 		return invitationRepository.findByWorkspaceId(workspaceId)
 				.stream()
@@ -120,9 +133,10 @@ public class WorkspaceInvitationService {
 
 	@Transactional
 	public void acceptInvitation(UUID invitationId, String userEmail) {
-		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, userEmail);
+		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, cleanEmail);
 
-		User invitee = userRepository.findByEmail(userEmail)
+		User invitee = userRepository.findByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User account not found"));
 
 		invitation.setStatus(InvitationStatus.ACCEPTED);
@@ -139,24 +153,26 @@ public class WorkspaceInvitationService {
 
 		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, invitation.getWorkspace(), invitation, invitee));
 
-		log.info("User {} accepted invitation to workspace {}", userEmail, invitation.getWorkspace().getName());
+		log.info("User {} accepted invitation to workspace {}", cleanEmail, invitation.getWorkspace().getName());
 	}
 
 
 	@Transactional
 	public void rejectInvitation(UUID invitationId, String userEmail) {
-		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, userEmail);
+		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, cleanEmail);
 
 		invitation.setStatus(InvitationStatus.REJECTED);
 		invitationRepository.save(invitation);
 
-		log.info("User {} rejected invitation to workspace {}", userEmail, invitation.getWorkspace().getName());
+		log.info("User {} rejected invitation to workspace {}", cleanEmail, invitation.getWorkspace().getName());
 	}
 
 
 	@Transactional
 	public void cancelInvitation(UUID workspaceId, UUID invitationId, String adminEmail) {
-		verifyUserIsAdmin(workspaceId, adminEmail);
+		String cleanAdminEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
+		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
 
 		WorkspaceInvitation invitation = invitationRepository.findById(invitationId)
 				.orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
@@ -171,15 +187,16 @@ public class WorkspaceInvitationService {
 
 		invitationRepository.delete(invitation);
 
-		log.info("Admin {} cancelled invitation {} for workspace {}", adminEmail, invitationId, workspaceId);
+		log.info("Admin {} cancelled invitation {} for workspace {}", cleanAdminEmail, invitationId, workspaceId);
 	}
 
 
 	private WorkspaceInvitation getValidPendingInvitation(UUID invitationId, String userEmail) {
+		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
 		WorkspaceInvitation invitation = invitationRepository.findById(invitationId)
 				.orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
 
-		if (!invitation.getInviteeEmail().equalsIgnoreCase(userEmail)) {
+		if (!invitation.getInviteeEmail().equalsIgnoreCase(cleanEmail)) {
 			throw new UnauthorizedAccessException("You are not authorized to respond to this invitation.");
 		}
 
@@ -198,8 +215,9 @@ public class WorkspaceInvitationService {
 
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {
-		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, email)
-				.orElseThrow(() -> new UnauthorizedAccessException("Access denied. You are not part of this workspace."));
+		String cleanEmail = email.trim().toLowerCase(Locale.ROOT);
+		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanEmail)
+				.orElseThrow(() -> new UnauthorizedAccessException("You are not part of this workspace."));
 
 		if (member.getRole() != WorkspaceMemberRole.ADMIN) {
 			throw new UnauthorizedAccessException("Only workspace ADMINs can perform this action!");

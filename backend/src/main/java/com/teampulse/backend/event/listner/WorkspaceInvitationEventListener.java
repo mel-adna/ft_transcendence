@@ -11,6 +11,7 @@ import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -29,6 +30,9 @@ public class WorkspaceInvitationEventListener {
 	private final EmailService emailService;
 	private final RedisEventPublisherService redisEventPublisherService;
 
+	@Value("${app.frontend-url}")
+	private String frontendUrl;
+
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional
@@ -37,25 +41,41 @@ public class WorkspaceInvitationEventListener {
 		String workspaceName = event.getWorkspace().getName();
 		String inviteeEmail = event.getInvitation().getInviteeEmail();
 
-		String msg = String.format("You have been invited to join workspace '%s' by %s.", workspaceName, inviterName);
+		boolean isRegisteredUser = event.getInvitee() != null;
+		String actionUrl;
+		String emailBody;
 
-//		activityLogService.logActivity(
-//				event.getWorkspace().getId(),
-//				event.getInviter().getId(),
-//				event.getInvitee() != null ? event.getInvitee().getId() : null,
-//				"WORKSPACE_INVITATION_SENT",
-//				String.format("Invited %s to workspace", inviteeEmail)
-//		);
+		if (isRegisteredUser) {
+			actionUrl = frontendUrl + "/invitations";
+			emailBody = String.format(
+					"Hello,\n\n" +
+							"You have been invited to join workspace '%s' by %s.\n\n" +
+							"Since you already have an account, please click the link below to view and accept your invitation:\n%s\n\n" +
+							"Best regards,\nTeamPulse Team",
+					workspaceName, inviterName, actionUrl
+			);
+		} else {
+			actionUrl = frontendUrl + "/signup?email=" + inviteeEmail;
+			emailBody = String.format(
+					"Hello,\n\n" +
+							"You have been invited to join workspace '%s' by %s.\n\n" +
+							"To accept this invitation and get started, please create an account using the link below:\n%s\n\n" +
+							"Best regards,\nTeamPulse Team",
+					workspaceName, inviterName, actionUrl
+			);
+		}
 
-		emailService.sendEmail(inviteeEmail, "Invitation to Workspace: " + workspaceName, msg);
+		emailService.sendEmail(inviteeEmail, "Invitation to Workspace: " + workspaceName, emailBody);
 
-		if (event.getInvitee() != null) {
+		if (isRegisteredUser) {
+			String notificationMsg = String.format("You have been invited to join workspace '%s' by %s.", workspaceName, inviterName);
+
 			notificationService.createNotification(
 					event.getInvitee(),
 					NotificationType.WORKSPACE_INVITATION_SENT,
 					EntityType.WORKSPACE,
 					event.getWorkspace().getId(),
-					msg
+					notificationMsg
 			);
 
 			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
@@ -69,7 +89,7 @@ public class WorkspaceInvitationEventListener {
 					.payload(Map.of(
 							"workspaceName", workspaceName,
 							"inviterName", inviterName,
-							"message", msg
+							"message", notificationMsg
 					))
 					.timestamp(Instant.now())
 					.build();
