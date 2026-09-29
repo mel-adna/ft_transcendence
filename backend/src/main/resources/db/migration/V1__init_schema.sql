@@ -171,3 +171,4 @@ CREATE INDEX idx_logs_workspace_timestamp ON activity_logs (workspace_id, create
 CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens (token);
 CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens (user_id);
 CREATE INDEX idx_verification_codes_code ON verification_codes (code);
+CREATE INDEX idx_verification_codes_user ON verification_codes (user_id);
