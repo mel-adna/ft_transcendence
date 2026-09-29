@@ -144,6 +144,19 @@ CREATE TABLE refresh_tokens
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
+-- 11. Verification Codes
+CREATE TABLE verification_codes
+(
+    id          UUID PRIMARY KEY,
+    code        VARCHAR(6) NOT NULL,
+    user_id     UUID       NOT NULL,
+    expiry_date TIMESTAMP  NOT NULL,
+    enabled     BOOLEAN    NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_verification_codes_user UNIQUE (user_id),
+    CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted = FALSE;
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
 CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
