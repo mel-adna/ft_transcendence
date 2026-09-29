@@ -63,7 +63,18 @@ CREATE TABLE tasks
     CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
-
+-- 5. Task Comments Table
+CREATE TABLE task_comments
+(
+    id         UUID PRIMARY KEY,
+    task_id    UUID          NOT NULL,
+    author_id  UUID          NOT NULL,
+    content    VARCHAR(2000) NOT NULL,
+    created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_comments_task FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+    CONSTRAINT fk_comments_author FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE RESTRICT
+);
 
 
 
