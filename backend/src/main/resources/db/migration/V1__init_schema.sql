@@ -71,3 +71,4 @@ CREATE UNIQUE INDEX idx_users_email_active_unique ON users (email) WHERE deleted
 CREATE INDEX idx_workspaces_owner ON workspaces (owner_id) WHERE deleted = FALSE;
 CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
 CREATE INDEX idx_tasks_workspace_active ON tasks (workspace_id) WHERE deleted = FALSE;
+CREATE INDEX idx_tasks_assignee_active ON tasks (assignee_id) WHERE deleted = FALSE AND assignee_id IS NOT NULL;
