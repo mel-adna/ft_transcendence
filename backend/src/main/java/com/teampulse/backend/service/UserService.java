@@ -54,6 +54,7 @@ public class UserService {
 	private final TaskRepository taskRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final WorkspaceRepository workspaceRepository;
+	private final WorkspaceInvitationRepository workspaceInvitationRepository;
 
 
 	@Value("${app.frontend-url}")
@@ -326,9 +327,30 @@ public class UserService {
 			workspaceRepository.save(ws);
 		}
 
+		workspaceMemberRepository.deleteByUserId(userId);
+		workspaceInvitationRepository.deleteByInviter(user);
+		workspaceInvitationRepository.deleteByInviteeEmail(email);
+
 		userRepository.delete(user);
 
 		log.info("User account with email {} has been successfully soft-deleted.", email);
+
+		try {
+			String name = (user.getFirstName() != null && !user.getFirstName().isBlank()) ? user.getFirstName() : "there";
+			String subject = "Account Deletion Confirmation - Team-Pulse";
+			String body = String.format(
+					"Hello %s,\n\n" +
+							"Your Team-Pulse account (%s) has been successfully deleted.\n" +
+							"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
+							"Best regards,\nThe Team-Pulse Team",
+					name, email
+			);
+
+			emailService.sendEmail(email, subject, body);
+			log.info("Account deletion confirmation email sent to: {}", email);
+		} catch (Exception ex) {
+			log.warn("Account deleted for [{}], but failed to send confirmation email: {}", email, ex.getMessage());
+		}
 	}
 
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {

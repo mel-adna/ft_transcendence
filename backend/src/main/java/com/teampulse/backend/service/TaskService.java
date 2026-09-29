@@ -72,7 +72,7 @@ public class TaskService {
 
 		Task savedTask = taskRepository.saveAndFlush(task);
 
-		String logDescription = String.format("%s %s created task '%s'", creator.getFirstName(), creator.getLastName(), savedTask.getTitle());
+		String logDescription = String.format("%s created task '%s'", getSafeFullName(creator), savedTask.getTitle());
 		activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(), "TASK_CREATED", logDescription);
 
 		if (savedTask.getAssignee() != null)
@@ -124,8 +124,13 @@ public class TaskService {
 			throw new UnauthorizedAccessException("Viewer role not allowed to update tasks");
 
 		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
-		boolean isCreator = task.getCreator().getEmail().equals(email);
-		boolean isAssignee = task.getAssignee() != null && task.getAssignee().getEmail().equals(email);
+		boolean isCreator = task.getCreator() != null
+				&& task.getCreator().getEmail() != null
+				&& task.getCreator().getEmail().equals(email);
+
+		boolean isAssignee = task.getAssignee() != null
+				&& task.getAssignee().getEmail() != null
+				&& task.getAssignee().getEmail().equals(email);
 
 		if (!isAdmin && !isCreator && !isAssignee)
 			throw new UnauthorizedAccessException("Only workspace ADMINs, the task creator, or the assignee can update this task!");
@@ -154,8 +159,8 @@ public class TaskService {
 		Task updatedTask = taskRepository.save(task);
 
 		if (isDetailsChanged) {
-			String logDescription = String.format("%s %s updated details for task '%s'",
-					currentUser.getFirstName(), currentUser.getLastName(), updatedTask.getTitle());
+			String logDescription = String.format("%s updated details for task '%s'",
+					getSafeFullName(currentUser), updatedTask.getTitle());
 
 			activityLogService.logActivity(workspaceId, currentUser.getId(), updatedTask.getId(), "TASK_UPDATED", logDescription);
 		}
@@ -191,8 +196,13 @@ public class TaskService {
 			throw new UnauthorizedAccessException("Viewer role not allowed to change task status");
 
 		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
-		boolean isCreator = task.getCreator().getEmail().equals(email);
-		boolean isAssignee = task.getAssignee() != null && task.getAssignee().getEmail().equals(email);
+		boolean isCreator = task.getCreator() != null
+				&& task.getCreator().getEmail() != null
+				&& task.getCreator().getEmail().equals(email);
+
+		boolean isAssignee = task.getAssignee() != null
+				&& task.getAssignee().getEmail() != null
+				&& task.getAssignee().getEmail().equals(email);
 
 		if (!isAdmin && !isCreator && !isAssignee)
 			throw new UnauthorizedAccessException("Only workspace ADMINs, the task creator, or the assignee can update task status!");
@@ -221,7 +231,9 @@ public class TaskService {
 		WorkspaceMember member = getWorkspaceMemberOrThrow(task.getWorkspace().getId(), email);
 
 		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
-		boolean isCreator = task.getCreator().getEmail().equals(email);
+		boolean isCreator = task.getCreator() != null
+				&& task.getCreator().getEmail() != null
+				&& task.getCreator().getEmail().equals(email);
 
 		if (!isAdmin && !isCreator)
 			throw new UnauthorizedAccessException("Only workspace ADMINs or the task creator can delete this task!");
@@ -230,7 +242,7 @@ public class TaskService {
 
 		taskRepository.delete(task);
 
-		String logDescription = String.format("%s %s deleted task '%s'", currentUser.getFirstName(), currentUser.getLastName(), task.getTitle());
+		String logDescription = String.format("%s deleted task '%s'", getSafeFullName(currentUser), task.getTitle());
 		activityLogService.logActivity(task.getWorkspace().getId(), currentUser.getId(), taskId, "TASK_DELETED", logDescription);
 
 		log.info("Task ID: {} was successfully deleted by user: {}", taskId, email);
@@ -268,16 +280,16 @@ public class TaskService {
 
 	private void checkAndTriggerStatusEvents(Task task, TaskStatus oldStatus, User actor) {
 		if (task.getStatus() != oldStatus) {
-			if (task.getStatus() == TaskStatus.DONE)
+			if (task.getStatus() == TaskStatus.DONE) {
 				triggerTaskCompletedEvent(task, actor);
-			else {
+			} else {
 				activityLogService.logActivity(
 						task.getWorkspace().getId(),
 						actor.getId(),
 						task.getId(),
 						"TASK_STATUS_CHANGED",
-						String.format("%s %s moved task '%s' from %s to %s",
-								actor.getFirstName(), actor.getLastName(), task.getTitle(), oldStatus, task.getStatus())
+						String.format("%s moved task '%s' from %s to %s",
+								getSafeFullName(actor), task.getTitle(), oldStatus, task.getStatus())
 				);
 			}
 		}
@@ -286,5 +298,22 @@ public class TaskService {
 	private void triggerTaskCompletedEvent(Task completedTask, User actor) {
 		log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED by user Id {}.", completedTask.getId(), actor.getId());
 		eventPublisher.publishEvent(new TaskCompletedEvent(this, completedTask, actor));
+	}
+
+	private String getSafeFullName(User user) {
+		if (user == null) {
+			return "Unknown User";
+		}
+
+		String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+		String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+
+		String fullName = (firstName + " " + lastName).trim();
+
+		if (!fullName.isEmpty()) {
+			return fullName;
+		}
+
+		return user.getEmail() != null ? user.getEmail() : "Unknown User";
 	}
 }

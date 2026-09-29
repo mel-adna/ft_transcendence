@@ -23,4 +23,6 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 	long countByWorkspaceId(UUID workspaceId);
 	boolean existsByWorkspaceIdAndUserIdNotAndRole(UUID workspaceId, UUID userId, WorkspaceMemberRole role);
 	Optional<WorkspaceMember> findFirstByWorkspaceIdAndUserIdNotAndRoleOrderByCreatedAtAsc(UUID workspaceId, UUID userId, WorkspaceMemberRole role);
+
+	void deleteByUserId(UUID userId);
 }

@@ -53,14 +53,14 @@ CREATE TABLE tasks
     status       VARCHAR(50)  NOT NULL DEFAULT 'TODO',   -- Enum: TODO, DOING, DONE
     priority     VARCHAR(50)  NOT NULL DEFAULT 'MEDIUM', -- Enum: LOW, MEDIUM, HIGH
     assignee_id  UUID,
-    creator_id   UUID         NOT NULL,
+    creator_id   UUID,
     deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_tasks_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
     CONSTRAINT fk_tasks_assignee FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE RESTRICT
+    CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE SET NULL
 );
 
 -- 5. Task Comments Table

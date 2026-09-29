@@ -1,6 +1,7 @@
 package com.teampulse.backend.repository;
 
 import com.teampulse.backend.enums.InvitationStatus;
+import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.WorkspaceInvitation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -21,4 +22,7 @@ public interface WorkspaceInvitationRepository extends JpaRepository<WorkspaceIn
 	Optional<WorkspaceInvitation> findByWorkspaceIdAndInviteeEmailAndStatus(UUID workspaceId, String inviteeEmail, InvitationStatus status);
 
 	List<WorkspaceInvitation> findByWorkspaceId(UUID workspaceId);
+
+	void deleteByInviter(User inviter);
+	void deleteByInviteeEmail(String email);
 }
