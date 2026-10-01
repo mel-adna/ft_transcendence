@@ -141,8 +141,13 @@ public class UserService {
 					.build();
 
 		} catch (DisabledException ex) {
-			verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
-			throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
+			User user = userRepository.findByEmail(cleanEmail).orElse(null);
+
+			if (user != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
+				verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
+				throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
+			}
+			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 		}
