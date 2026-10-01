@@ -15,6 +15,8 @@ import { personName } from '../lib/people';
 import Avatar from './Avatar';
 import Spinner from './Spinner';
 import LegalLinks from './LegalLinks';
+import NotificationBell from '../features/notifications/NotificationBell';
+import { useNotifications } from '../features/notifications/useNotifications';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -36,6 +38,7 @@ export default function AppLayout() {
   const { workspaces, current, loading, error, selectWorkspace, refresh } = useWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
+  const notificationState = useNotifications();
 
   async function handleLogout() {
     await logout();
@@ -146,7 +149,8 @@ export default function AppLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="hidden h-20 items-center justify-end border-b border-card px-8 md:flex">
+        <header className="hidden h-20 items-center justify-end gap-3 border-b border-card px-8 md:flex">
+          <NotificationBell {...notificationState} />
           <Link
             to="/tasks"
             state={{ newTask: true }}
@@ -163,8 +167,9 @@ export default function AppLayout() {
           <p className="truncate text-center text-base font-bold text-white">
             {current?.name ?? 'Workspace'}
           </p>
-          <div className="flex justify-end">
-            <Avatar user={user} size={32} />
+          <div className="flex items-center justify-end gap-2">
+            <NotificationBell {...notificationState} />
+            <Avatar user={user} size={30} />
           </div>
         </header>
 
