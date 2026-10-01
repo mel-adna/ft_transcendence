@@ -124,8 +124,9 @@ public class WorkspaceInvitationService {
 		String cleanAdminEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
 		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
 
-		return invitationRepository.findByWorkspaceId(workspaceId)
+		return invitationRepository.findByWorkspaceIdAndStatus(workspaceId, InvitationStatus.PENDING)
 				.stream()
+				.filter(invitation -> invitation.getExpiresAt().isAfter(Instant.now()))
 				.map(invitationMapper::toResponse)
 				.collect(Collectors.toList());
 	}
