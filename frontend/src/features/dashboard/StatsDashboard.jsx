@@ -27,7 +27,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useWorkspaceStats } from './useWorkspaceStats';
-import { buildActivityFeed, deriveActivityFeed } from './activityLog';
+import { buildActivityFeed } from './activityLog';
 import Avatar from '../../components/Avatar';
 import EmptyState from '../../components/EmptyState';
 import ErrorState from '../../components/ErrorState';
@@ -112,42 +112,33 @@ function StatCard({ icon: Icon, label, value, badge, subtitle }) {
 
 export default function StatsDashboard({
   workspaceId,
-  tasks,
   activityLogs,
   activityLoading,
   activityError,
   onRetryActivity,
 }) {
   const [range, setRange] = useState(7);
-  const { stats, loading: statsLoading } = useWorkspaceStats(workspaceId, tasks, range);
+  const { stats, loading: statsLoading } = useWorkspaceStats(workspaceId, range);
 
-  const activity = useMemo(() => {
-    const fromApi = buildActivityFeed(activityLogs);
-    return fromApi.length > 0 ? fromApi : deriveActivityFeed(tasks);
-  }, [activityLogs, tasks]);
+  const activity = useMemo(() => buildActivityFeed(activityLogs), [activityLogs]);
 
-  const totalTasks = stats.totalTasks ?? stats.total ?? 0;
-  const completedCount = stats.completedCount ?? stats.completed ?? 0;
-  const inProgressCount = stats.inProgressCount ?? stats.inProgress ?? 0;
-  const todoCount = stats.todoCount ?? stats.todo ?? 0;
-  const backlogCount = stats.backlogCount ?? todoCount;
-  const completionRate = stats.completionRate ?? (totalTasks > 0 ? Math.round((completedCount / totalTasks) * 1000) / 10 : 0);
-  const tasksCompletedInPeriod = stats.tasksCompletedInPeriod ?? completedCount;
+  const totalTasks = stats.totalTasks ?? 0;
+  const completedCount = stats.completedCount ?? 0;
+  const inProgressCount = stats.inProgressCount ?? 0;
+  const backlogCount = stats.backlogCount ?? stats.todoCount ?? 0;
+  const completionRate = stats.completionRate ?? 0;
+  const tasksCompletedInPeriod = stats.tasksCompletedInPeriod ?? 0;
   const averageCompletedPerDay = stats.averageCompletedPerDay ?? 0;
 
   // Status Distribution Data
   const statusData = useMemo(() => {
-    const dist = stats.statusDistribution ?? {
-      todo: todoCount,
-      inProgress: inProgressCount,
-      completed: completedCount,
-    };
+    const dist = stats.statusDistribution ?? { todo: 0, inProgress: 0, completed: 0 };
     return [
       { key: 'TODO', name: 'To Do', value: dist.todo ?? 0, color: STATUS_COLORS.TODO },
       { key: 'DOING', name: 'In Progress', value: dist.inProgress ?? 0, color: STATUS_COLORS.DOING },
       { key: 'DONE', name: 'Done', value: dist.completed ?? 0, color: STATUS_COLORS.DONE },
     ];
-  }, [stats.statusDistribution, todoCount, inProgressCount, completedCount]);
+  }, [stats.statusDistribution]);
 
   // Priority Distribution Data
   const priorityData = useMemo(() => {
