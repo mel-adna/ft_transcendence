@@ -1,6 +1,7 @@
 package com.teampulse.backend.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,5 +20,6 @@ public class ProfileUpdateRequest {
 	private String lastName;
 
 	@Size(max=255, message = "Avatar URL must not exceed 255 characters")
+	@Pattern(regexp = "^(https?://.+)?$", message = "Avatar URL must be a valid HTTP or HTTPS URL")
 	private String avatarUrl;
 }

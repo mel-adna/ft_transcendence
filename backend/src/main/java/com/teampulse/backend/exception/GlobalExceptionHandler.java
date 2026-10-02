@@ -141,16 +141,6 @@ public class GlobalExceptionHandler {
 				null);
 	}
 
-	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
-		log.warn("Database integrity violation: {} | Path: {}", ex.getMessage(), request.getRequestURI());
-
-		return buildResponseEntity(HttpStatus.BAD_REQUEST,
-				"Database constraint violation or invalid data format.",
-				request,
-				null);
-	}
-
 	@ExceptionHandler(AccountNotVerifiedException.class)
 	public ResponseEntity<ErrorResponse> handleAccountNotVerifiedException(AccountNotVerifiedException ex, HttpServletRequest request) {
 		log.warn("Unverified account login attempt: {} | Path: {}", ex.getMessage(), request.getRequestURI());
@@ -255,6 +245,21 @@ public class GlobalExceptionHandler {
 				request,
 				null
 		);
+	}
+
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
+		log.warn("Database integrity violation: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+
+		String message = "Database constraint violation or invalid data format.";
+		HttpStatus status = HttpStatus.BAD_REQUEST;
+
+		if (ex.getMessage() != null && (ex.getMessage().contains("idx_users_email_active_unique") || ex.getMessage().contains("idx_users_email_unique"))) {
+			message = "Email is already registered.";
+			status = HttpStatus.CONFLICT;
+		}
+
+		return buildResponseEntity(status, message, request, null);
 	}
 
 	@ExceptionHandler(Exception.class)

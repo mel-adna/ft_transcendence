@@ -16,7 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class InvitationCleanupScheduler {
-	private WorkspaceInvitationRepository workspaceInvitationRepository;
+	private final WorkspaceInvitationRepository workspaceInvitationRepository;
 
 	@Scheduled(cron = "0 0 3 * * SUN")
 	@Transactional

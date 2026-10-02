@@ -106,7 +106,6 @@ public class WorkspaceEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional
 	public void handleWorkspaceMemberRemovedEvent(WorkspaceMemberRemovedEvent event) {
-		boolean isAdminNull = event.getAdmin() == null;
 		String adminName = getSafeAdminName(event.getAdmin());
 		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;
 

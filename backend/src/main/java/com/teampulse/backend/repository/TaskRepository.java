@@ -5,8 +5,6 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.teampulse.backend.enums.TaskPriority;
-import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.model.Task;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

@@ -30,6 +30,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,7 +48,6 @@ public class UserService {
 	private final AuthenticationManager authenticationManager;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final VerificationService verificationService;
-	private final VerificationCodeRepository verificationCodeRepository;
 	private final EmailService emailService;
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
@@ -70,14 +71,14 @@ public class UserService {
 	public String signup(SignupRequest request) {
 		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
 
-		if (userRepository.findByEmail(request.getEmail()).isPresent())
-			throw new ResourceAlreadyExistsException("Email '" + request.getEmail() + "' is already registered!");
+		if (userRepository.findByEmail(cleanEmail).isPresent())
+			throw new ResourceAlreadyExistsException("Email '" + cleanEmail + "' is already registered!");
 
 		User user = new User();
 		user.setEmail(cleanEmail);
 		user.setPasswordHashed(passwordEncoder.encode(request.getPassword()));
-		user.setFirstName(request.getFirstName());
-		user.setLastName(request.getLastName());
+		user.setFirstName(request.getFirstName() != null ? request.getFirstName().trim() : null);
+		user.setLastName(request.getLastName() != null ? request.getLastName().trim() : null);
 		user.setEnabled(false);
 
 		User savedUser = userRepository.save(user);
@@ -186,7 +187,23 @@ public class UserService {
 
 		user.setFirstName(request.getFirstName());
 		user.setLastName(request.getLastName());
-		user.setAvatarUrl(request.getAvatarUrl());
+
+		if (request.getAvatarUrl() != null) {
+			String avatarUrl = request.getAvatarUrl().trim();
+			if (!avatarUrl.isBlank()) {
+				try {
+					URI uri = new URI(avatarUrl);
+					String scheme = uri.getScheme();
+					if (scheme == null || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")))
+						throw new BadRequestException("Avatar URL must use HTTP or HTTPS protocol");
+				} catch (URISyntaxException e) {
+					throw new BadRequestException("Invalid avatar URL format");
+				}
+				user.setAvatarUrl(avatarUrl);
+			}
+			else
+				user.setAvatarUrl(null);
+		}
 
 		User updateUser = userRepository.save(user);
 

@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.teampulse.backend.dto.request.WorkspaceCreateRequest;
-import com.teampulse.backend.dto.request.WorkspaceMemberAddRequest;
 import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
 import com.teampulse.backend.dto.request.WorkspaceUpdateRequest;
 import com.teampulse.backend.dto.response.WorkspaceMemberResponse;

@@ -9,8 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.model.WorkspaceMemberId;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 
