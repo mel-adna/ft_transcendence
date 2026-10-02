@@ -18,7 +18,7 @@ public class EmailService {
 
 	private final JavaMailSender mailSender;
 
-	@Value("${spring.mail.username:no-reply@teampulse.com}")
+	@Value("${spring.mail.username}")
 	private String fromEmail;
 
 
