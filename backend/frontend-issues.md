@@ -5,6 +5,7 @@
 | 39 | Socket client logs connection errors to console on every page | Floods console when chat-service is offline; causes evaluation rejection | Small |
 | 42 | Unhandled 403 on `/invitations` when switching workspaces | Switching to a workspace where user is a MEMBER triggers GET /invitations and prints console error | Small |
 | 43 | Missing `/signup` route and query parameter pre-fill from invitation links | Direct invitation links render a blank page and fail to auto-fill the invitee's email | Small |
+| 44 | Handle paginated API response for `/tasks/workspace/{workspaceId}` | Response structure changed from flat array `Task[]` to Spring `Page<Task>` object | Small |
 
 ---
 
@@ -146,5 +147,93 @@ export default function LoginPage() {
 
   // ... rest of component
 }
+
+```
+
+---
+
+## 44. Handle paginated API response for `/tasks/workspace/{workspaceId}`
+
+To optimize database memory usage and response speed, the backend endpoint `GET /tasks/workspace/{workspaceId}` now returns a paginated Spring `Page<TaskResponse>` object instead of a flat array `Task[]`.
+
+**Why It Matters:**
+Directly rendering or mapping over the API response without extracting `.content` will cause JavaScript runtime errors (e.g., `tasks.map is not a function` or undefined state) on the Kanban board.
+
+---
+
+### Response Structure Changes
+
+#### Old Response Format (Flat Array):
+```json
+[
+  { "id": "123", "title": "Task 1", "status": "TODO" },
+  { "id": "456", "title": "Task 2", "status": "IN_PROGRESS" }
+]
+
+```
+
+#### New Response Format (Spring Page Object):
+
+```json
+{
+  "content": [
+    { "id": "123", "title": "Task 1", "status": "TODO" },
+    { "id": "456", "title": "Task 2", "status": "IN_PROGRESS" }
+  ],
+  "pageable": {
+    "pageNumber": 0,
+    "pageSize": 50
+  },
+  "totalPages": 3,
+  "totalElements": 125,
+  "last": false,
+  "first": true,
+  "size": 50,
+  "number": 0,
+  "empty": false
+}
+
+```
+
+---
+
+### Suggested Fixes
+
+#### 1. In API Service Layer (`src/services/taskService.js` or `src/api/tasks.js`):
+
+Extract `data.content` directly from the response so the UI state receives the array:
+
+```javascript
+export const fetchWorkspaceTasks = async (workspaceId, page = 0, size = 50) => {
+  const response = await api.get(`/tasks/workspace/${workspaceId}`, {
+    params: {
+      page: page,
+      size: size,
+      sort: 'createdAt,desc'
+    }
+  });
+
+  // Extract content array for existing components
+  return response.data.content || [];
+};
+
+```
+
+#### 2. In Kanban Board Component / State Management:
+
+If handling raw Axios responses directly in React state, update state extraction:
+
+```javascript
+// ❌ Old Code
+const loadTasks = async () => {
+  const res = await api.get(`/tasks/workspace/${workspaceId}`);
+  setTasks(res.data);
+};
+
+// ✅ New Fixed Code
+const loadTasks = async () => {
+  const res = await api.get(`/tasks/workspace/${workspaceId}`);
+  setTasks(res.data.content || []);
+};
 
 ```

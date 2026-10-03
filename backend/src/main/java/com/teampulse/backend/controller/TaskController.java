@@ -6,6 +6,10 @@ import java.util.UUID;
 
 import com.teampulse.backend.security.ratelimit.RateLimit;
 import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -58,14 +62,18 @@ public class TaskController {
 
 
 
-    @Operation(summary = "Get all tasks within a workspace", description = "Fetches the full collection of tasks for the Kanban board view.")
+    @Operation(summary = "Get paginated tasks within a workspace", description = "Fetches a paginated collection of tasks for the Kanban board view.")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Tasks retrieved successfully"),
-        @ApiResponse(responseCode = "403", description = "Forbidden - User is not a member of this workspace", content = @Content)
+            @ApiResponse(responseCode = "200", description = "Tasks retrieved successfully"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - User is not a member of this workspace", content = @Content)
     })
     @GetMapping("/workspace/{workspaceId}")
-    public ResponseEntity<List<TaskResponse>> getWorkspaceTasks(@PathVariable UUID workspaceId, @Parameter(hidden = true) Principal principal) {
-        List<TaskResponse> tasks = taskService.getWorkspaceTasks(workspaceId, principal.getName());
+    public ResponseEntity<Page<TaskResponse>> getWorkspaceTasks(
+            @PathVariable UUID workspaceId,
+            @Parameter(hidden = true) Principal principal,
+            @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        Page<TaskResponse> tasks = taskService.getWorkspaceTasks(workspaceId, principal.getName(), pageable);
         return ResponseEntity.ok(tasks);
     }
 

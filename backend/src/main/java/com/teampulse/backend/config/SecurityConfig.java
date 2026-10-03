@@ -40,22 +40,6 @@ public class SecurityConfig {
 				.csrf(csrf -> csrf.disable())
 				.cors(Customizer.withDefaults())
 
-//				.headers(headers -> headers
-//						.contentSecurityPolicy(csp -> csp
-//								.policyDirectives(
-//										"default-src 'self'; " +
-//												"script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; " +
-//												"script-src-elem 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; " +
-//												"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; " +
-//												"style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; " +
-//												"font-src 'self' https://fonts.gstatic.com; " +
-//												"frame-src 'self' https://accounts.google.com/gsi/; " +
-//												"connect-src 'self' https://accounts.google.com/gsi/; " +
-//												"img-src 'self' data: https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com;"
-//								)
-//						)
-//				)
-
 				.headers(headers -> headers
 						.frameOptions(frame -> frame.sameOrigin())
 				)

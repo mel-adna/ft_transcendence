@@ -20,6 +20,8 @@ import com.teampulse.backend.repository.WorkspaceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,12 +86,11 @@ public class TaskService {
 
 
 	@Transactional(readOnly = true)
-	public List<TaskResponse> getWorkspaceTasks(UUID workspaceId, String email) {
+	public Page<TaskResponse> getWorkspaceTasks(UUID workspaceId, String email, Pageable pageable) {
 		validateWorkspaceMembership(workspaceId, email, "You don't have access to this workspace's tasks!");
 
-		return taskRepository.findByWorkspaceId(workspaceId).stream()
-				.map(taskMapper::toResponse)
-				.toList();
+		return taskRepository.findByWorkspaceId(workspaceId, pageable)
+				.map(taskMapper::toResponse);
 	}
 
 

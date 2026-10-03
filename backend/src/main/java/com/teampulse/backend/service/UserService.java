@@ -29,6 +29,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -160,7 +162,8 @@ public class UserService {
 			if (user != null && user.getPasswordHashed() != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
 				try {
 					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
-				} catch (Exception ignored) {}
+				} catch (Exception ignored) {
+				}
 			}
 
 			throw new AccountNotVerifiedException("Invalid email/password or account not yet verified. Please check your email.");
@@ -216,8 +219,7 @@ public class UserService {
 					throw new BadRequestException("Invalid avatar URL format");
 				}
 				user.setAvatarUrl(avatarUrl);
-			}
-			else
+			} else
 				user.setAvatarUrl(null);
 		}
 
@@ -321,6 +323,7 @@ public class UserService {
 		log.info("Password successfully updated and token revoked for user ID: {}", user.getId());
 	}
 
+
 	@Transactional
 	public void softDeleteUser(String email) {
 		User user = userRepository.findByEmail(email)
@@ -394,25 +397,31 @@ public class UserService {
 			fileStorageService.deleteAvatar(user.getAvatarUrl());
 
 		user.setAvatarUrl(null);
-
 		userRepository.save(user);
 
-		log.info("User account with email {} has been successfully soft-deleted.", email);
+		log.info("User account with email {} has been successfully soft-deleted in DB.", email);
 
-		try {
-			String subject = "Account Deletion Confirmation - Team-Pulse";
-			String body = String.format(
-					"Hello %s,\n\n" +
-							"Your Team-Pulse account (%s) has been successfully deleted.\n" +
-							"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
-							"Best regards,\nThe Team-Pulse Team",
-					originalName, originalEmail
-			);
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					try {
+						String subject = "Account Deletion Confirmation - Team-Pulse";
+						String body = String.format(
+								"Hello %s,\n\n" +
+										"Your Team-Pulse account (%s) has been successfully deleted.\n" +
+										"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
+										"Best regards,\nThe Team-Pulse Team",
+								originalName, originalEmail
+						);
 
-			emailService.sendEmail(originalEmail, subject, body);
-			log.info("Account deletion confirmation email sent to: {}", originalEmail);
-		} catch (Exception ex) {
-			log.warn("Account deleted for [{}], but failed to send confirmation email: {}", originalEmail, ex.getMessage());
+						emailService.sendEmail(originalEmail, subject, body);
+						log.info("Account deletion confirmation email sent to: {}", originalEmail);
+					} catch (Exception ex) {
+						log.warn("Account deleted for [{}], but failed to send confirmation email: {}", originalEmail, ex.getMessage());
+					}
+				}
+			});
 		}
 	}
 
