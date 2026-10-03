@@ -67,6 +67,19 @@ public class UserService {
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
 
+	private static final List<String> ALLOWED_CONTENT_TYPES = List.of(
+			"image/jpeg",
+			"image/png",
+			"image/webp"
+	);
+	private static final List<String> ALLOWED_EXTENSIONS = List.of(
+			".jpg",
+			".jpeg",
+			".png",
+			".webp"
+	);
+	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
+
 	@Transactional
 	public String signup(SignupRequest request) {
 		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
@@ -144,11 +157,14 @@ public class UserService {
 		} catch (DisabledException ex) {
 			User user = userRepository.findByEmail(cleanEmail).orElse(null);
 
-			if (user != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
-				verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
-				throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
+			if (user != null && user.getPasswordHashed() != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
+				try {
+					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
+				} catch (Exception ignored) {}
 			}
-			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
+
+			throw new AccountNotVerifiedException("Invalid email/password or account not yet verified. Please check your email.");
+
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 		}
@@ -240,10 +256,12 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public List<UserResponse> searchUsersByEmail(String email) {
-		if (email == null || email.trim().isEmpty())
+		if (email == null || email.trim().length() < 3)
 			return List.of();
 
-		List<User> users = userRepository.findByEmailContainingIgnoreCase(email.trim());
+		String cleanQuery = email.trim().toLowerCase(Locale.ROOT);
+
+		List<User> users = userRepository.findTop10ByEmailContainingIgnoreCase(cleanQuery);
 
 		return users.stream().map(userMapper::toResponse).toList();
 	}
@@ -319,9 +337,9 @@ public class UserService {
 		List<Workspace> workspacesToTransfer = new ArrayList<>();
 
 		for (Workspace ws : ownedWorkspaces) {
-			long memeberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
+			long memberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
 
-			if (memeberCont == 1)
+			if (memberCont == 1)
 				workspacesToDelete.add(ws);
 			else {
 				boolean hasOtherAdmin = workspaceMemberRepository.existsByWorkspaceIdAndUserIdNotAndRole(
@@ -398,12 +416,22 @@ public class UserService {
 		}
 	}
 
+	@Transactional
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {
-		String avatarUrl = fileStorageService.uploadAvatar(file);
+		validateAvatarFile(file);
 
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+		if (user.getAvatarUrl() != null && user.getAvatarUrl().contains("/avatars/")) {
+			try {
+				fileStorageService.deleteAvatar(user.getAvatarUrl());
+			} catch (Exception e) {
+				log.warn("Failed to delete old avatar for user [{}]: {}", userId, e.getMessage());
+			}
+		}
+
+		String avatarUrl = fileStorageService.uploadAvatar(file);
 		user.setAvatarUrl(avatarUrl);
 		User updatedUser = userRepository.save(user);
 
@@ -480,6 +508,31 @@ public class UserService {
 
 		} catch (Exception e) {
 			throw new BadCredentialsException("Failed to authenticate with Google: " + e.getMessage());
+		}
+	}
+
+	private void validateAvatarFile(MultipartFile file) {
+		if (file == null || file.isEmpty()) {
+			throw new BadRequestException("File cannot be empty.");
+		}
+
+		if (file.getSize() > MAX_FILE_SIZE) {
+			throw new BadRequestException("File size exceeds the maximum allowed limit of 5MB.");
+		}
+
+		String contentType = file.getContentType();
+		if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
+			throw new BadRequestException("Invalid file type. Only JPG, PNG, and WEBP images are allowed.");
+		}
+
+		String originalFilename = file.getOriginalFilename();
+		if (originalFilename == null || !originalFilename.contains(".")) {
+			throw new BadRequestException("Invalid file name or extension.");
+		}
+
+		String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
+		if (!ALLOWED_EXTENSIONS.contains(extension)) {
+			throw new BadRequestException("Invalid file extension.");
 		}
 	}
 }

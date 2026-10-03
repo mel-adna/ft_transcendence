@@ -24,7 +24,7 @@ clean:
 fclean:
 	rm -rf secrets
 	rm -rf ./nginx/certs
-	docker compose down -v
+	docker compose down
 
 backend:
 	docker compose up -d --build backend

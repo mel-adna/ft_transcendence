@@ -85,14 +85,16 @@ public class SecurityConfig {
 
 								"/public/**",
 
-								"/actuator/**",
+								"/actuator/health",
+								"/actuator/prometheus",
+
 								"/v3/api-docs/**",
 								"/swagger-ui/**",
 								"/swagger-ui.html",
-								"/error")
-						.permitAll()
-						.anyRequest().authenticated())
-
+								"/error"
+						).permitAll()
+						.anyRequest().authenticated()
+				)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authenticationProvider(authenticationProvider())
 				.addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)

@@ -8,6 +8,8 @@ server:
 
 
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:prod}
   application:
     name: team-pulse-backend
   servlet:
