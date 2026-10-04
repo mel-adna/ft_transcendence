@@ -115,6 +115,8 @@ CREATE TABLE refresh_tokens
     user_id     UUID         NOT NULL,
     token       VARCHAR(255) NOT NULL UNIQUE,
     expiry_date TIMESTAMP    NOT NULL,
+    client_ip   VARCHAR(45),
+    user_agent  VARCHAR(512),
     revoked     BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE

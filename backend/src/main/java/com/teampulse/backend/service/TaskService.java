@@ -17,6 +17,7 @@ import com.teampulse.backend.repository.TaskRepository;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
+import com.teampulse.backend.utils.EmailUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,7 +48,8 @@ public class TaskService {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
 
-		log.info("Attempting to create task '{}' in workspace ID: {} by user: {}", request.getTitle(), workspaceId, creatorEmail);
+		log.info("Attempting to create task '{}' in workspace ID: {} by user: {}",
+				request.getTitle(), workspaceId, EmailUtils.maskEmail(creatorEmail));
 
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
@@ -246,7 +248,7 @@ public class TaskService {
 		String logDescription = String.format("%s deleted task '%s'", getSafeFullName(currentUser), task.getTitle());
 		activityLogService.logActivity(task.getWorkspace().getId(), currentUser.getId(), taskId, "TASK_DELETED", logDescription);
 
-		log.info("Task ID: {} was successfully deleted by user: {}", taskId, email);
+		log.info("Task ID: {} was successfully deleted by user: {}", taskId, EmailUtils.maskEmail(email));
 	}
 
 

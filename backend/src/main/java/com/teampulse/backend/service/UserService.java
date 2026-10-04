@@ -16,6 +16,8 @@ import com.teampulse.backend.model.*;
 import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
 import com.teampulse.backend.security.UserPrincipal;
+import com.teampulse.backend.utils.EmailUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,6 +63,7 @@ public class UserService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final ApiKeyRepository apiKeyRepository;
 	private final NotificationRepository notificationRepository;
+	private final HttpServletRequest httpServletRequest;
 
 
 	@Value("${app.frontend-url}")
@@ -120,7 +123,7 @@ public class UserService {
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
 		String accessToken = jwtUtils.generateToken(userPrincipal);
-		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 		return AuthResponse.builder()
 				.accessToken(accessToken)
@@ -148,7 +151,7 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
@@ -177,11 +180,11 @@ public class UserService {
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 
-		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(tokenStr);
+		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(tokenStr, getClientIp(), getUserAgent());
 		User user = verifiedToken.getUser();
 
 		refreshTokenService.deleteByToken(tokenStr);
-		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
+		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 		String newAccessToken = jwtUtils.generateToken(userPrincipal);
@@ -270,11 +273,11 @@ public class UserService {
 
 	@Transactional
 	public void processForgotPassword(ForgotPasswordRequest request) {
-		log.info("Received password reset request for email: {}", request.getEmail());
+		log.info("Received password reset request for email: {}", EmailUtils.maskEmail(request.getEmail()));
 
 		Optional<User> userOptional = userRepository.findByEmail(request.getEmail());
 		if (userOptional.isEmpty()) {
-			log.warn("Password reset initiated for non-existing email: {}", request.getEmail());
+			log.warn("Password reset initiated for non-existing email: {}", EmailUtils.maskEmail(request.getEmail()));
 			return;
 		}
 
@@ -399,7 +402,7 @@ public class UserService {
 		user.setAvatarUrl(null);
 		userRepository.save(user);
 
-		log.info("User account with email {} has been successfully soft-deleted in DB.", email);
+		log.info("User account with email {} has been successfully soft-deleted in DB.", EmailUtils.maskEmail(email));
 
 		if (TransactionSynchronizationManager.isActualTransactionActive()) {
 			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -416,9 +419,11 @@ public class UserService {
 						);
 
 						emailService.sendEmail(originalEmail, subject, body);
-						log.info("Account deletion confirmation email sent to: {}", originalEmail);
+
+						log.info("Account deletion confirmation email sent to: {}", EmailUtils.maskEmail(originalEmail));
+
 					} catch (Exception ex) {
-						log.warn("Account deleted for [{}], but failed to send confirmation email: {}", originalEmail, ex.getMessage());
+						log.warn("Account deleted for [{}], but failed to send confirmation email: {}", EmailUtils.maskEmail(originalEmail), ex.getMessage());
 					}
 				}
 			});
@@ -507,7 +512,7 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
@@ -543,5 +548,24 @@ public class UserService {
 		if (!ALLOWED_EXTENSIONS.contains(extension)) {
 			throw new BadRequestException("Invalid file extension.");
 		}
+	}
+
+	private String getClientIp() {
+		if (httpServletRequest == null) return "0.0.0.0";
+		String xfHeader = httpServletRequest.getHeader("X-Forwarded-For");
+		if (xfHeader != null && !xfHeader.isBlank()) {
+			return xfHeader.split(",")[0].trim();
+		}
+		String realIp = httpServletRequest.getHeader("X-Real-IP");
+		if (realIp != null && !realIp.isBlank()) {
+			return realIp.trim();
+		}
+		return httpServletRequest.getRemoteAddr();
+	}
+
+	private String getUserAgent() {
+		if (httpServletRequest == null) return "Unknown";
+		String userAgent = httpServletRequest.getHeader("User-Agent");
+		return userAgent != null ? userAgent : "Unknown";
 	}
 }

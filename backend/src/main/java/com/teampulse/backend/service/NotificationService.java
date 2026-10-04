@@ -3,6 +3,7 @@ package com.teampulse.backend.service;
 import java.util.List;
 import java.util.UUID;
 
+import com.teampulse.backend.utils.EmailUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,7 @@ public class NotificationService {
 
     @Transactional
     public void createNotification(User recipient, NotificationType type, EntityType entityType, UUID entityId, String message) {
-        log.info("Persisting new notification in DB for user: {}. Type: {}", recipient.getEmail(), type);
+        log.info("Persisting new notification in DB for user: {}. Type: {}", EmailUtils.maskEmail(recipient.getEmail()), type);
 
         Notification notification = new Notification();
         notification.setRecipient(recipient);
@@ -48,7 +49,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Slice<NotificationResponse> getUserNotifications(String currentEmail, Pageable pageable) {
-        log.info("Fetching paginated notification history for user: {}", currentEmail);
+        log.info("Fetching paginated notification history for user: {}", EmailUtils.maskEmail(currentEmail));
         User user = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
 
@@ -58,7 +59,7 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationResponse> getUnreadNotifications(String currentEmail) {
-        log.info("Fetching unread notifications list for user: {}", currentEmail);
+        log.info("Fetching unread notifications list for user: {}", EmailUtils.maskEmail(currentEmail));
         User user = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
 
@@ -82,7 +83,9 @@ public class NotificationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found with ID: " + notificationId));
 
         if (!notification.getRecipient().getEmail().equalsIgnoreCase(currentEmail)) {
-            log.warn("Security Alert: User '{}' tried to modify notification belonging to '{}'", currentEmail, notification.getRecipient().getEmail());
+            log.warn("Security Alert: User '{}' tried to modify notification belonging to '{}'",
+                    EmailUtils.maskEmail(currentEmail),
+                    EmailUtils.maskEmail(notification.getRecipient().getEmail()));
             throw new UnauthorizedAccessException("You are not authorized to modify this notification!");
         }
 
@@ -95,7 +98,7 @@ public class NotificationService {
 
     @Transactional
     public void markAllAsRead(String currentEmail) {
-        log.info("Executing bulk mark-all-as-read pipeline for user: {}", currentEmail);
+        log.info("Executing bulk mark-all-as-read pipeline for user: {}", EmailUtils.maskEmail(currentEmail));
         User user = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
 

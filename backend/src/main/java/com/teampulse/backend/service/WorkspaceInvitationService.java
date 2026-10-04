@@ -20,6 +20,7 @@ import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceInvitationRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
+import com.teampulse.backend.utils.EmailUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -101,7 +102,7 @@ public class WorkspaceInvitationService {
 
 		eventPublisher.publishEvent(new WorkspaceInvitationSentEvent(this, workspace, savedInvitation, inviter, inviteeUser));
 
-		log.info("Invitation sent successfully to {} for workspace {}", targetEmail, workspace.getName());
+		log.info("Invitation sent successfully to {} for workspace {}", EmailUtils.maskEmail(targetEmail), workspace.getName());
 
 		return invitationMapper.toResponse(savedInvitation);
 	}
@@ -154,7 +155,7 @@ public class WorkspaceInvitationService {
 
 		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, invitation.getWorkspace(), invitation, invitee));
 
-		log.info("User {} accepted invitation to workspace {}", cleanEmail, invitation.getWorkspace().getName());
+		log.info("User {} accepted invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), invitation.getWorkspace().getName());
 	}
 
 
@@ -166,7 +167,7 @@ public class WorkspaceInvitationService {
 		invitation.setStatus(InvitationStatus.REJECTED);
 		invitationRepository.save(invitation);
 
-		log.info("User {} rejected invitation to workspace {}", cleanEmail, invitation.getWorkspace().getName());
+		log.info("User {} rejected invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), invitation.getWorkspace().getName());
 	}
 
 
@@ -188,7 +189,7 @@ public class WorkspaceInvitationService {
 
 		invitationRepository.delete(invitation);
 
-		log.info("Admin {} cancelled invitation {} for workspace {}", cleanAdminEmail, invitationId, workspaceId);
+		log.info("Admin {} cancelled invitation {} for workspace {}", EmailUtils.maskEmail(cleanAdminEmail), invitationId, workspaceId);
 	}
 
 

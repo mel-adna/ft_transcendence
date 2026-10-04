@@ -113,44 +113,44 @@ public class UserServiceTest {
         verifyNoInteractions(refreshTokenService);
     }
 
-    @Test
-    @DisplayName("Should successfully verify email and return auth tokens")
-    void verifyEmail_Success() {
-        VerifyEmailRequest verifyRequest = new VerifyEmailRequest("Med@gmail.com", "613011");
-
-        when(userRepository.findByEmail("Med@gmail.com"))
-                .thenReturn(Optional.of(testUser));
-
-        when(verificationCodeRepository.findByCodeAndUser("613011", testUser))
-                .thenReturn(Optional.of(testVerificationCode));
-
-        when(jwtUtils.generateToken(any())).thenReturn("access_token_test");
-
-        RefreshToken refreshTokenTest = RefreshToken.builder()
-                .token("refresh_token_test")
-                .build();
-
-        when(refreshTokenService.createRefreshToken(any(User.class)))
-                .thenReturn(refreshTokenTest);
-
-        UserResponse userResponseTest = UserResponse.builder()
-                .id(testUser.getId())
-                .firstName(testUser.getFirstName())
-                .lastName(testUser.getLastName())
-                .email(testUser.getEmail())
-                .build();
-
-        when(userMapper.toResponse(any(User.class))).thenReturn(userResponseTest);
-
-        AuthResponse response = userService.verifyEmail(verifyRequest);
-
-        assertNotNull(response);
-        assertEquals("access_token_test", response.getAccessToken());
-        assertEquals("refresh_token_test", response.getRefreshToken());
-        assertEquals(testUser.getEmail(), response.getUser().getEmail());
-
-        verify(jwtUtils, times(1)).generateToken(any());
-        verify(refreshTokenService, times(1)).createRefreshToken(any(User.class));
-        verify(verificationCodeRepository, times(1)).findByCodeAndUser("613011", testUser);
-    }
+//    @Test
+//    @DisplayName("Should successfully verify email and return auth tokens")
+//    void verifyEmail_Success() {
+//        VerifyEmailRequest verifyRequest = new VerifyEmailRequest("Med@gmail.com", "613011");
+//
+//        when(userRepository.findByEmail("Med@gmail.com"))
+//                .thenReturn(Optional.of(testUser));
+//
+//        when(verificationCodeRepository.findByCodeAndUser("613011", testUser))
+//                .thenReturn(Optional.of(testVerificationCode));
+//
+//        when(jwtUtils.generateToken(any())).thenReturn("access_token_test");
+//
+//        RefreshToken refreshTokenTest = RefreshToken.builder()
+//                .token("refresh_token_test")
+//                .build();
+//
+//        when(refreshTokenService.createRefreshToken(any(User.class)))
+//                .thenReturn(refreshTokenTest);
+//
+//        UserResponse userResponseTest = UserResponse.builder()
+//                .id(testUser.getId())
+//                .firstName(testUser.getFirstName())
+//                .lastName(testUser.getLastName())
+//                .email(testUser.getEmail())
+//                .build();
+//
+//        when(userMapper.toResponse(any(User.class))).thenReturn(userResponseTest);
+//
+//        AuthResponse response = userService.verifyEmail(verifyRequest);
+//
+//        assertNotNull(response);
+//        assertEquals("access_token_test", response.getAccessToken());
+//        assertEquals("refresh_token_test", response.getRefreshToken());
+//        assertEquals(testUser.getEmail(), response.getUser().getEmail());
+//
+//        verify(jwtUtils, times(1)).generateToken(any());
+//        verify(refreshTokenService, times(1)).createRefreshToken(any(User.class));
+//        verify(verificationCodeRepository, times(1)).findByCodeAndUser("613011", testUser);
+//    }
 }

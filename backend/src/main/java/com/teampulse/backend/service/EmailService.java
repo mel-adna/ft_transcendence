@@ -1,6 +1,7 @@
 package com.teampulse.backend.service;
 
 import com.teampulse.backend.exception.EmailDeliveryException;
+import com.teampulse.backend.utils.EmailUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
@@ -23,7 +24,7 @@ public class EmailService {
 
 
 	public void sendEmail(String to, String subject, String body) {
-		log.info("Initiating email dispatch sequence to: {}", to);
+		log.info("Initiating email dispatch sequence to: {}", EmailUtils.maskEmail(to));
 
 		try {
 			SimpleMailMessage message = new SimpleMailMessage();
@@ -33,14 +34,14 @@ public class EmailService {
 			message.setText(body);
 
 			mailSender.send(message);
-			log.info("Email successfully sent to: {}", to);
+			log.info("Email successfully sent to: {}", EmailUtils.maskEmail(to));
 		}
 		catch (MailException ex) {
-			log.error("Infrastructure Failure: Unable to deliver email to [{}]. Error type: {}", to, ex.getClass().getSimpleName());
+			log.error("Infrastructure Failure: Unable to deliver email to [{}]. Error type: {}", EmailUtils.maskEmail(to), ex.getClass().getSimpleName());
 			throw new EmailDeliveryException("Failed to deliver email due to a mail server infrastructure failure.", ex);
 		}
 		catch (Exception ex) {
-			log.error("Unexpected error during email dispatch to [{}]: {}", to, ex.getClass().getSimpleName());
+			log.error("Unexpected error during email dispatch to [{}]: {}", EmailUtils.maskEmail(to), ex.getClass().getSimpleName());
 			throw new EmailDeliveryException("An unexpected error occurred while sending email.", ex);
 		}
 	}
