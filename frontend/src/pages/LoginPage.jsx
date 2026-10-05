@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Navigate, useNavigate, Link } from 'react-router-dom';
+import { Navigate, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { LayoutGrid, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { getErrorMessage, isEmailNotVerified } from '../lib/api';
@@ -16,11 +16,14 @@ import Spinner from '../components/Spinner';
 export default function LoginPage() {
   const { user, login, signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const destination = location.state?.from ?? '/';
 
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState(location.pathname === '/signup' ? 'signup' : 'login');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => (searchParams.get('email') ?? '').replace(/ /g, '+'));
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
@@ -36,19 +39,19 @@ export default function LoginPage() {
       setSubmitting(true);
       try {
         await loginWithGoogle(idToken);
-        navigate('/', { replace: true });
+        navigate(destination, { replace: true });
       } catch (error) {
         setServerError(getErrorMessage(error));
       } finally {
         setSubmitting(false);
       }
     },
-    [loginWithGoogle, navigate],
+    [loginWithGoogle, navigate, destination],
   );
 
   const googleEnabled = Boolean(getGoogleClientId());
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={destination} replace />;
 
   function switchMode(nextMode) {
     setMode(nextMode);
@@ -90,7 +93,7 @@ export default function LoginPage() {
         return;
       }
       await login(email, password);
-      navigate('/', { replace: true });
+      navigate(destination, { replace: true });
     } catch (error) {
       if (isEmailNotVerified(error)) {
         navigate('/verify-email', {
