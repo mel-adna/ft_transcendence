@@ -1,14 +1,19 @@
 # Backend issues
 
-Status checked 2026-09-27 against `10ea735` on `mdbentaleb` and `7b7ee2f` on `aarab`, merged and run
-together. Only unresolved issues are listed.
+Status checked 2026-10-05 against `9112e30` on `mdbentaleb`, merged with mel-adna's branch. Only
+unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
 
-Fixed since the last check, and removed from this file: **33** (email prefixes collided in chat),
-**34** (the chat image shipped no Prisma client), **35** (chat rejected every Java token) and
-**32** (the backend never received the token lifetimes). Nothing blocks a feature today.
+Fixed since the last check, and removed from this file: **37** (any signed in user could read any
+team's roster), **40** (`GET /api-key` answered 404 with no key, now 204), **41** (a new task came
+back with `"createdAt": null`), **36** (broken JSON answered 500, now 400 or 415), **29** (rate
+limit buckets were never evicted) and **38** (invitations are stored lowercase now). **31** no
+longer applies: the Vite port 5173 is not published any more, so nobody signs in from it.
+
+`backend/frontend-issues.md` numbers its frontend issues 42 to 44, so new backend issues here start
+at 45. Its 42, 43 and 44 are fixed on `szemmouri`; its 39 is the same as 39 below.
 
 ## Not blocking
 
@@ -16,63 +21,54 @@ Real defects, but nothing visible is broken.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 37 | Any signed in user can read any team's member list | Names and email addresses of teams you do not belong to, from one request | 1 line |
-| 39 | The socket client logs to the console on every page | With chat-service down, every page prints ten connection errors, and the subject rejects a project with console errors | Small |
-| 40 | `GET /api-key` answers 404 when the user has no key yet | Having no key is the normal state, and the browser logs the 404 as a console error on the Settings page | 4 lines |
-| 41 | A new task comes back with `"createdAt": null` | The card of a task you just created has no date until the next reload | 1 line |
-| 38 | An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com` | The invitation exists and looks sent, but it is not in the invitee's list | Small |
-| 22 | A failed verification email is still swallowed, and the Gmail password is still in the file | Signup answers 201 while the user is stranded with no code and no error anywhere | Small |
+| 22 | The live Gmail app password and JWT secret are still committed, now as "examples" | The subject requires credentials to stay out of git, and these two are the ones the stack runs with | Change both, 2 files |
+| 45 | The sign-up link in an invitation email does not encode the address | An address containing `&`, `#` or `%` gives a link that fills in the wrong address | 1 line |
+| 46 | When the invitation email fails, the invitee gets no notification | The bell entry and the live update are skipped, although the invitation is saved | Small |
+| 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
-| 31 | The Google OAuth client does not allow `http://localhost:5173` | Google sign in is refused on the Vite port; `https://localhost` works | Console setting |
-| 36 | Broken JSON still answers 500 instead of 400 | Half fixed: a wrong method answers 405 now, the rest of the client mistakes do not | Small |
-| 30 | A dead API key is still sitting in `application.yaml` | Reads like a working credential, and it is in the public history | Delete 1 line |
-| 29 | Rate limit buckets are created and never removed | One map entry per distinct address and email, kept for the life of the process | Small |
+| 30 | The dead public API key is still committed | Reads like a working credential, and it is in the public history | Delete 3 lines |
 
 ---
 
 # Not blocking
 
-## 37. Any signed in user can read any team's member list
+## 22. The live Gmail app password and JWT secret are still committed
 
-`WorkspaceController.getWorkspaceMembers` takes the caller's `principal` and never uses it:
+Half of this is fixed. `EmailService.sendEmail` is no longer `@Async` and throws when the send
+fails, `GlobalExceptionHandler` answers 503, and signup rolls back, so a broken mailer is visible
+now instead of stranding the user without a code.
 
-```java
-List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId);
-```
+The credential half only moved. `application.yaml` reads `${MAIL_PASSWORD}` now, but
+`secrets_example/mail_password.txt.example` holds the same Gmail app password that used to sit in
+`application.yaml`, and `secrets_example/jwt_secret.txt.example` holds the same JWT secret `.env`
+used to commit. The `Makefile` copies every example file unchanged into `secrets/`, so these
+"examples" are the live values the stack runs with, they are public, and neither has been changed.
 
-Every other workspace endpoint checks membership first. This one does not, so any account can read
-any team's roster by guessing or reusing a workspace id, and each row carries a member's first name,
-last name, email and avatar. The ids are UUIDs, so this is not trivially enumerable, but ids travel
-in URLs and in the invitation payloads.
+**Fix:** change the Gmail app password and generate a new JWT secret, put a placeholder such as
+`replace-me` in every `*.txt.example`, and say in the README where the real values come from.
 
-**Fix:** the same membership check the other endpoints use, before building the response.
+## 45. The sign-up link in an invitation email does not encode the address
 
-## 40. `GET /api-key` answers 404 when the user has no key yet
-
-`ApiKeyService.getApiKeyInfo` throws `ResourceNotFoundException` when the user has never created a
-key:
-
-```java
-ApiKey apiKey = apiKeyRepository.findByUser(user)
-        .orElseThrow(() -> new ResourceNotFoundException("No active API key found for this user."));
-```
-
-Having no key is the normal state for almost every account, so the Settings page asks a question
-whose usual answer is an error. The page handles it, but Chrome still prints "Failed to load
-resource: 404" in the console, and the subject's general requirements say a project with console
-errors is rejected.
-
-**Fix:** answer 204 No Content when there is no key. `getApiKeyInfo` returns an `Optional`
-instead of throwing, and `ApiKeyController` becomes:
+`WorkspaceInvitationEventListener` builds the link for an invitee without an account by
+concatenation:
 
 ```java
-return apiKeyService.getApiKeyInfo(currentUser.getUsername())
-        .map(ResponseEntity::ok)
-        .orElseGet(() -> ResponseEntity.noContent().build());
+actionUrl = frontendUrl + "/signup?email=" + inviteeEmail;
 ```
 
-The frontend is already ready for it: it reads a 204, an empty 200 or a missing `keyPrefix` as
-"no key yet", so this is a backend only change. 404 stays right for a key that was asked for by id.
+A `+` in the address arrives as a space, which the sign-up page turns back into a `+`. An address
+containing `&`, `#` or `%` still gives a link that fills in the wrong address or none.
+
+**Fix:** `URLEncoder.encode(inviteeEmail, StandardCharsets.UTF_8)`.
+
+## 46. When the invitation email fails, the invitee gets no notification
+
+`WorkspaceInvitationEventListener` sends the email first, then creates the notification and pushes
+the live event. Since `sendEmail` now throws on failure (issue 22), a mail outage ends the method
+before the notification exists. An invitee with an account then sees nothing in the bell and
+nothing live, although the invitation is saved and appears in their list on the next reload.
+
+**Fix:** create the notification and push the event first, or catch and log the send failure.
 
 ## 39. The socket client logs to the console on every page
 
@@ -83,209 +79,40 @@ attempt:
 console.error('[SocketClient] Connection error:', err.message);
 ```
 
-That used to be limited to the Chat page. The live update work holds the socket open on every
-page now, so when chat-service is down, ten failed attempts print on the dashboard, the task board
-and everywhere else. The subject's general requirements say the project is rejected if warnings or
-errors appear in the browser console, and an evaluator who stops one container to see what happens
-will see them.
+The socket is held open on every page, so when chat-service is down, failed attempts print on the
+dashboard, the task board and everywhere else. The subject's general requirements say the project
+is rejected if warnings or errors appear in the browser console, and an evaluator who stops one
+container to see what happens will see them.
 
 **Fix:** drop the three console calls, or put them behind `import.meta.env.DEV`. The file is
 aarab's and is vendored here unchanged, so it has to be fixed on his branch.
-
-## 41. A new task comes back with `"createdAt": null`
-
-`POST /tasks/workspace/{id}` answers 201 with `"createdAt": null`. The same task read back from
-`GET /tasks/workspace/{id}`, or returned by `PATCH /tasks/{id}/status`, has its real date.
-
-`TaskService.createTask` builds its reply straight after `save`:
-
-```java
-Task savedTask = taskRepository.save(task);
-...
-return taskMapper.toResponse(savedTask);
-```
-
-`createdAt` is a `@CreationTimestamp`, which Hibernate fills in when the row is actually inserted.
-That happens at the flush, when the transaction commits, which is after the reply has been built.
-The frontend puts the reply on the board as it is, so a task you just created shows no date until
-the page reloads. The card now hides the empty date instead of showing a calendar icon next to
-nothing, but the date is still missing.
-
-**Fix:** `taskRepository.saveAndFlush(task)` instead of `save(task)`, so the insert runs, and the
-timestamp is set, before the reply is built.
-
-## 38. An invitation to `Foo@Bar.com` never reaches the account `foo@bar.com`
-
-The invitation is stored with the address exactly as typed. The two lookups disagree about case:
-
-- `findByInviteeEmailAndStatus` and `existsByWorkspaceIdAndInviteeEmailAndStatus` match exactly, so
-  the list of invitations addressed to a user misses any invitation whose case differs.
-- accept and reject compare with `equalsIgnoreCase`, so the same invitation would be accepted
-  happily if the invitee could see it.
-
-An admin who types a capital letter creates an invitation nobody can find, and the duplicate check
-does not stop them creating a second one. The frontend lowercases the address before sending, which
-hides it from this app, but not from the API or from Swagger.
-
-**Fix:** store the address lowercased, or make both queries case-insensitive.
 
 ## 28. The login limit counts successful logins, so ordinary use spends the budget
 
 `RateLimitAspect` advises with `@Before`, so a token is consumed before the method runs and
 regardless of what it returns. A login that succeeds costs exactly as much as one that fails.
-
-`AuthController.login` is annotated:
+`AuthController.login` is still annotated:
 
 ```java
 @RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 ```
 
-Worth being precise about what that means, because the numbers read worse than they are. The bucket
-is built with `refillGreedy(capacity, Duration.ofMinutes(durationInMinutes))`, which trickles tokens
-back continuously rather than refunding all five at the quarter hour. Five per fifteen minutes is
-therefore one token every three minutes, with five of them available in a burst. Once the burst is
-spent, the sixth attempt answers 429 and the wait is about three minutes, not fifteen.
+The bucket refills continuously, one token every three minutes with five available in a burst, so
+this is a throttle rather than a lockout. It is still worth a change, because signing in and out
+is a thing a person does on purpose, and doing it five times in a row is neither rare nor
+suspicious.
 
-So this is a throttle rather than a lockout, and it is not urgent. It is still worth a change,
-because signing in and signing out is a thing a person does on purpose, and doing it five times in
-a row is neither rare nor suspicious. Spending an anti-guessing budget on correct passwords means
-the limit fires for the wrong people.
+**Fix:** raise the capacity so ordinary use cannot reach it (twenty per fifteen minutes still stops
+a guessing run), or consume a token only when the call throws, with `@AfterThrowing` or an
+`@Around` advice.
 
-The protection actually wanted here is against password guessing, which means counting failures:
+## 30. The dead public API key is still committed
 
-- Raise the capacity so ordinary use cannot reach it. Twenty per fifteen minutes still stops a
-  guessing run and leaves a demo alone. That is a one number change.
-- Or move the limiter so it only counts a failure. `@Before` cannot see the outcome, but
-  `@AfterThrowing`, or an `@Around` that consumes a token only when the call throws, can.
+`application.yaml` no longer carries the key as a default, but the `public-key` line is still
+there and nothing in Java reads it. The key itself moved to
+`secrets_example/public_api_key.txt.example`, and `docker-compose.yml` passes it to the backend as
+a secret. It is the same dead key, so it reads like a working credential and sits in the public
+history.
 
-The other three are fine as they are. `resend-verification` and `forgot-password` are three per hour
-per email, and both are only ever triggered deliberately by a person, so counting attempts there is
-right. `signup` is keyed on address and email together and a new signup uses a new email, so it
-never really binds.
-
-The frontend reads `retryAfterSeconds` off the 429 and says "Too many attempts. Try again in 3
-minutes." rather than the bare server message, so the wait is at least visible while this stands.
-
-## 31. The Google OAuth client does not allow `http://localhost:5173`
-
-Google sign in works through nginx and is refused on the Vite port. Measured on both login pages:
-
-```
-https://localhost        no failed requests, no complaint from Google
-http://localhost:5173    403 from https://accounts.google.com/gsi/button
-                         [GSI_LOGGER]: The given origin is not allowed for the given client ID.
-```
-
-Google treats these as separate origins, and only the first is registered. **Fix:** add
-`http://localhost:5173` under Authorized JavaScript origins for this client in Google Cloud
-Console. Only people using the Vite port are affected; anyone going through `https://localhost` is
-not.
-
-## 36. Broken JSON still answers 500 instead of 400
-
-`GlobalExceptionHandler` ends with a catch-all that answers 500 "An unexpected server error
-occurred":
-
-```java
-@ExceptionHandler(Exception.class)
-```
-
-A wrong method is handled now: `HttpRequestMethodNotSupportedException` answers 405, which is why
-`POST /workspaces/{id}/invitations` on the old members path says "not supported" rather than
-"crashed". The other malformed requests still have no handler of their own and fall through to the
-catch-all:
-
-| Request | Answers | Should answer |
-|---|---|---|
-| Broken JSON in the body | 500 | 400 |
-| `{"role": "admin"}`, a value outside the enum | 500 | 400 |
-| A path id that is not a UUID | 500 | 400 |
-| The wrong `Content-Type` | 500 | 415 |
-| A missing query parameter, such as `email` on `/users/search` | 500 | 400 |
-
-They all arrive as Jackson or Spring binding failures. The enum one is the easiest to hit by hand,
-since `role` has to be upper case and nothing says so.
-
-**Fix:** three more handlers next to the 405 one:
-
-- `HttpMessageNotReadableException` answers 400
-- `MethodArgumentTypeMismatchException` and `MissingServletRequestParameterException` answer 400
-- `HttpMediaTypeNotSupportedException` answers 415
-
-## 30. The dead public API key is still in `application.yaml`
-
-`application.yaml` still contains an unused API key:
-
-```yaml
-public-key: ${PUBLIC_API_KEY:2a4ed48168bc0178dd13ed73bb319aaf6d83e57222fcf0ac630b7671be277caf}
-```
-
-Nothing in Java reads it any more, and the value is rejected with 401, so it is dead config rather
-than a live credential. It is worth deleting anyway for two reasons: anyone reading the file will
-take it for a working key and waste time on it, and it is a credential shaped string sitting in a
-public repository, which is the same tidy up the Gmail password in issue 22 needs.
-
-## 22. A failed verification email is swallowed, so signup can report success and strand the user
-
-Unchanged since the last check, and now slightly wider. `EmailService.sendEmail` is still `@Async`
-and still wraps the send in a try/catch that only logs:
-
-```java
-} catch (Exception e) {
-    log.error("Infrastructure Error: Failed to send email to [{}]. Reason: {}", to, e.getMessage());
-}
-```
-
-Because it is asynchronous, `signup` has already returned 201 by the time a failure is known, and
-because the exception is swallowed, nothing reaches the caller. If the send fails the user sees
-"Verification code has been sent to your email", no code ever arrives, and the only trace is a line
-in the container log.
-
-The new `sendWelcomeEmail` calls straight into the same method, so it inherits the same silence.
-That one matters less, since nobody is blocked by a missing welcome note.
-
-What makes this worth fixing is what it depends on. `application.yaml` still carries a personal
-Gmail account and an app password in plaintext:
-
-```yaml
-username: mohamedbentalebakilo@gmail.com
-password: pyno tbky wasf whvy
-```
-
-Google revokes app passwords on its own, and when that happens every signup in the product stops
-working silently, with no failing test and no error surface.
-
-**Fix:** two separate things. Give the failure a surface, by recording the send outcome or by
-retrying, so a broken mailer is visible. And move the credential to an environment variable, which
-is the same rotation already planned for the other secrets. Both of those values are in the public
-repository history now, so the account password wants changing whatever else happens.
-
-## 29. Rate limit buckets are never evicted
-
-`RateLimitingService` keeps every bucket it has ever made:
-
-```java
-private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
-
-public Bucket resolveBucket(String key, int capacity, int durationInMinutes) {
-    return buckets.computeIfAbsent(key, k -> createNewBucket(capacity, durationInMinutes));
-}
-```
-
-Nothing removes an entry. For the endpoints keyed on the address alone that is bounded by the
-number of addresses, which is fine. For the four keyed on the email, or on the address and email
-together, the key contains a string the caller chooses, so the number of entries is bounded only by
-how many different emails someone sends. A loop posting to `/auth/login` with a new address each
-time adds a permanent entry per request.
-
-It grows slowly and it is not reachable without a deliberate script, which is why it is at the
-bottom of this file rather than the top.
-
-**Fix:** give the map an expiry. Caffeine with `expireAfterAccess` a little longer than the widest
-window is the usual answer and is a drop in replacement here:
-
-```java
-Cache<String, Bucket> buckets = Caffeine.newBuilder()
-        .expireAfterAccess(Duration.ofHours(2))
-        .build();
-```
+**Fix:** delete the line in `application.yaml`, the secret in `docker-compose.yml` and the example
+file.
