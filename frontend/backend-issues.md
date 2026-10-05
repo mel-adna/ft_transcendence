@@ -24,6 +24,7 @@ Real defects, but nothing visible is broken.
 | 22 | The live Gmail app password and JWT secret are still committed, now as "examples" | The subject requires credentials to stay out of git, and these two are the ones the stack runs with | Change both, 2 files |
 | 45 | The sign-up link in an invitation email does not encode the address | An address containing `&`, `#` or `%` gives a link that fills in the wrong address | 1 line |
 | 46 | When the invitation email fails, the invitee gets no notification | The bell entry and the live update are skipped, although the invitation is saved | Small |
+| 47 | Task requests are limited to 100 a minute per address, but the import accepts 500 rows | An import over about 100 rows stops halfway, fewer when rows need a status change | Small |
 | 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
 | 30 | The dead public API key is still committed | Reads like a working credential, and it is in the public history | Delete 3 lines |
@@ -69,6 +70,23 @@ before the notification exists. An invitee with an account then sees nothing in 
 nothing live, although the invitation is saved and appears in their list on the next reload.
 
 **Fix:** create the notification and push the event first, or catch and log the send failure.
+
+## 47. Task requests are limited to 100 a minute per address, but the import accepts 500 rows
+
+`TaskController` carries a class level limit:
+
+```java
+@RateLimit(capacity = 100, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
+```
+
+The task import on the dashboard accepts up to 500 rows and sends one `POST` per row, plus a
+`PATCH` for every row whose status is not To-Do. Measured on 2026-10-05: 105 tasks created in one
+burst gave 101 created and 4 answered 429. The import stops cleanly at the first 429 and reports
+the rest as not imported, so nothing breaks, but an import over about 100 rows cannot finish in one
+go.
+
+**Fix:** a bulk endpoint such as `POST /tasks/workspace/{id}/import` that takes the rows in one
+request, or a higher limit on `createTask` and `updateStatus` than on the rest of the controller.
 
 ## 39. The socket client logs to the console on every page
 
