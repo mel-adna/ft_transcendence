@@ -15,7 +15,6 @@ Real defects, but nothing visible is broken.
 
 | # | Issue | Why it matters | Effort |
 |---|---|---|---|
-| 22 | The live Gmail app password and JWT secret are still committed, now as "examples" | The subject requires credentials to stay out of git, and these two are the ones the stack runs with | Change both, 2 files |
 | 45 | The sign-up link in an invitation email does not encode the address | An address containing `&`, `#` or `%` gives a link that fills in the wrong address | 1 line |
 | 46 | When the invitation email fails, the invitee gets no notification | The bell entry and the live update are skipped, although the invitation is saved | Small |
 | 47 | Task requests are limited to 100 a minute per address, but the import accepts 500 rows | An import over about 100 rows stops halfway, fewer when rows need a status change | Small |
@@ -27,16 +26,6 @@ Real defects, but nothing visible is broken.
 ---
 
 # Not blocking
-
-## 22. The live Gmail app password and JWT secret are still committed
-
-`application.yaml` reads `${MAIL_PASSWORD}`, but `secrets_example/mail_password.txt.example` holds the same Gmail app password that used to sit in
-`application.yaml`, and `secrets_example/jwt_secret.txt.example` holds the same JWT secret `.env`
-used to commit. The `Makefile` copies every example file unchanged into `secrets/`, so these
-"examples" are the live values the stack runs with, they are public, and neither has been changed.
-
-**Fix:** change the Gmail app password and generate a new JWT secret, put a placeholder such as
-`replace-me` in every `*.txt.example`, and say in the README where the real values come from.
 
 ## 45. The sign-up link in an invitation email does not encode the address
 
