@@ -18,7 +18,9 @@ export const DEFAULT_STATS = {
   completionTrend: [],
 };
 
-export function useWorkspaceStats(workspaceId, range = 7) {
+// params: { days } for presets, or { from, to } for a custom range, plus optional
+// status / priority / assigneeId filters. Must be memoized by the caller.
+export function useWorkspaceStats(workspaceId, params) {
   const [stats, setStats] = useState(DEFAULT_STATS);
   const [loading, setLoading] = useState(Boolean(workspaceId));
   const [error, setError] = useState(null);
@@ -40,7 +42,7 @@ export function useWorkspaceStats(workspaceId, range = 7) {
 
       try {
         const response = await api.get(`/workspaces/${workspaceId}/stats`, {
-          params: { days: range },
+          params,
         });
         if (currentRequestRef.current !== requestToken) return;
         setStats(response.data ?? DEFAULT_STATS);
@@ -51,7 +53,7 @@ export function useWorkspaceStats(workspaceId, range = 7) {
         if (currentRequestRef.current === requestToken) setLoading(false);
       }
     },
-    [workspaceId, range],
+    [workspaceId, params],
   );
 
   useEffect(() => {
