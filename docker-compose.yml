@@ -81,6 +81,7 @@ services:
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD_FILE=/run/secrets/mail_password
       - PUBLIC_API_KEY_FILE=/run/secrets/public_api_key
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
     secrets:
       - db_password
       - jwt_secret
@@ -88,6 +89,7 @@ services:
       - minio_root_password
       - mail_password
       - public_api_key
+      - redis_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -162,13 +164,17 @@ services:
   redis:
     image: redis:7.4-alpine
     container_name: teampulse-redis
+    command: >
+      sh -c "REDIS_PASSWORD=$$(cat /run/secrets/redis_password) && exec redis-server --requirepass \"$$REDIS_PASSWORD\""
+    secrets:
+      - redis_password
     networks:
       - teampulse_net
     restart: unless-stopped
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -190,9 +196,11 @@ services:
       - DB_PASSWORD_FILE=/run/secrets/db_password
       - DB_SCHEMA=chat
       - REDIS_URL=redis://redis:6379
+      - REDIS_PASSWORD_FILE=/run/secrets/redis_password
     secrets:
       - db_password
       - jwt_secret
+      - redis_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -349,3 +357,5 @@ secrets:
     file: ./secrets/mail_password.txt
   public_api_key:
     file: ./secrets/public_api_key.txt
+  redis_password:
+    file: ./secrets/redis_password.txt

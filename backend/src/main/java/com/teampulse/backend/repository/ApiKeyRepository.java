@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,4 +25,8 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
 
 	@Modifying
 	void deleteByUserId(UUID userId);
+
+	@Modifying
+	@Query("DELETE FROM ApiKey a WHERE a.user.id IN :userIds")
+	void deleteByUserIdIn(@Param("userIds") List<UUID> userIds);
 }

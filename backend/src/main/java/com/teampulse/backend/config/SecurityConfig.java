@@ -37,6 +37,12 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http
+				/*
+				 * CSRF protection is intentionally disabled due to the stateless architecture:
+				 * 1. Authentication relies strictly on short-lived JWTs sent in request headers (Authorization: Bearer <token>).
+				 * 2. The server does not maintain session state (SessionCreationPolicy.STATELESS), rendering traditional CSRF attacks ineffective.
+				 * 3. Refresh tokens issued via HTTP only cookies are protected with strict SameSite attributes and explicit CORS origin rules.
+				 */
 				.csrf(csrf -> csrf.disable())
 				.cors(Customizer.withDefaults())
 

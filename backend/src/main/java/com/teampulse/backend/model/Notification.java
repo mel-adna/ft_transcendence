@@ -26,6 +26,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import javax.annotation.Nullable;
+
 @Entity
 @Table(name="notifications")
 @Getter
@@ -40,6 +42,7 @@ public class Notification {
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="recipient_id")
 	@NotFound(action=NotFoundAction.IGNORE)
+	@Nullable
 	private User recipient;
 
 	@Enumerated(EnumType.STRING)

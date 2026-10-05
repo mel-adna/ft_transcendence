@@ -3,7 +3,7 @@ package com.teampulse.backend.service;
 import java.util.List;
 import java.util.UUID;
 
-import com.teampulse.backend.utils.EmailUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -28,81 +28,83 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final NotificationRepository notificationRepository;
-    private final UserRepository userRepository;
-    private final NotificationMapper notificationMapper;
+	private final NotificationRepository notificationRepository;
+	private final UserRepository userRepository;
+	private final NotificationMapper notificationMapper;
 
-    @Transactional
-    public void createNotification(User recipient, NotificationType type, EntityType entityType, UUID entityId, String message) {
-        log.info("Persisting new notification in DB for user: {}. Type: {}", EmailUtils.maskEmail(recipient.getEmail()), type);
+	@Transactional
+	public void createNotification(User recipient, NotificationType type, EntityType entityType, UUID entityId, String message) {
+		log.info("Persisting new notification in DB for user: {}. Type: {}", EmailUtils.maskEmail(recipient.getEmail()), type);
 
-        Notification notification = new Notification();
-        notification.setRecipient(recipient);
-        notification.setType(type);
-        notification.setEntityType(entityType);
-        notification.setEntityId(entityId);
-        notification.setMessage(message);
-        notification.setRead(false);
+		Notification notification = new Notification();
+		notification.setRecipient(recipient);
+		notification.setType(type);
+		notification.setEntityType(entityType);
+		notification.setEntityId(entityId);
+		notification.setMessage(message);
+		notification.setRead(false);
 
-        notificationRepository.save(notification);
-    }
+		notificationRepository.save(notification);
+	}
 
-    @Transactional(readOnly = true)
-    public Slice<NotificationResponse> getUserNotifications(String currentEmail, Pageable pageable) {
-        log.info("Fetching paginated notification history for user: {}", EmailUtils.maskEmail(currentEmail));
-        User user = userRepository.findByEmail(currentEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
+	@Transactional(readOnly = true)
+	public Slice<NotificationResponse> getUserNotifications(String currentEmail, Pageable pageable) {
+		log.info("Fetching paginated notification history for user: {}", EmailUtils.maskEmail(currentEmail));
+		User user = userRepository.findByEmail(currentEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
 
-        return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(user.getId(), pageable)
-                .map(notificationMapper::toResponse);
-    }
+		return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(user.getId(), pageable)
+				.map(notificationMapper::toResponse);
+	}
 
-    @Transactional(readOnly = true)
-    public List<NotificationResponse> getUnreadNotifications(String currentEmail) {
-        log.info("Fetching unread notifications list for user: {}", EmailUtils.maskEmail(currentEmail));
-        User user = userRepository.findByEmail(currentEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
+	@Transactional(readOnly = true)
+	public List<NotificationResponse> getUnreadNotifications(String currentEmail) {
+		log.info("Fetching unread notifications list for user: {}", EmailUtils.maskEmail(currentEmail));
+		User user = userRepository.findByEmail(currentEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
 
-        List<Notification> unreadNotifications = notificationRepository.findByRecipientIdAndIsReadFalse(user.getId());
-        return unreadNotifications.stream()
-                .map(notificationMapper::toResponse)
-                .toList();
-    }
+		List<Notification> unreadNotifications = notificationRepository
+				.findTop50ByRecipientIdAndIsReadFalseOrderByCreatedAtDesc(user.getId());
 
-    @Transactional(readOnly = true)
-    public long getUnreadCount(String currentEmail) {
-        User user = userRepository.findByEmail(currentEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
-        
-        return notificationRepository.countByRecipientIdAndIsReadFalse(user.getId());
-    }
+		return unreadNotifications.stream()
+				.map(notificationMapper::toResponse)
+				.toList();
+	}
 
-    @Transactional
-    public void markAsRead(UUID notificationId, String currentEmail) {
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Notification not found with ID: " + notificationId));
+	@Transactional(readOnly = true)
+	public long getUnreadCount(String currentEmail) {
+		User user = userRepository.findByEmail(currentEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
 
-        if (!notification.getRecipient().getEmail().equalsIgnoreCase(currentEmail)) {
-            log.warn("Security Alert: User '{}' tried to modify notification belonging to '{}'",
-                    EmailUtils.maskEmail(currentEmail),
-                    EmailUtils.maskEmail(notification.getRecipient().getEmail()));
-            throw new UnauthorizedAccessException("You are not authorized to modify this notification!");
-        }
+		return notificationRepository.countByRecipientIdAndIsReadFalse(user.getId());
+	}
 
-        if (!notification.isRead()) {
-            notification.setRead(true);
-            notificationRepository.save(notification);
-            log.info("Notification ID {} successfully marked as read.", notificationId);
-        }
-    }
+	@Transactional
+	public void markAsRead(UUID notificationId, String currentEmail) {
+		Notification notification = notificationRepository.findById(notificationId)
+				.orElseThrow(() -> new ResourceNotFoundException("Notification not found with ID: " + notificationId));
 
-    @Transactional
-    public void markAllAsRead(String currentEmail) {
-        log.info("Executing bulk mark-all-as-read pipeline for user: {}", EmailUtils.maskEmail(currentEmail));
-        User user = userRepository.findByEmail(currentEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
+		if (!notification.getRecipient().getEmail().equalsIgnoreCase(currentEmail)) {
+			log.warn("Security Alert: User '{}' tried to modify notification belonging to '{}'",
+					EmailUtils.maskEmail(currentEmail),
+					EmailUtils.maskEmail(notification.getRecipient().getEmail()));
+			throw new UnauthorizedAccessException("You are not authorized to modify this notification!");
+		}
 
-        notificationRepository.markAllAsRead(user.getId());
-        log.info("Successfully executed native database modification query for user ID: {}", user.getId());
-    }
+		if (!notification.isRead()) {
+			notification.setRead(true);
+			notificationRepository.save(notification);
+			log.info("Notification ID {} successfully marked as read.", notificationId);
+		}
+	}
+
+	@Transactional
+	public void markAllAsRead(String currentEmail) {
+		log.info("Executing bulk mark-all-as-read pipeline for user: {}", EmailUtils.maskEmail(currentEmail));
+		User user = userRepository.findByEmail(currentEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + currentEmail));
+
+		notificationRepository.markAllAsRead(user.getId());
+		log.info("Successfully executed native database modification query for user ID: {}", user.getId());
+	}
 }

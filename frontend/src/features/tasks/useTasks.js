@@ -3,6 +3,7 @@ import api from '../../lib/api';
 import { useDataChanged } from '../../lib/useDataChanged';
 import { notifyDataChanged } from '../../lib/realtimeNotify';
 import { useList } from '../../hooks/useList';
+import { fetchWorkspaceTasks } from './fetchWorkspaceTasks';
 
 export function useTasks(workspaceId) {
   const announceChange = useCallback(() => {
@@ -11,8 +12,7 @@ export function useTasks(workspaceId) {
 
   const load = useCallback(async () => {
     if (!workspaceId) return [];
-    const response = await api.get(`/tasks/workspace/${workspaceId}`);
-    return response.data;
+    return fetchWorkspaceTasks(workspaceId);
   }, [workspaceId]);
 
   const { items: tasks, setItems: setTasks, loading, error, reload } = useList(load);

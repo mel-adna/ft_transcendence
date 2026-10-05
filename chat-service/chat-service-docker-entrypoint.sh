@@ -11,4 +11,8 @@ done
 
 export DATABASE_URL="postgresql://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=${DB_SCHEMA:-chat}"
 
+if [ -n "$REDIS_PASSWORD" ]; then
+  export REDIS_URL="redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}"
+fi
+
 exec "$@"

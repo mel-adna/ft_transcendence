@@ -1,7 +1,7 @@
 package com.teampulse.backend.service;
 
 import com.teampulse.backend.exception.EmailDeliveryException;
-import com.teampulse.backend.utils.EmailUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;

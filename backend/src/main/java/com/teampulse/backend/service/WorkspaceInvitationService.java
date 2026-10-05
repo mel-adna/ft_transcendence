@@ -20,7 +20,7 @@ import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceInvitationRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
-import com.teampulse.backend.utils.EmailUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -60,8 +60,8 @@ public class WorkspaceInvitationService {
 			throw new BadRequestException("Invitee email cannot be empty.");
 		}
 
-		String targetEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
-		String cleanInviterEmail = inviterEmail.trim().toLowerCase(Locale.ROOT);
+		String targetEmail = EmailUtils.normalize(request.getEmail());
+		String cleanInviterEmail = EmailUtils.normalize(inviterEmail);
 
 		verifyUserIsAdmin(workspaceId, cleanInviterEmail);
 
@@ -110,7 +110,7 @@ public class WorkspaceInvitationService {
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceInvitationResponse> getMyPendingInvitations(String userEmail) {
-		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(userEmail);
 
 		return invitationRepository.findByInviteeEmailAndStatus(cleanEmail, InvitationStatus.PENDING)
 				.stream()
@@ -122,7 +122,8 @@ public class WorkspaceInvitationService {
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceInvitationResponse> getWorkspacePendingInvitations(UUID workspaceId, String adminEmail) {
-		String cleanAdminEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
+		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
+
 		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
 
 		return invitationRepository.findByWorkspaceIdAndStatus(workspaceId, InvitationStatus.PENDING)
@@ -135,8 +136,13 @@ public class WorkspaceInvitationService {
 
 	@Transactional
 	public void acceptInvitation(UUID invitationId, String userEmail) {
-		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(userEmail);
+
 		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, cleanEmail);
+
+		Workspace workspace = workspaceRepository.findById(invitation.getWorkspace().getId())
+				.orElseThrow(() -> new BadRequestException("The workspace associated with this invitation no longer exists or has been deleted."));
+
 
 		User invitee = userRepository.findByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User account not found"));
@@ -161,7 +167,8 @@ public class WorkspaceInvitationService {
 
 	@Transactional
 	public void rejectInvitation(UUID invitationId, String userEmail) {
-		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(userEmail);
+
 		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, cleanEmail);
 
 		invitation.setStatus(InvitationStatus.REJECTED);
@@ -173,7 +180,8 @@ public class WorkspaceInvitationService {
 
 	@Transactional
 	public void cancelInvitation(UUID workspaceId, UUID invitationId, String adminEmail) {
-		String cleanAdminEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
+		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
+
 		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
 
 		WorkspaceInvitation invitation = invitationRepository.findById(invitationId)
@@ -194,7 +202,8 @@ public class WorkspaceInvitationService {
 
 
 	private WorkspaceInvitation getValidPendingInvitation(UUID invitationId, String userEmail) {
-		String cleanEmail = userEmail.trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(userEmail);
+
 		WorkspaceInvitation invitation = invitationRepository.findById(invitationId)
 				.orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
 
@@ -217,7 +226,8 @@ public class WorkspaceInvitationService {
 
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {
-		String cleanEmail = email.trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(email);
+
 		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanEmail)
 				.orElseThrow(() -> new UnauthorizedAccessException("You are not part of this workspace."));
 

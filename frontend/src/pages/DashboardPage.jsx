@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
-import { Download, Loader2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Download, Loader2, Upload } from 'lucide-react';
 import { useWorkspace } from '../context/useWorkspace';
 import { useTasks } from '../features/tasks/useTasks';
 import { getErrorMessage } from '../lib/api';
-import { downloadFile, parseTasksCsv, tasksToCsv } from '../lib/csv';
+import { downloadFile, parseTasksCsv, parseTasksJson, tasksToCsv, tasksToJson } from '../lib/csv';
 import Spinner from '../components/Spinner';
 import ErrorState from '../components/ErrorState';
 import PageHeader from '../components/PageHeader';
@@ -13,9 +13,11 @@ import { useActivityLogs } from '../features/dashboard/useActivityLogs';
 import { ACTIVITY_FEED_LIMIT } from '../features/dashboard/activityLog';
 
 const CSV_FILENAME = 'team-pulse-tasks.csv';
+const JSON_FILENAME = 'team-pulse-tasks.json';
+export const MAX_IMPORT_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 
 const outlineButtonClass =
-  'inline-flex items-center gap-2 rounded-lg border border-muted/30 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center gap-2 rounded-lg border border-muted/30 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer';
 
 export default function DashboardPage() {
   const { current } = useWorkspace();
@@ -29,12 +31,41 @@ export default function DashboardPage() {
   } = useActivityLogs(workspaceId, ACTIVITY_FEED_LIMIT);
 
   const fileInputRef = useRef(null);
+  const exportMenuRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);
   const [importSummary, setImportSummary] = useState(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
-  function handleExport() {
-    downloadFile(CSV_FILENAME, tasksToCsv(tasks));
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target)) {
+        setExportOpen(false);
+      }
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setExportOpen(false);
+      }
+    }
+    if (exportOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [exportOpen]);
+
+  function handleExportCsv() {
+    setExportOpen(false);
+    downloadFile(CSV_FILENAME, tasksToCsv(tasks), 'text/csv;charset=utf-8');
+  }
+
+  function handleExportJson() {
+    setExportOpen(false);
+    downloadFile(JSON_FILENAME, tasksToJson(tasks), 'application/json;charset=utf-8');
   }
 
   function handleImportClick() {
@@ -51,6 +82,62 @@ export default function DashboardPage() {
     input.value = '';
     if (!file) return;
 
+    if (!workspaceId) {
+      setImportSummary({
+        created: 0,
+        total: 0,
+        errors: ['No active workspace selected. Please select a workspace before importing.'],
+      });
+      return;
+    }
+
+    // 1. File Size Limit (2 MB) - reject before reading into memory
+    if (file.size > MAX_IMPORT_FILE_SIZE) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      setImportSummary({
+        created: 0,
+        total: 0,
+        errors: [`"${file.name}" exceeds the maximum allowed file size of 2 MB (${sizeMb} MB).`],
+      });
+      return;
+    }
+
+    // 2. Strict Extension & MIME Validation
+    const filename = file.name.toLowerCase();
+    const hasJsonExt = filename.endsWith('.json');
+    const hasCsvExt = filename.endsWith('.csv');
+
+    if (!hasJsonExt && !hasCsvExt) {
+      setImportSummary({
+        created: 0,
+        total: 0,
+        errors: [`"${file.name}" is not supported. Only .csv and .json files are allowed.`],
+      });
+      return;
+    }
+
+    const mime = (file.type || '').toLowerCase();
+    const validJsonMimes = ['application/json', 'text/json', 'text/plain', ''];
+    const validCsvMimes = ['text/csv', 'application/csv', 'text/plain', 'application/vnd.ms-excel', ''];
+
+    if (hasJsonExt && !validJsonMimes.includes(mime)) {
+      setImportSummary({
+        created: 0,
+        total: 0,
+        errors: [`"${file.name}" has an unexpected MIME type (${file.type}). Expected JSON.`],
+      });
+      return;
+    }
+
+    if (hasCsvExt && !validCsvMimes.includes(mime)) {
+      setImportSummary({
+        created: 0,
+        total: 0,
+        errors: [`"${file.name}" has an unexpected MIME type (${file.type}). Expected CSV.`],
+      });
+      return;
+    }
+
     setImporting(true);
     setImportProgress(null);
 
@@ -59,7 +146,7 @@ export default function DashboardPage() {
 
     try {
       const text = await file.text();
-      const parsed = parseTasksCsv(text);
+      const parsed = hasJsonExt ? parseTasksJson(text) : parseTasksCsv(text);
       rows = parsed.rows;
       rowErrors = [...parsed.errors];
     } catch (readError) {
@@ -92,7 +179,16 @@ export default function DashboardPage() {
           }
         }
       } catch (createError) {
+        const status = createError?.response?.status ?? createError?.status;
         rowErrors.push(`"${row.title}" was not imported: ${getErrorMessage(createError)}`);
+
+        // Stop processing if rate limited by backend to avoid endless failed requests
+        if (status === 429) {
+          rowErrors.push(
+            'Import stopped: Server rate limit reached. Please wait a minute and re-import remaining tasks.',
+          );
+          break;
+        }
       }
     }
 
@@ -135,32 +231,66 @@ export default function DashboardPage() {
         description="Track your team's performance and activity."
       >
         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={handleImportClick}
               disabled={importing}
               className={outlineButtonClass}
             >
-              {importing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-              Import CSV
+              {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+              <span>Import</span>
             </button>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.json,text/csv,application/json"
               onChange={handleFileChange}
               className="hidden"
             />
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={importing}
-              className={outlineButtonClass}
-            >
-              <Download size={16} />
-              Export to CSV
-            </button>
+            <div ref={exportMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setExportOpen((prev) => !prev)}
+                disabled={importing}
+                className={`${outlineButtonClass} gap-1.5`}
+                aria-expanded={exportOpen}
+                aria-haspopup="true"
+              >
+                <Download size={15} />
+                <span>Export</span>
+                <ChevronDown
+                  size={14}
+                  className={`text-muted transition-transform duration-150 ${exportOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {exportOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-20 mt-1.5 w-40 rounded-xl border border-card bg-panel p-1 shadow-xl backdrop-blur-md"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleExportCsv}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-hidden focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-primary/50 cursor-pointer"
+                  >
+                    <span>Export as CSV</span>
+                    <span className="text-[10px] text-muted">.csv</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleExportJson}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-hidden focus-visible:bg-white/10 focus-visible:ring-1 focus-visible:ring-primary/50 cursor-pointer"
+                  >
+                    <span>Export as JSON</span>
+                    <span className="text-[10px] text-muted">.json</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           {importing && importProgress && (
             <span aria-live="polite" className="text-xs font-medium text-muted">
@@ -173,7 +303,7 @@ export default function DashboardPage() {
 
       <div className="mt-6">
         <StatsDashboard
-          tasks={tasks}
+          workspaceId={workspaceId}
           activityLogs={activityLogs}
           activityLoading={activityLoading}
           activityError={activityError}
