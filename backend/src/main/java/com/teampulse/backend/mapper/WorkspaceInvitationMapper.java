@@ -8,16 +8,16 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
-
 @Mapper(
 		componentModel = "spring",
 		unmappedTargetPolicy = ReportingPolicy.IGNORE
 )
 public interface WorkspaceInvitationMapper {
+
 	@Mapping(source = "workspace.id", target = "workspaceId")
 	@Mapping(source = "workspace.name", target = "workspaceName")
-	@Mapping(target = "inviterName", expression = "java(invitation.getInviter() != null ? invitation.getInviter().getFirstName() + \" \" + invitation.getInviter().getLastName() : null)")
-	WorkspaceInvitationResponse toResponse(WorkspaceInvitation  invitation);
+	@Mapping(target = "inviterName", expression = "java(getSafeInviterName(invitation))")
+	WorkspaceInvitationResponse toResponse(WorkspaceInvitation invitation);
 
 	@Mapping(source = "email", target = "inviteeEmail")
 	@Mapping(target = "id", ignore = true)
@@ -27,4 +27,14 @@ public interface WorkspaceInvitationMapper {
 	@Mapping(target = "createdAt", ignore = true)
 	@Mapping(target = "expiresAt", ignore = true)
 	WorkspaceInvitation toEntity(SendInvitationRequest request);
+
+	default String getSafeInviterName(WorkspaceInvitation invitation) {
+		if (invitation == null || invitation.getInviter() == null) {
+			return "Deleted User";
+		}
+		String first = invitation.getInviter().getFirstName() != null ? invitation.getInviter().getFirstName().trim() : "";
+		String last = invitation.getInviter().getLastName() != null ? invitation.getInviter().getLastName().trim() : "";
+		String full = (first + " " + last).trim();
+		return full.isEmpty() ? invitation.getInviter().getEmail() : full;
+	}
 }

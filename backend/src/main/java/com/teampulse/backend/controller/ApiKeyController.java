@@ -41,7 +41,9 @@ public class ApiKeyController {
 	@Operation(summary = "Get API Key metadata")
 	@GetMapping
 	public ResponseEntity<ApiKeyResponse> getApiKeyInfo(@AuthenticationPrincipal UserPrincipal currentUser) {
-		return ResponseEntity.ok(apiKeyService.getApiKeyInfo(currentUser.getUsername()));
+		return apiKeyService.getApiKeyInfo(currentUser.getUsername())
+				.map(ResponseEntity::ok)
+				.orElseGet(() -> ResponseEntity.noContent().build());
 	}
 
 

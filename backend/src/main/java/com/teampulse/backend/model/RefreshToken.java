@@ -30,6 +30,12 @@ public class RefreshToken {
 	@Column(name = "expiry_date", nullable = false)
 	private Instant expiryDate;
 
+	@Column(name = "client_ip", length = 45)
+	private String clientIp;
+
+	@Column(name = "user_agent", length = 512)
+	private String userAgent;
+
 	@Builder.Default
 	@Column(nullable = false)
 	private boolean revoked = false;

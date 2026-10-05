@@ -10,8 +10,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 
-
-
 @Configuration
 public class WebConfig {
 	@Value("${app.frontend-url}")
@@ -26,10 +24,10 @@ public class WebConfig {
 		config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
 		config.setAllowCredentials(false);
 		config.setMaxAge(3600L);
-		
+
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-		source.registerCorsConfiguration("/api/**", config);
+		source.registerCorsConfiguration("/**", config);
 
 		return source;
 	}

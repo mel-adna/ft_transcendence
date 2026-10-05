@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.teampulse.backend.dto.request.WorkspaceCreateRequest;
-import com.teampulse.backend.dto.request.WorkspaceMemberAddRequest;
 import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
 import com.teampulse.backend.dto.request.WorkspaceUpdateRequest;
 import com.teampulse.backend.dto.response.WorkspaceMemberResponse;
@@ -80,16 +79,16 @@ public class WorkspaceController {
 
 	@Operation(summary = "Get all members for this current workspace", description = "test test test")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "test"),
-			@ApiResponse(responseCode = "400", description = "test"),
-			@ApiResponse(responseCode = "403", description = "test")
+			@ApiResponse(responseCode = "200", description = "Workspace members retrieved successfully"),
+			@ApiResponse(responseCode = "400", description = "Invalid workspace ID"),
+			@ApiResponse(responseCode = "403", description = "Forbidden - User is not a member of this workspace")
 	})
 	@GetMapping("/{workspaceId}/members")
 	public ResponseEntity<List<WorkspaceMemberResponse>> getWorkspaceMembers(
 			@Parameter(description = "UUID of the workspace to fetch members for") @PathVariable UUID workspaceId,
 			@Parameter(hidden = true) Principal principal) {
 
-		List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId);
+		List<WorkspaceMemberResponse> members = workspaceService.getWorkspaceMembers(workspaceId, principal.getName());
 
 		return ResponseEntity.ok(members);
 	}

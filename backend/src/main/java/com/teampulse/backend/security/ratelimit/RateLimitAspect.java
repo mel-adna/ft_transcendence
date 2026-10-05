@@ -1,7 +1,5 @@
 package com.teampulse.backend.security.ratelimit;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teampulse.backend.exception.RateLimitExceededException;
 import com.teampulse.backend.service.RateLimitingService;
 import io.github.bucket4j.Bucket;
@@ -18,6 +16,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -26,8 +25,6 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class RateLimitAspect {
 	private final RateLimitingService rateLimitingService;
-	private final ObjectMapper objectMapper;
-
 
 	@Before("@within(RateLimit) || @annotation(RateLimit)")
 	public void interceptRateLimitedMethods(JoinPoint joinPoint) {
@@ -64,12 +61,12 @@ public class RateLimitAspect {
 	}
 
 
-	private String buildCacheKey(RateLimitKeyType keyType, String ip, String email, String methodoSignature) {
+	private String buildCacheKey(RateLimitKeyType keyType, String ip, String email, String methodSignature) {
 		return switch (keyType) {
-			case IP -> "rl:ip:" + ip + ":" + methodoSignature;
-			case EMAIL -> "rl:email:" + (email != null ? email : ip) + ":" + methodoSignature;
+			case IP -> "rl:ip:" + ip + ":" + methodSignature;
+			case EMAIL -> "rl:email:" + (email != null ? email : ip) + ":" + methodSignature;
 			case IP_AND_EMAIL ->
-					"rl:combo:" + ip + ":" + (email != null ? email : "anonymous") + ":" + methodoSignature;
+					"rl:combo:" + ip + ":" + (email != null ? email : "anonymous") + ":" + methodSignature;
 		};
 	}
 
@@ -86,16 +83,17 @@ public class RateLimitAspect {
 
 	private String extractEmailFromArgs(JoinPoint joinPoint) {
 		for (Object arg : joinPoint.getArgs()) {
-			if (arg != null) {
-				try {
-					String json = objectMapper.writeValueAsString(arg);
-					JsonNode node = objectMapper.readTree(json);
+			if (arg == null) {
+				continue;
+			}
 
-					if (node.has("email")) {
-						return node.get("email").asText();
-					}
-				} catch (Exception ignored) {
+			try {
+				Method getEmailMethod = arg.getClass().getMethod("getEmail");
+				Object result = getEmailMethod.invoke(arg);
+				if (result instanceof String emailStr && !emailStr.isBlank()) {
+					return emailStr.trim().toLowerCase(Locale.ROOT);
 				}
+			} catch (Exception ignored) {
 			}
 		}
 		return null;

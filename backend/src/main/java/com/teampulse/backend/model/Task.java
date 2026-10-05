@@ -62,7 +62,7 @@ public class Task {
 
 	@NotFound(action = NotFoundAction.IGNORE)
 	@ManyToOne(fetch=FetchType.LAZY)
-	@JoinColumn(name="creator_id", nullable=false)
+	@JoinColumn(name="creator_id", updatable = false)
 	private User creator;
 
 	@Column(name="deleted", nullable=false)

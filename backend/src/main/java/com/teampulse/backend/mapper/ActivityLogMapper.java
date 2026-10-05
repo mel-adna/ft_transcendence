@@ -7,12 +7,13 @@ import org.mapstruct.ReportingPolicy;
 import com.teampulse.backend.dto.response.ActivityLogResponse;
 import com.teampulse.backend.model.ActivityLog;
 
-@Mapper (
-	componentModel = "spring",
-	unmappedTargetPolicy = ReportingPolicy.IGNORE,
-	uses = {UserMapper.class}
+@Mapper(
+		componentModel = "spring",
+		unmappedTargetPolicy = ReportingPolicy.IGNORE,
+		uses = {UserMapper.class}
 )
 public interface ActivityLogMapper {
-	@Mapping (target = "workspaceId", source = "workspace.id")
-    ActivityLogResponse toResponse(ActivityLog log);
+
+	@Mapping(target = "workspaceId", source = "workspace.id")
+	ActivityLogResponse toResponse(ActivityLog log);
 }

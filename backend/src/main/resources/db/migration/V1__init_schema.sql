@@ -1,3 +1,6 @@
+CREATE
+EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. Users
 CREATE TABLE users
 (
@@ -22,14 +25,14 @@ CREATE TABLE workspaces
     name        VARCHAR(100) NOT NULL,
     description VARCHAR(500),
     type        VARCHAR(50)  NOT NULL, -- Enum: PERSONAL, ORGANIZATION
-    owner_id    UUID         NOT NULL,
+    owner_id    UUID,
     deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_workspaces_owner FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
--- 3. Workspace Members junction table
+-- 3. Workspace Members
 CREATE TABLE workspace_members
 (
     workspace_id UUID        NOT NULL,
@@ -53,50 +56,23 @@ CREATE TABLE tasks
     status       VARCHAR(50)  NOT NULL DEFAULT 'TODO',   -- Enum: TODO, DOING, DONE
     priority     VARCHAR(50)  NOT NULL DEFAULT 'MEDIUM', -- Enum: LOW, MEDIUM, HIGH
     assignee_id  UUID,
-    creator_id   UUID         NOT NULL,
+    creator_id   UUID,
     deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_tasks_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
     CONSTRAINT fk_tasks_assignee FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE RESTRICT
+    CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE SET NULL
 );
 
--- 5. Task Comments Table
-CREATE TABLE task_comments
-(
-    id         UUID PRIMARY KEY,
-    task_id    UUID          NOT NULL,
-    author_id  UUID          NOT NULL,
-    content    VARCHAR(2000) NOT NULL,
-    created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_comments_task FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
-    CONSTRAINT fk_comments_author FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE RESTRICT
-);
-
--- 6. Chat Messages
-CREATE TABLE chat_messages
-(
-    id                UUID PRIMARY KEY,
-    workspace_id      UUID          NOT NULL,
-    sender_id         UUID          NOT NULL,
-    sender_name       VARCHAR(50)   NOT NULL,
-    sender_avatar_url VARCHAR(255),
-    content           VARCHAR(2000) NOT NULL,
-    created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_chat_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE,
-    CONSTRAINT fk_chat_sender FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE RESTRICT
-);
-
--- 7, Notifications
+-- 5, Notifications
 CREATE TABLE notifications
 (
     id           UUID PRIMARY KEY,
-    recipient_id UUID         NOT NULL,
-    type         VARCHAR(100) NOT NULL, -- TASK_ASSIGNED, TASK_COMMENTED, WORKSPACE_MEMBER_ADDED
-    entity_type  VARCHAR(50),           -- TASK, WORKSPACE, TASK_COMMENT
+    recipient_id UUID,
+    type         VARCHAR(100) NOT NULL,
+    entity_type  VARCHAR(50),
     entity_id    UUID,
     message      VARCHAR(500) NOT NULL,
     is_read      BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -104,7 +80,7 @@ CREATE TABLE notifications
     CONSTRAINT fk_notifications_recipient FOREIGN KEY (recipient_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 8. Activity Log
+-- 6. Activity Log
 CREATE TABLE activity_logs
 (
     id           UUID PRIMARY KEY,
@@ -118,7 +94,7 @@ CREATE TABLE activity_logs
     CONSTRAINT fk_logs_workspace FOREIGN KEY (workspace_id) REFERENCES workspaces (id) ON DELETE CASCADE
 );
 
--- 9. Password Reset Tokens
+-- 7. Password Reset Tokens
 CREATE TABLE password_reset_tokens
 (
     id          UUID PRIMARY KEY,
@@ -132,19 +108,21 @@ CREATE TABLE password_reset_tokens
     CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 10. Refresh Tokens
+-- 8. Refresh Tokens
 CREATE TABLE refresh_tokens
 (
     id          UUID PRIMARY KEY,
     user_id     UUID         NOT NULL,
     token       VARCHAR(255) NOT NULL UNIQUE,
     expiry_date TIMESTAMP    NOT NULL,
+    client_ip   VARCHAR(45),
+    user_agent  VARCHAR(512),
     revoked     BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 11. Verification Codes
+-- 9. Verification Codes
 CREATE TABLE verification_codes
 (
     id          UUID PRIMARY KEY,
@@ -157,7 +135,7 @@ CREATE TABLE verification_codes
     CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 12. Api keys
+-- 10. Api keys
 CREATE TABLE api_keys
 (
     id           UUID PRIMARY KEY,
@@ -172,13 +150,13 @@ CREATE TABLE api_keys
     CONSTRAINT fk_api_key_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 13. Workspace Invitations
+-- 11. Workspace Invitations
 CREATE TABLE workspace_invitation
 (
     id                UUID PRIMARY KEY,
     workspace_id      UUID         NOT NULL,
     invitee_email     VARCHAR(100) NOT NULL,
-    inviter_id        UUID         NOT NULL,
+    inviter_id        UUID,
     invitation_status VARCHAR(50)  NOT NULL,
     role              VARCHAR(50)  NOT NULL,
     created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -195,8 +173,6 @@ CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
 CREATE INDEX idx_tasks_workspace_active ON tasks (workspace_id) WHERE deleted = FALSE;
 CREATE INDEX idx_tasks_assignee_active ON tasks (assignee_id) WHERE deleted = FALSE AND assignee_id IS NOT NULL;
 CREATE INDEX idx_tasks_workspace ON tasks (workspace_id);
-CREATE INDEX idx_task_comments_task_created ON task_comments (task_id, created_at DESC);
-CREATE INDEX idx_chat_workspace_created ON chat_messages (workspace_id, created_at DESC);
 CREATE INDEX idx_logs_workspace_timestamp ON activity_logs (workspace_id, created_at DESC);
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_id, created_at DESC);
 CREATE INDEX idx_notifications_unread ON notifications (recipient_id) WHERE is_read = FALSE;

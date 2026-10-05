@@ -56,9 +56,10 @@ public class TaskEventListener {
 			return;
 		}
 
+		String actorName = getSafeFullName(actor);
+
 		try {
-			String logDescription = String.format("%s %s completed task '%s'",
-					actor.getFirstName(), actor.getLastName(), task.getTitle());
+			String logDescription = String.format("%s completed task '%s'", actorName, task.getTitle());
 
 			activityLogService.logActivity(
 					task.getWorkspace().getId(),
@@ -74,18 +75,21 @@ public class TaskEventListener {
 			User assignee = task.getAssignee();
 			User creator = task.getCreator();
 
-			if (assignee != null && !Objects.equals(assignee.getId(), creator.getId())) {
-				String msgToAssignee = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s %s.",
-						task.getTitle(), actor.getFirstName(), actor.getLastName());
+			UUID creatorId = creator != null ? creator.getId() : null;
+			UUID assigneeId = assignee != null ? assignee.getId() : null;
+			UUID actorId = actor.getId();
+
+			if (assignee != null && !Objects.equals(assigneeId, creatorId) && !Objects.equals(assigneeId, actorId)) {
+				String msgToAssignee = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s.",
+						task.getTitle(), actorName);
 
 				notifyUserAndPublish(assignee, actor, task, msgToAssignee, NotificationType.TASK_COMPLETED, "COMPLETED");
 			}
 
-			if (creator != null && !Objects.equals(creator.getId(), actor.getId())) {
-
-				if (assignee == null || !Objects.equals(creator.getId(), assignee.getId())) {
-					String msgToCreator = String.format("The task '%s' you created has been marked as COMPLETED by %s %s.",
-							task.getTitle(), actor.getFirstName(), actor.getLastName());
+			if (creator != null && !Objects.equals(creatorId, actorId)) {
+				if (assignee == null || !Objects.equals(creatorId, assigneeId)) {
+					String msgToCreator = String.format("The task '%s' you created has been marked as COMPLETED by %s.",
+							task.getTitle(), actorName);
 
 					notifyUserAndPublish(creator, actor, task, msgToCreator, NotificationType.TASK_COMPLETED, "COMPLETED");
 				}
@@ -108,41 +112,53 @@ public class TaskEventListener {
 
 		boolean isAssignerDeleted = (assigner == null);
 		UUID assignerId = isAssignerDeleted ? null : assigner.getId();
-		String assignerFirstName = isAssignerDeleted ? "A deleted" : assigner.getFirstName();
-		String assignerLastName = isAssignerDeleted ? "user" : assigner.getLastName();
+		String assignerName = isAssignerDeleted ? "A deleted user" : getSafeFullName(assigner);
 
 		boolean isSelfAssignment = !isAssignerDeleted && Objects.equals(assignee.getId(), assigner.getId());
-		String targetName = isSelfAssignment ? "himself" : String.format("%s %s", assignee.getFirstName(), assignee.getLastName());
+		String targetName = isSelfAssignment ? "himself" : getSafeFullName(assignee);
 
 		String logType = event.isReassignment() ? "TASK_REASSIGNED" : "TASK_ASSIGNED";
 		String actionText = event.isReassignment() ? "reassigned task" : "assigned task";
-		String logDescription = String.format("%s %s %s '%s' to %s", assignerFirstName, assignerLastName,
-				actionText, task.getTitle(), targetName);
+		String logDescription = String.format("%s %s '%s' to %s", assignerName, actionText, task.getTitle(), targetName);
 
 		if (assignerId != null) {
-			activityLogService.logActivity(task.getWorkspace().getId(), assignerId,
-					task.getId(), logType, logDescription);
+			try {
+				activityLogService.logActivity(task.getWorkspace().getId(), assignerId,
+						task.getId(), logType, logDescription);
+			} catch (Exception e) {
+				log.error("Failed to log activity for assigned task ID: {}. Error: {}", task.getId(), e.getMessage());
+			}
 		}
 
 		if (!isSelfAssignment) {
-			String alertMsg = String.format("%s %s %s '%s' to you.", assignerFirstName, assignerLastName, actionText, task.getTitle());
-			NotificationType notifType = event.isReassignment() ? NotificationType.TASK_UPDATED : NotificationType.TASK_ASSIGNED;
-			String redisAction = event.isReassignment() ? "REASSIGNED" : "ASSIGNED";
+			try {
+				String alertMsg = String.format("%s %s '%s' to you.", assignerName, actionText, task.getTitle());
+				NotificationType notifType = event.isReassignment() ? NotificationType.TASK_UPDATED : NotificationType.TASK_ASSIGNED;
+				String redisAction = event.isReassignment() ? "REASSIGNED" : "ASSIGNED";
 
-			notifyUserAndPublish(assignee, assigner, task, alertMsg, notifType, redisAction);
+				notifyUserAndPublish(assignee, assigner, task, alertMsg, notifType, redisAction);
+			} catch (Exception e) {
+				log.error("Failed to send notification for assigned task ID: {}. Error: {}", task.getId(), e.getMessage());
+			}
 		}
 	}
 
 	private void notifyUserAndPublish(User recipient, User actor, Task task, String message,
 	                                  NotificationType notifyType, String redisAction) {
 
+		if (recipient == null || recipient.getEmail() == null) {
+			log.warn("Cannot send notification/email. Recipient or email is null for task ID: {}", task.getId());
+			return;
+		}
+
 		notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
 
-		emailService.sendEmail(recipient.getEmail(), "Task Update: " + task.getTitle(), message);
+		if (!recipient.getEmail().endsWith("@teampulse.local")) {
+			emailService.sendEmail(recipient.getEmail(), "Task Update: " + task.getTitle(), message);
+		}
 
 		UUID senderId = actor != null ? actor.getId() : null;
-
-		String actorName = actor != null ? actor.getFirstName() + " " + actor.getLastName() : "System";
+		String actorName = actor != null ? getSafeFullName(actor) : "System";
 
 		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 				.eventId(UUID.randomUUID())
@@ -162,5 +178,13 @@ public class TaskEventListener {
 				.build();
 
 		redisEventPublisherService.publish(realTimeEvent);
+	}
+
+	private String getSafeFullName(User user) {
+		if (user == null) return "Unknown User";
+		String firstName = user.getFirstName() != null ? user.getFirstName() : "";
+		String lastName = user.getLastName() != null ? user.getLastName() : "";
+		String fullName = (firstName + " " + lastName).trim();
+		return fullName.isEmpty() ? user.getEmail() : fullName;
 	}
 }

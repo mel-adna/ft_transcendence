@@ -1,7 +1,6 @@
 package com.teampulse.backend.repository;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,11 +22,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 	int deleteByUser(User user);
 
 	@Modifying
+	int deleteByUserId(UUID userId);
+
+	@Modifying
 	int deleteByToken(String token);
 
 	@Modifying
 	@Query("DELETE FROM RefreshToken r WHERE r.expiryDate < :now")
 	int deleteByExpiryDateBefore(@Param("now") Instant now);
-
-	List<RefreshToken> token(String token);
 }

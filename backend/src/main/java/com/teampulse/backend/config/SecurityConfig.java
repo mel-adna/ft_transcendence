@@ -41,19 +41,7 @@ public class SecurityConfig {
 				.cors(Customizer.withDefaults())
 
 				.headers(headers -> headers
-						.contentSecurityPolicy(csp -> csp
-								.policyDirectives(
-										"default-src 'self'; " +
-												"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com/gsi/client; " +
-												"script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com/gsi/client; " +
-												"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; " +
-												"style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; " +
-												"font-src 'self' https://fonts.gstatic.com; " +
-												"frame-src 'self' https://accounts.google.com/gsi/; " +
-												"connect-src 'self' https://accounts.google.com/gsi/; " +
-												"img-src 'self' data: https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com;"
-								)
-						)
+						.frameOptions(frame -> frame.sameOrigin())
 				)
 
 				.exceptionHandling(ex -> ex
@@ -85,14 +73,16 @@ public class SecurityConfig {
 
 								"/public/**",
 
-								"/actuator/**",
+								"/actuator/health",
+								"/actuator/prometheus",
+
 								"/v3/api-docs/**",
 								"/swagger-ui/**",
 								"/swagger-ui.html",
-								"/error")
-						.permitAll()
-						.anyRequest().authenticated())
-
+								"/error"
+						).permitAll()
+						.anyRequest().authenticated()
+				)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authenticationProvider(authenticationProvider())
 				.addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)

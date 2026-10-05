@@ -16,6 +16,8 @@ import com.teampulse.backend.model.*;
 import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
 import com.teampulse.backend.security.UserPrincipal;
+import com.teampulse.backend.utils.EmailUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +31,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,7 +52,6 @@ public class UserService {
 	private final AuthenticationManager authenticationManager;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final VerificationService verificationService;
-	private final VerificationCodeRepository verificationCodeRepository;
 	private final EmailService emailService;
 	private final UserMapper userMapper;
 	private final FileStorageService fileStorageService;
@@ -54,6 +59,11 @@ public class UserService {
 	private final TaskRepository taskRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final WorkspaceRepository workspaceRepository;
+	private final WorkspaceInvitationRepository workspaceInvitationRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final ApiKeyRepository apiKeyRepository;
+	private final NotificationRepository notificationRepository;
+	private final HttpServletRequest httpServletRequest;
 
 
 	@Value("${app.frontend-url}")
@@ -62,16 +72,31 @@ public class UserService {
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
 
+	private static final List<String> ALLOWED_CONTENT_TYPES = List.of(
+			"image/jpeg",
+			"image/png",
+			"image/webp"
+	);
+	private static final List<String> ALLOWED_EXTENSIONS = List.of(
+			".jpg",
+			".jpeg",
+			".png",
+			".webp"
+	);
+	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
+
 	@Transactional
 	public String signup(SignupRequest request) {
-		if (userRepository.findByEmail(request.getEmail()).isPresent())
-			throw new ResourceAlreadyExistsException("Email '" + request.getEmail() + "' is already registered!");
+		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
+		if (userRepository.findByEmail(cleanEmail).isPresent())
+			throw new ResourceAlreadyExistsException("Email '" + cleanEmail + "' is already registered!");
 
 		User user = new User();
-		user.setEmail(request.getEmail());
+		user.setEmail(cleanEmail);
 		user.setPasswordHashed(passwordEncoder.encode(request.getPassword()));
-		user.setFirstName(request.getFirstName());
-		user.setLastName(request.getLastName());
+		user.setFirstName(request.getFirstName() != null ? request.getFirstName().trim() : null);
+		user.setLastName(request.getLastName() != null ? request.getLastName().trim() : null);
 		user.setEnabled(false);
 
 		User savedUser = userRepository.save(user);
@@ -83,8 +108,10 @@ public class UserService {
 
 	@Transactional
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
-		User user = userRepository.findByEmail(request.getEmail())
-				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + request.getEmail()));
+		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
+		User user = userRepository.findByEmail(cleanEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + cleanEmail));
 
 		verificationService.validateAndConsumeCode(user, request.getCode());
 
@@ -96,7 +123,7 @@ public class UserService {
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
 		String accessToken = jwtUtils.generateToken(userPrincipal);
-		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 		return AuthResponse.builder()
 				.accessToken(accessToken)
@@ -112,9 +139,11 @@ public class UserService {
 
 	@Transactional
 	public AuthResponse login(LoginRequest request) {
+		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+
 		try {
 			Authentication authentication = authenticationManager.authenticate(
-					new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+					new UsernamePasswordAuthenticationToken(cleanEmail, request.getPassword()));
 
 			UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 			User user = userPrincipal.getUser();
@@ -122,7 +151,7 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
@@ -131,8 +160,17 @@ public class UserService {
 					.build();
 
 		} catch (DisabledException ex) {
-			verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
-			throw new AccountNotVerifiedException("Account is not verified. A new verification code has been sent to your email.");
+			User user = userRepository.findByEmail(cleanEmail).orElse(null);
+
+			if (user != null && user.getPasswordHashed() != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
+				try {
+					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
+				} catch (Exception ignored) {
+				}
+			}
+
+			throw new AccountNotVerifiedException("Invalid email/password or account not yet verified. Please check your email.");
+
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 		}
@@ -142,11 +180,11 @@ public class UserService {
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 
-		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(tokenStr);
+		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(tokenStr, getClientIp(), getUserAgent());
 		User user = verifiedToken.getUser();
 
 		refreshTokenService.deleteByToken(tokenStr);
-		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
+		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 		String newAccessToken = jwtUtils.generateToken(userPrincipal);
@@ -171,7 +209,22 @@ public class UserService {
 
 		user.setFirstName(request.getFirstName());
 		user.setLastName(request.getLastName());
-		user.setAvatarUrl(request.getAvatarUrl());
+
+		if (request.getAvatarUrl() != null) {
+			String avatarUrl = request.getAvatarUrl().trim();
+			if (!avatarUrl.isBlank()) {
+				try {
+					URI uri = new URI(avatarUrl);
+					String scheme = uri.getScheme();
+					if (scheme == null || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https")))
+						throw new BadRequestException("Avatar URL must use HTTP or HTTPS protocol");
+				} catch (URISyntaxException e) {
+					throw new BadRequestException("Invalid avatar URL format");
+				}
+				user.setAvatarUrl(avatarUrl);
+			} else
+				user.setAvatarUrl(null);
+		}
 
 		User updateUser = userRepository.save(user);
 
@@ -208,21 +261,23 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public List<UserResponse> searchUsersByEmail(String email) {
-		if (email == null || email.trim().isEmpty())
+		if (email == null || email.trim().length() < 3)
 			return List.of();
 
-		List<User> users = userRepository.findByEmailContainingIgnoreCase(email.trim());
+		String cleanQuery = email.trim().toLowerCase(Locale.ROOT);
+
+		List<User> users = userRepository.findTop10ByEmailContainingIgnoreCase(cleanQuery);
 
 		return users.stream().map(userMapper::toResponse).toList();
 	}
 
 	@Transactional
 	public void processForgotPassword(ForgotPasswordRequest request) {
-		log.info("Received password reset request for email: {}", request.getEmail());
+		log.info("Received password reset request for email: {}", EmailUtils.maskEmail(request.getEmail()));
 
 		Optional<User> userOptional = userRepository.findByEmail(request.getEmail());
 		if (userOptional.isEmpty()) {
-			log.warn("Password reset initiated for non-existing email: {}", request.getEmail());
+			log.warn("Password reset initiated for non-existing email: {}", EmailUtils.maskEmail(request.getEmail()));
 			return;
 		}
 
@@ -271,6 +326,7 @@ public class UserService {
 		log.info("Password successfully updated and token revoked for user ID: {}", user.getId());
 	}
 
+
 	@Transactional
 	public void softDeleteUser(String email) {
 		User user = userRepository.findByEmail(email)
@@ -278,17 +334,19 @@ public class UserService {
 
 		UUID userId = user.getId();
 
-		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
+		String originalEmail = user.getEmail();
+		String originalName = (user.getFirstName() != null && !user.getFirstName().isBlank()) ? user.getFirstName() : "there";
 
+		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
 		List<String> blockingWorkspaces = new ArrayList<>();
-		List<Workspace> workdpcesToDelete = new ArrayList<>();
+		List<Workspace> workspacesToDelete = new ArrayList<>();
 		List<Workspace> workspacesToTransfer = new ArrayList<>();
 
 		for (Workspace ws : ownedWorkspaces) {
-			long memeberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
+			long memberCont = workspaceMemberRepository.countByWorkspaceId(ws.getId());
 
-			if (memeberCont == 1)
-				workdpcesToDelete.add(ws);
+			if (memberCont == 1)
+				workspacesToDelete.add(ws);
 			else {
 				boolean hasOtherAdmin = workspaceMemberRepository.existsByWorkspaceIdAndUserIdNotAndRole(
 						ws.getId(), userId, WorkspaceMemberRole.ADMIN);
@@ -305,11 +363,11 @@ public class UserService {
 					"You must add another admin to your workspace(s) [%s] or delete them before deleting your account.",
 					String.join(", ", blockingWorkspaces)
 			);
-			throw new IllegalArgumentException(message);
+			throw new BadRequestException(message);
 		}
 
-		if (!workdpcesToDelete.isEmpty())
-			workspaceRepository.deleteAll(workdpcesToDelete);
+		if (!workspacesToDelete.isEmpty())
+			workspaceRepository.deleteAll(workspacesToDelete);
 
 		for (Workspace ws : workspacesToTransfer) {
 			WorkspaceMember nextAdmin = workspaceMemberRepository
@@ -320,17 +378,74 @@ public class UserService {
 			workspaceRepository.save(ws);
 		}
 
-		userRepository.delete(user);
+		taskRepository.unassignTasksByUserId(userId);
 
-		log.info("User account with email {} has been successfully soft-deleted.", email);
+		notificationRepository.deleteByRecipientId(userId);
+		workspaceMemberRepository.deleteByUserId(userId);
+		workspaceInvitationRepository.deleteByInviterId(userId);
+		workspaceInvitationRepository.deleteByInviteeEmail(originalEmail);
+		refreshTokenRepository.deleteByUserId(userId);
+		apiKeyRepository.deleteByUserId(userId);
+		passwordResetTokenRepository.deleteByUser(user);
+
+		user.setEmail("deleted_" + userId + "@teampulse.local");
+		user.setFirstName("Deleted");
+		user.setLastName("User");
+		user.setProviderId(null);
+		user.setPasswordHashed(passwordEncoder.encode(UUID.randomUUID().toString()));
+		user.setEnabled(false);
+		user.setDeleted(true);
+
+		if (user.getAvatarUrl() != null)
+			fileStorageService.deleteAvatar(user.getAvatarUrl());
+
+		user.setAvatarUrl(null);
+		userRepository.save(user);
+
+		log.info("User account with email {} has been successfully soft-deleted in DB.", EmailUtils.maskEmail(email));
+
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					try {
+						String subject = "Account Deletion Confirmation - Team-Pulse";
+						String body = String.format(
+								"Hello %s,\n\n" +
+										"Your Team-Pulse account (%s) has been successfully deleted.\n" +
+										"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
+										"Best regards,\nThe Team-Pulse Team",
+								originalName, originalEmail
+						);
+
+						emailService.sendEmail(originalEmail, subject, body);
+
+						log.info("Account deletion confirmation email sent to: {}", EmailUtils.maskEmail(originalEmail));
+
+					} catch (Exception ex) {
+						log.warn("Account deleted for [{}], but failed to send confirmation email: {}", EmailUtils.maskEmail(originalEmail), ex.getMessage());
+					}
+				}
+			});
+		}
 	}
 
+	@Transactional
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {
-		String avatarUrl = fileStorageService.uploadAvatar(file);
+		validateAvatarFile(file);
 
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+		if (user.getAvatarUrl() != null && user.getAvatarUrl().contains("/avatars/")) {
+			try {
+				fileStorageService.deleteAvatar(user.getAvatarUrl());
+			} catch (Exception e) {
+				log.warn("Failed to delete old avatar for user [{}]: {}", userId, e.getMessage());
+			}
+		}
+
+		String avatarUrl = fileStorageService.uploadAvatar(file);
 		user.setAvatarUrl(avatarUrl);
 		User updatedUser = userRepository.save(user);
 
@@ -352,7 +467,7 @@ public class UserService {
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
-			String email = payload.getEmail();
+			String email = payload.getEmail().trim().toLowerCase(Locale.ROOT);
 			String googleId = payload.getSubject();
 			String firstName = (String) payload.get("given_name");
 			String lastName = (String) payload.get("family_name");
@@ -397,7 +512,7 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
@@ -408,5 +523,49 @@ public class UserService {
 		} catch (Exception e) {
 			throw new BadCredentialsException("Failed to authenticate with Google: " + e.getMessage());
 		}
+	}
+
+	private void validateAvatarFile(MultipartFile file) {
+		if (file == null || file.isEmpty()) {
+			throw new BadRequestException("File cannot be empty.");
+		}
+
+		if (file.getSize() > MAX_FILE_SIZE) {
+			throw new BadRequestException("File size exceeds the maximum allowed limit of 5MB.");
+		}
+
+		String contentType = file.getContentType();
+		if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
+			throw new BadRequestException("Invalid file type. Only JPG, PNG, and WEBP images are allowed.");
+		}
+
+		String originalFilename = file.getOriginalFilename();
+		if (originalFilename == null || !originalFilename.contains(".")) {
+			throw new BadRequestException("Invalid file name or extension.");
+		}
+
+		String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
+		if (!ALLOWED_EXTENSIONS.contains(extension)) {
+			throw new BadRequestException("Invalid file extension.");
+		}
+	}
+
+	private String getClientIp() {
+		if (httpServletRequest == null) return "0.0.0.0";
+		String xfHeader = httpServletRequest.getHeader("X-Forwarded-For");
+		if (xfHeader != null && !xfHeader.isBlank()) {
+			return xfHeader.split(",")[0].trim();
+		}
+		String realIp = httpServletRequest.getHeader("X-Real-IP");
+		if (realIp != null && !realIp.isBlank()) {
+			return realIp.trim();
+		}
+		return httpServletRequest.getRemoteAddr();
+	}
+
+	private String getUserAgent() {
+		if (httpServletRequest == null) return "Unknown";
+		String userAgent = httpServletRequest.getHeader("User-Agent");
+		return userAgent != null ? userAgent : "Unknown";
 	}
 }

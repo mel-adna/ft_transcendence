@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.teampulse.backend.utils.EmailUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -121,8 +122,15 @@ public class WorkspaceService {
 
 
 	@Transactional(readOnly = true)
-	public List<WorkspaceMemberResponse> getWorkspaceMembers(UUID workspaceId) {
-		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
+	public List<WorkspaceMemberResponse> getWorkspaceMembers(UUID workspaceId, String email) {
+		if (workspaceId == null)
+			throw new BadRequestException("Workspace ID cannot be null");
+
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
+		if (!isMember)
+			throw new UnauthorizedAccessException("You are not a member of this workspace.");
+
+		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
 
 		return members.stream()
 				.map(workspaceMapper::toMemberResponse)
@@ -150,8 +158,8 @@ public class WorkspaceService {
 		}
 
 		if (request.getType() == WorkspaceType.PERSONAL && workspace.getType() != WorkspaceType.PERSONAL) {
-			long memeberCount = workspaceMemberRepository.countByWorkspaceId(workspaceId);
-			if (memeberCount > 1)
+			long memberCount = workspaceMemberRepository.countByWorkspaceId(workspaceId);
+			if (memberCount > 1)
 				throw new BadRequestException("Remove all members before changing to PERSONAL workspace.");
 		}
 
@@ -222,7 +230,8 @@ public class WorkspaceService {
 
 		eventPublisher.publishEvent(new WorkspaceMemberRemovedEvent(this, workspace, removedUser, admin));
 
-		log.info("User {} was removed from workspace {} by admin {}", memberEmail, workspace.getName(), adminEmail);
+		log.info("User {} was removed from workspace {} by admin {}",
+				EmailUtils.maskEmail(memberEmail), workspace.getName(), EmailUtils.maskEmail(adminEmail));
 	}
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {

@@ -1,7 +1,8 @@
 services:
-  # ----------- Nginx ---------------
+
+# ======================= Nginx ======================= 
   nginx:
-    image: nginx:stable-alpine
+    image: nginx:1.27-alpine
     container_name: teampulse-nginx
     ports:
       - "80:80"
@@ -10,23 +11,33 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - frontend
-      - backend
-      - chat-service
-      - grafana
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+      chat-service:
+        condition: service_started
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/stub_status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
-  # ----------- Frontend ---------------
+# ======================= Frontend ======================= 
   frontend:
     image: teampulse-frontend:1.0
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: teampulse-frontend
-    ports:
-      - "5173:5173"
+    # ports:
+    #   - "5173:5173"
     environment:
       - VITE_CORE_API_URL=/api/v1
       - CORE_API_PROXY_TARGET=http://backend:8080
@@ -36,117 +47,180 @@ services:
       - VITE_WS_URL=/
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
-  # ----------- Backend ---------------
+  # ======================= Backend ======================= 
   backend:
     image: teampulse-backend:1.0
     build: ./backend
     container_name: teampulse-backend
-    ports:
-      - "8080:8080"
+    # ports:
+    #   - "8080:8080"
     environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=teampulsedb
-      - DB_USERNAME=med
-      - DB_PASSWORD=123
-      - FRONTEND_URL=https://localhost
-      - JWT_SECRET=${JWT_SECRET}
+      - DB_NAME=${DB_NAME}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+      - FRONTEND_URL=${FRONTEND_URL}
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET_FILE=/run/secrets/google_client_secret
       - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_PUBLIC_URL=https://localhost/avatars
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_PUBLIC_URL=${FRONTEND_URL}/avatars
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY_FILE=/run/secrets/minio_root_password
       - MINIO_BUCKET_NAME=teampulse-avatars
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-407408718192.apps.googleusercontent.com}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_CHANNEL=${REDIS_CHANNEL}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD_FILE=/run/secrets/mail_password
+      - PUBLIC_API_KEY_FILE=/run/secrets/public_api_key
+    secrets:
+      - db_password
+      - jwt_secret
+      - google_client_secret
+      - minio_root_password
+      - mail_password
+      - public_api_key
     depends_on:
-      - postgres
-      - minio
-      - redis
+      postgres:
+        condition: service_healthy
+      # minio:
+      #   condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
-  # ----------- Database ---------------
+ 
+# ======================= Database =======================
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.10-alpine
     container_name: teampulse-postgres
     environment:
-      POSTGRES_USER: med
-      POSTGRES_PASSWORD: 123
-      POSTGRES_DB: teampulsedb
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+      - POSTGRES_DB=${DB_NAME}
+    secrets:
+      - db_password
     ports:
       - "5433:5432"
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  # ----------- minio ---------------
+
+# ======================= MinIO =======================
   minio:
     image: ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
     container_name: teampulse-minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_PROMETHEUS_AUTH_TYPE: "public"
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD_FILE=/run/secrets/minio_root_password
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
+    secrets:
+      - minio_root_password
     command: server /data --console-address ":9001"
+    # ports:
+    #   - "9000:9000"
+    #   - "9001:9001"
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
     volumes:
       - minio_data:/data
+    # healthcheck:
+    #   test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9000/minio/health/live"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+    #   start_period: 10s
 
-  # ----------- Redis (chat-service Socket.io adapter) ---------------
+
+# ======================= Redis =======================
   redis:
-    image: redis:7-alpine
+    image: redis:7.4-alpine
     container_name: teampulse-redis
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
-  # ----------- Chat Service (Real-Time Chat & Presence) ---------------
-  # Node + Socket.io. Verifies the Java backend's JWT (shared secret) and
-  # uses the same Postgres. See chat-service/INTEGRATION.md.
+# ======================= Chat Service =======================
   chat-service:
     build: ./chat-service
     container_name: teampulse-chat
     environment:
       - PORT=5005
       - NODE_ENV=production
-      - CLIENT_URL=https://localhost
-      # MUST match the Java app's app.jwt.secret
-      - JWT_SECRET=${JWT_SECRET}
-      - DATABASE_URL=postgresql://med:123@postgres:5432/teampulsedb?schema=chat
+      - CLIENT_URL=${FRONTEND_URL}
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+      - DB_SCHEMA=chat
       - REDIS_URL=redis://redis:6379
-      # Fallback lookup so the invite picker can find real users who signed
-      # up but never opened chat yet (JavaBackendClient).
-      - JAVA_API_URL=http://backend:8080/api/v1
+    secrets:
+      - db_password
+      - jwt_secret
     depends_on:
-      - postgres
-      - redis
-      - backend
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5005/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
-  # ----------- Prometheus ---------------
+
+# ======================= Prometheus =======================
   prometheus:
     image: prom/prometheus:v3.15.0
     container_name: teampulse-prometheus
-    ports:
-      - "9090:9090"
+    # ports:
+    #   - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
@@ -158,25 +232,28 @@ services:
       - '--web.enable-lifecycle'
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy" ]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
-  # ----------- Grafana ---------------
+# ======================= Grafana ======================= 
   grafana:
     image: grafana/grafana:11.4.0
     container_name: teampulse-grafana
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=https://localhost/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
       - GF_PLUGINS_PREINSTALL_DISABLED=true
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/json/infrastructure.json
+    secrets:
+      - grafana_admin_password
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -185,41 +262,61 @@ services:
         condition: service_healthy
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1" ]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
-  # ----------- Postgres Exporter ---------------
+# ======================= Postgres Exporter ======================= 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.17.1
     container_name: teampulse-postgres-exporter
     environment:
-      - DATA_SOURCE_NAME=postgresql://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable
+      - DATA_SOURCE_URI=postgres:5432/${DB_NAME}?sslmode=disable
+      - DATA_SOURCE_USER=${DB_USERNAME}
+      - DATA_SOURCE_PASS_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9187/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  # ----------- Nginx Exporter ---------------
+# ======================= Nginx Exporter ======================= 
   nginx-exporter:
     image: nginx/nginx-prometheus-exporter:1.4.1
     container_name: teampulse-nginx-exporter
     command:
       - '-nginx.scrape-uri=http://nginx:8081/stub_status'
     depends_on:
-      - nginx
+      nginx:
+        condition: service_healthy
     networks:
       - teampulse_net
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9113/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
-  # ----------- cAdvisor ---------------
+# ======================= cAdvisor ======================= 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: teampulse-cadvisor
+    privileged: true
     volumes:
       - /:/rootfs:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -230,15 +327,11 @@ services:
       - '-docker_only=true'
     networks:
       - teampulse_net
-    restart: always
-
-
+    restart: unless-stopped
 
 networks:
   teampulse_net:
     driver: bridge
-
-
 
 volumes:
   postgres_data:
@@ -246,3 +339,19 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password.txt
+  minio_root_password:
+    file: ./secrets/minio_root_password.txt
+  google_client_secret:
+    file: ./secrets/google_client_secret.txt
+  mail_password:
+    file: ./secrets/mail_password.txt
+  public_api_key:
+    file: ./secrets/public_api_key.txt

@@ -8,6 +8,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -50,7 +51,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 UserDetails userDetails = this.customUserDetailsService.loadUserByUsername(userEmail);
 
-                if (jwtUtils.isTokenValid(jwt, userDetails)) {
+                if (jwtUtils.isTokenValid(jwt, userDetails) && userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
 
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
@@ -64,6 +65,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (ExpiredJwtException ex) {
             log.warn("JWT Token status: Expired | Path: {}", request.getRequestURI());
+        } catch (UsernameNotFoundException ex) {
+            log.warn("JWT Token rejected: User not found or deleted | Path: {}", request.getRequestURI());
         } catch (JwtException ex) {
             log.warn("Invalid JWT Token | Path: {}", request.getRequestURI());
         } catch (Exception ex) {
