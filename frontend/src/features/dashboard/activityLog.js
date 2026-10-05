@@ -17,18 +17,6 @@ const ACTION_TONE = {
   TASK_COMMENT_DELETED: 'danger',
 };
 
-const STATUS_LABEL = {
-  TODO: 'To do',
-  DOING: 'In progress',
-  DONE: 'Completed',
-};
-
-const STATUS_TONE = {
-  TODO: 'neutral',
-  DOING: 'active',
-  DONE: 'done',
-};
-
 export const ACTIVITY_FEED_LIMIT = 8;
 
 function humanizeAction(actionType) {
@@ -55,21 +43,5 @@ export function buildActivityFeed(logs, limit = ACTIVITY_FEED_LIMIT) {
       tone: actionTone(log.actionType),
       description: log.description ?? '',
       createdAt: log.createdAt ?? null,
-    }));
-}
-
-export function deriveActivityFeed(tasks, limit = ACTIVITY_FEED_LIMIT) {
-  return (tasks ?? [])
-    .filter((task) => task?.id && task.updatedAt)
-    .slice()
-    .sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))
-    .slice(0, limit)
-    .map((task) => ({
-      id: `task-${task.id}`,
-      user: task.assignee ?? task.creator ?? null,
-      label: STATUS_LABEL[task.status] ?? 'Updated',
-      tone: STATUS_TONE[task.status] ?? 'neutral',
-      description: task.title ?? '',
-      createdAt: task.updatedAt,
     }));
 }
