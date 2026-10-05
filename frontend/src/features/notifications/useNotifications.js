@@ -2,9 +2,27 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { getErrorMessage, getToken } from '../../lib/api';
 import { useSocketEvent } from '../../lib/useDataChanged';
 
+// Socket events carry a random eventId, not the database notification id, so a
+// live item and its stored copy are matched by message + entity instead.
+function isSameNotification(liveItem, storedItem) {
+  return (
+    liveItem.message === storedItem.message &&
+    String(liveItem.entityId ?? '') === String(storedItem.entityId ?? '')
+  );
+}
+
+// Merges a fresh backend list with the current one. Live items the backend
+// does not return (yet, or ever — some events are never stored) stay visible.
+function mergeWithLive(previous, storedItems) {
+  const unmatchedLive = previous.filter(
+    (item) => item.live && !storedItems.some((stored) => isSameNotification(item, stored)),
+  );
+  return [...unmatchedLive, ...storedItems];
+}
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [storedUnreadCount, setStoredUnreadCount] = useState(0);
   const [loading, setLoading] = useState(Boolean(getToken()));
   const [error, setError] = useState(null);
 
@@ -16,15 +34,14 @@ export function useNotifications() {
         api.get('/notifications/unread'),
         api.get('/notifications/unread-count'),
       ]);
-
       const items = Array.isArray(listResponse.data) ? listResponse.data : [];
-      setNotifications(items);
-
       const count =
         typeof countResponse.data === 'number'
           ? countResponse.data
           : Number(countResponse.data) || items.length;
-      setUnreadCount(Math.max(0, count));
+
+      setNotifications((previous) => mergeWithLive(previous, items));
+      setStoredUnreadCount(Math.max(0, count));
       setError(null);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -34,53 +51,24 @@ export function useNotifications() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function sync() {
-      if (!getToken()) return;
-
-      try {
-        const [listResponse, countResponse] = await Promise.all([
-          api.get('/notifications/unread'),
-          api.get('/notifications/unread-count'),
-        ]);
-
-        if (cancelled) return;
-
-        const items = Array.isArray(listResponse.data) ? listResponse.data : [];
-        setNotifications(items);
-
-        const count =
-          typeof countResponse.data === 'number'
-            ? countResponse.data
-            : Number(countResponse.data) || items.length;
-        setUnreadCount(Math.max(0, count));
-        setError(null);
-      } catch (requestError) {
-        if (cancelled) return;
-        setError(getErrorMessage(requestError));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    function sync() {
+      reload();
     }
-
     sync();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [reload]);
 
   // Real-time socket event subscription
   useSocketEvent('notification:new', (event) => {
     if (!event) return;
 
-    const eventId = event.eventId || event.id;
     const message = event.payload?.message || event.message;
     if (!message) return;
 
+    const eventId = event.eventId || event.id || `local-${Date.now()}-${Math.random()}`;
+
     const incoming = {
-      id: eventId || `local-${Date.now()}-${Math.random()}`,
+      id: eventId,
+      live: true,
       message,
       type: event.type || 'TASK',
       entityType: event.entityType || null,
@@ -90,16 +78,13 @@ export function useNotifications() {
     };
 
     setNotifications((previous) => {
-      // Avoid duplicate notifications by ID
-      if (eventId && previous.some((item) => item.id === eventId)) {
-        return previous;
-      }
+      // Ignore the same socket event delivered twice
+      if (previous.some((item) => item.id === eventId)) return previous;
       return [incoming, ...previous];
     });
 
-    setUnreadCount((previous) => previous + 1);
-
-    // Reconcile with database in background so real entity IDs are synchronized
+    // Fetch stored notifications so persisted events get their real ids;
+    // mergeWithLive keeps this event if the backend does not return it.
     reload();
   });
 
@@ -107,9 +92,13 @@ export function useNotifications() {
     async (id) => {
       if (!id) return;
 
-      // Optimistic update
+      const target = notifications.find((item) => item.id === id);
       setNotifications((previous) => previous.filter((item) => item.id !== id));
-      setUnreadCount((previous) => Math.max(0, previous - 1));
+
+      // Live-only items have no database row, so there is nothing to PATCH.
+      if (target?.live) return;
+
+      setStoredUnreadCount((previous) => Math.max(0, previous - 1));
 
       try {
         await api.patch(`/notifications/${id}/read`);
@@ -118,13 +107,13 @@ export function useNotifications() {
         reload();
       }
     },
-    [reload],
+    [notifications, reload],
   );
 
   const markAllAsRead = useCallback(async () => {
     // Optimistic update
     setNotifications([]);
-    setUnreadCount(0);
+    setStoredUnreadCount(0);
 
     try {
       await api.put('/notifications/read-all');
@@ -133,6 +122,10 @@ export function useNotifications() {
       reload();
     }
   }, [reload]);
+
+  // Badge = unread rows in the database + live events not stored (yet).
+  const liveCount = notifications.filter((item) => item.live).length;
+  const unreadCount = storedUnreadCount + liveCount;
 
   return {
     notifications,
