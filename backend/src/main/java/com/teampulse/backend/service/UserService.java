@@ -184,9 +184,10 @@ public class UserService {
 					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
 				} catch (Exception ignored) {
 				}
+				throw new AccountNotVerifiedException("Account not yet verified. A new verification code has been sent to your email.");
 			}
 
-			throw new AccountNotVerifiedException("Invalid email/password or account not yet verified. Please check your email.");
+			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
@@ -391,8 +392,14 @@ public class UserService {
 			throw new BadRequestException(message);
 		}
 
-		if (!workspacesToDelete.isEmpty())
+		if (!workspacesToDelete.isEmpty()) {
+			List<UUID> workspaceIdsToDelete = workspacesToDelete.stream()
+					.map(Workspace::getId)
+					.toList();
+			workspaceInvitationRepository.deleteByWorkspaceIdIn(workspaceIdsToDelete);
+
 			workspaceRepository.deleteAll(workspacesToDelete);
+		}
 
 		for (Workspace ws : workspacesToTransfer) {
 			WorkspaceMember nextAdmin = workspaceMemberRepository

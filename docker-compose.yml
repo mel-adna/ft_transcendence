@@ -34,8 +34,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: teampulse-frontend
-    # ports:
-    #   - "5173:5173"
     environment:
       - VITE_API_URL=/api
       - VITE_CORE_API_URL=/api/v1
@@ -55,8 +53,6 @@ services:
     image: teampulse-backend:1.0
     build: ./backend
     container_name: teampulse-backend
-    # ports:
-    #   - "8080:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
       - DB_HOST=postgres
@@ -80,7 +76,6 @@ services:
       - REDIS_CHANNEL=${REDIS_CHANNEL}
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD_FILE=/run/secrets/mail_password
-      - PUBLIC_API_KEY_FILE=/run/secrets/public_api_key
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
     secrets:
       - db_password
@@ -88,7 +83,6 @@ services:
       - google_client_secret
       - minio_root_password
       - mail_password
-      - public_api_key
       - redis_password
     depends_on:
       postgres:
@@ -118,8 +112,6 @@ services:
       - POSTGRES_DB=${DB_NAME}
     secrets:
       - db_password
-    ports:
-      - "5433:5432"
     networks:
       - teampulse_net
     restart: unless-stopped
@@ -144,20 +136,11 @@ services:
     secrets:
       - minio_root_password
     command: server /data --console-address ":9001"
-    # ports:
-    #   - "9000:9000"
-    #   - "9001:9001"
     networks:
       - teampulse_net
     restart: unless-stopped
     volumes:
       - minio_data:/data
-    # healthcheck:
-    #   test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9000/minio/health/live"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
-    #   start_period: 10s
 
 
 # ======================= Redis =======================
@@ -221,8 +204,6 @@ services:
   prometheus:
     image: prom/prometheus:v3.15.0
     container_name: teampulse-prometheus
-    # ports:
-    #   - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
@@ -307,12 +288,6 @@ services:
     networks:
       - teampulse_net
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9113/metrics"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
 
 # ======================= cAdvisor ======================= 
   cadvisor:
@@ -355,7 +330,5 @@ secrets:
     file: ./secrets/google_client_secret.txt
   mail_password:
     file: ./secrets/mail_password.txt
-  public_api_key:
-    file: ./secrets/public_api_key.txt
   redis_password:
     file: ./secrets/redis_password.txt
