@@ -6,14 +6,8 @@ unresolved issues are listed.
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
 
-Fixed since the last check, and removed from this file: **37** (any signed in user could read any
-team's roster), **40** (`GET /api-key` answered 404 with no key, now 204), **41** (a new task came
-back with `"createdAt": null`), **36** (broken JSON answered 500, now 400 or 415), **29** (rate
-limit buckets were never evicted) and **38** (invitations are stored lowercase now). **31** no
-longer applies: the Vite port 5173 is not published any more, so nobody signs in from it.
-
 `backend/frontend-issues.md` numbers its frontend issues 42 to 44, so new backend issues here start
-at 45. Its 42, 43 and 44 are fixed on `szemmouri`; its 39 is the same as 39 below.
+at 45. Its 39 is the same as 39 below.
 
 ## Not blocking
 
@@ -36,12 +30,7 @@ Real defects, but nothing visible is broken.
 
 ## 22. The live Gmail app password and JWT secret are still committed
 
-Half of this is fixed. `EmailService.sendEmail` is no longer `@Async` and throws when the send
-fails, `GlobalExceptionHandler` answers 503, and signup rolls back, so a broken mailer is visible
-now instead of stranding the user without a code.
-
-The credential half only moved. `application.yaml` reads `${MAIL_PASSWORD}` now, but
-`secrets_example/mail_password.txt.example` holds the same Gmail app password that used to sit in
+`application.yaml` reads `${MAIL_PASSWORD}`, but `secrets_example/mail_password.txt.example` holds the same Gmail app password that used to sit in
 `application.yaml`, and `secrets_example/jwt_secret.txt.example` holds the same JWT secret `.env`
 used to commit. The `Makefile` copies every example file unchanged into `secrets/`, so these
 "examples" are the live values the stack runs with, they are public, and neither has been changed.
@@ -66,7 +55,7 @@ containing `&`, `#` or `%` still gives a link that fills in the wrong address or
 ## 46. When the invitation email fails, the invitee gets no notification
 
 `WorkspaceInvitationEventListener` sends the email first, then creates the notification and pushes
-the live event. Since `sendEmail` now throws on failure (issue 22), a mail outage ends the method
+the live event. Since `sendEmail` throws on failure, a mail outage ends the method
 before the notification exists. An invitee with an account then sees nothing in the bell and
 nothing live, although the invitation is saved and appears in their list on the next reload.
 
@@ -136,11 +125,10 @@ a guessing run), or consume a token only when the call throws, with `@AfterThrow
 
 ## 30. The dead public API key is still committed
 
-`application.yaml` no longer carries the key as a default, but the `public-key` line is still
-there and nothing in Java reads it. The key itself moved to
-`secrets_example/public_api_key.txt.example`, and `docker-compose.yml` passes it to the backend as
-a secret. It is the same dead key, so it reads like a working credential and sits in the public
-history.
+The `public-key` line is still in `application.yaml`, although nothing in Java reads it, and the
+key itself is committed in `secrets_example/public_api_key.txt.example`, which
+`docker-compose.yml` passes to the backend as a secret. It is a dead key, but it reads like a
+working credential and sits in the public history.
 
 **Fix:** delete the line in `application.yaml`, the secret in `docker-compose.yml` and the example
 file.
