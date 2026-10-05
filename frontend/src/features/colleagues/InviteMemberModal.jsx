@@ -14,6 +14,7 @@ import IconInput from '../../components/IconInput';
 import ErrorBanner from '../../components/ErrorBanner';
 
 const DEBOUNCE_MS = 300;
+const MIN_QUERY_LENGTH = 3;
 
 export default function InviteMemberModal({
   open,
@@ -61,7 +62,7 @@ export default function InviteMemberModal({
       setSearchError(null);
     }
 
-    if (!open || !trimmed) {
+    if (!open || trimmed.length < MIN_QUERY_LENGTH) {
       reset();
       return undefined;
     }
@@ -128,6 +129,10 @@ export default function InviteMemberModal({
 
   function renderResults() {
     if (!trimmedQuery || searchError) return null;
+
+    if (trimmedQuery.length < MIN_QUERY_LENGTH) {
+      return <p className="text-xs text-muted">Type at least 3 characters to search.</p>;
+    }
 
     if (searching) {
       return (
