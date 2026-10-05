@@ -25,6 +25,7 @@ Real defects, but nothing visible is broken.
 | 45 | The sign-up link in an invitation email does not encode the address | An address containing `&`, `#` or `%` gives a link that fills in the wrong address | 1 line |
 | 46 | When the invitation email fails, the invitee gets no notification | The bell entry and the live update are skipped, although the invitation is saved | Small |
 | 47 | Task requests are limited to 100 a minute per address, but the import accepts 500 rows | An import over about 100 rows stops halfway, fewer when rows need a status change | Small |
+| 48 | `nginx-exporter` always shows as unhealthy | Its health check calls `wget`, which the image does not have; anyone running `docker ps` at the evaluation sees "unhealthy" | 1 line |
 | 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Small |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
 | 30 | The dead public API key is still committed | Reads like a working credential, and it is in the public history | Delete 3 lines |
@@ -87,6 +88,15 @@ go.
 
 **Fix:** a bulk endpoint such as `POST /tasks/workspace/{id}/import` that takes the rows in one
 request, or a higher limit on `createTask` and `updateStatus` than on the rest of the controller.
+
+## 48. `nginx-exporter` always shows as unhealthy
+
+The health check added to `nginx-exporter` in `docker-compose.yml` runs `wget`, and the
+`nginx-prometheus-exporter` image has no `wget` (and no shell), so every check fails with
+`exec: "wget": executable file not found`. The exporter itself works: Prometheus lists the nginx
+target as up. It only looks broken, but `docker ps` is the first thing an evaluator runs.
+
+**Fix:** drop the health check for this one service, and let Prometheus report it.
 
 ## 39. The socket client logs to the console on every page
 
