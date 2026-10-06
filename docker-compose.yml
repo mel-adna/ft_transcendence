@@ -1,6 +1,5 @@
 services:
-
-# ======================= Nginx ======================= 
+  # ======================= Nginx =======================
   nginx:
     image: nginx:1.27-alpine
     container_name: teampulse-nginx
@@ -15,19 +14,22 @@ services:
         condition: service_started
       backend:
         condition: service_healthy
+      chat-service:
+        condition: service_healthy
       grafana:
         condition: service_healthy
     networks:
       - teampulse_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/stub_status"]
+      test:
+        ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/stub_status"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 5s
+      start_period: 25s
 
-# ======================= Frontend ======================= 
+  # ======================= Frontend =======================
   frontend:
     image: teampulse-frontend:1.0
     build:
@@ -48,7 +50,7 @@ services:
       retries: 5
       start_period: 15s
 
-  # ======================= Backend ======================= 
+  # ======================= Backend =======================
   backend:
     image: teampulse-backend:1.0
     build: ./backend
@@ -87,22 +89,28 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # minio:
-      #   condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       - teampulse_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/api/v1/actuator/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "--spider",
+          "http://localhost:8080/api/v1/actuator/health",
+        ]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 30s
 
- 
-# ======================= Database =======================
+  # ======================= Database =======================
   postgres:
     image: postgres:15.10-alpine
     container_name: teampulse-postgres
@@ -124,8 +132,7 @@ services:
       retries: 5
       start_period: 10s
 
-
-# ======================= MinIO =======================
+  # ======================= MinIO =======================
   minio:
     image: ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z
     container_name: teampulse-minio
@@ -142,8 +149,7 @@ services:
     volumes:
       - minio_data:/data
 
-
-# ======================= Redis =======================
+  # ======================= Redis =======================
   redis:
     image: redis:7.4-alpine
     container_name: teampulse-redis
@@ -157,13 +163,17 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep PONG"]
+      test:
+        [
+          "CMD-SHELL",
+          'redis-cli -a "$$(cat /run/secrets/redis_password)" ping | grep PONG',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
 
-# ======================= Chat Service =======================
+  # ======================= Chat Service =======================
   chat-service:
     build: ./chat-service
     container_name: teampulse-chat
@@ -189,6 +199,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - teampulse_net
     restart: unless-stopped
@@ -199,8 +211,7 @@ services:
       retries: 6
       start_period: 20s
 
-
-# ======================= Prometheus =======================
+  # ======================= Prometheus =======================
   prometheus:
     image: prom/prometheus:v3.15.0
     container_name: teampulse-prometheus
@@ -209,10 +220,15 @@ services:
       - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-lifecycle'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres-exporter:
+        condition: service_healthy
     networks:
       - teampulse_net
     restart: unless-stopped
@@ -223,7 +239,7 @@ services:
       retries: 5
       start_period: 10s
 
-# ======================= Grafana ======================= 
+  # ======================= Grafana =======================
   grafana:
     image: grafana/grafana:11.4.0
     container_name: teampulse-grafana
@@ -247,13 +263,17 @@ services:
       - teampulse_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q --spider http://localhost:3000/api/health || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
 
-# ======================= Postgres Exporter ======================= 
+  # ======================= Postgres Exporter =======================
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.17.1
     container_name: teampulse-postgres-exporter
@@ -276,12 +296,12 @@ services:
       retries: 5
       start_period: 10s
 
-# ======================= Nginx Exporter ======================= 
+  # ======================= Nginx Exporter =======================
   nginx-exporter:
     image: nginx/nginx-prometheus-exporter:1.4.1
     container_name: teampulse-nginx-exporter
     command:
-      - '-nginx.scrape-uri=http://nginx:8081/stub_status'
+      - "-nginx.scrape-uri=http://nginx:8081/stub_status"
     depends_on:
       nginx:
         condition: service_healthy
@@ -289,7 +309,7 @@ services:
       - teampulse_net
     restart: unless-stopped
 
-# ======================= cAdvisor ======================= 
+  # ======================= cAdvisor =======================
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: teampulse-cadvisor
@@ -301,15 +321,17 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
     command:
-      - '-docker_only=true'
+      - "-docker_only=true"
     networks:
       - teampulse_net
     restart: unless-stopped
 
+# ======= network =======
 networks:
   teampulse_net:
     driver: bridge
 
+# ======= voluemes =======
 volumes:
   postgres_data:
   minio_data:
@@ -317,6 +339,7 @@ volumes:
   prometheus_data:
   grafana_data:
 
+# ======= secrets =======
 secrets:
   db_password:
     file: ./secrets/db_password.txt
