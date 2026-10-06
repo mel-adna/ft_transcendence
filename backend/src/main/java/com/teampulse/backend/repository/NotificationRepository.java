@@ -17,14 +17,16 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
 
-    Slice<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);
-    List<Notification> findByRecipientIdAndIsReadFalse(UUID recipientId);
-    long countByRecipientIdAndIsReadFalse(UUID recipientId);
+	Slice<Notification> findByRecipientIdOrderByCreatedAtDesc(UUID recipientId, Pageable pageable);
 
-    @Modifying
-    @Query("UPDATE Notification n SET n.isRead = true WHERE n.recipient.id = :userId")
-    void markAllAsRead(@Param("userId") UUID userId);
+	List<Notification> findTop50ByRecipientIdAndIsReadFalseOrderByCreatedAtDesc(UUID recipientId);
 
-    @Modifying
-    void deleteByRecipientId(UUID recipientId);
+	long countByRecipientIdAndIsReadFalse(UUID recipientId);
+
+	@Modifying
+	@Query("UPDATE Notification n SET n.isRead = true WHERE n.recipient.id = :userId")
+	void markAllAsRead(@Param("userId") UUID userId);
+
+	@Modifying
+	void deleteByRecipientId(UUID recipientId);
 }
