@@ -9,14 +9,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.model.WorkspaceMemberId;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 
 @Repository
 public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember, WorkspaceMemberId>{
+	@Query("SELECT m FROM WorkspaceMember m JOIN FETCH m.user WHERE m.workspace.id = :workspaceId")
+	List<WorkspaceMember> findByWorkspaceIdWithUser(@Param("workspaceId") UUID workspaceId);
+
 	List<WorkspaceMember> findByWorkspaceId(UUID workspaceId);
-    boolean existsByWorkspaceIdAndUserEmail(UUID workspaceId, String email);
-    Optional<WorkspaceMember> findByWorkspaceIdAndUserEmail(UUID workspaceId, String email);
+	boolean existsByWorkspaceIdAndUserEmail(UUID workspaceId, String email);
+	Optional<WorkspaceMember> findByWorkspaceIdAndUserEmail(UUID workspaceId, String email);
 
 	long countByWorkspaceId(UUID workspaceId);
 	boolean existsByWorkspaceIdAndUserIdNotAndRole(UUID workspaceId, UUID userId, WorkspaceMemberRole role);
