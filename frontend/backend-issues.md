@@ -19,7 +19,7 @@ Real defects, but nothing visible is broken.
 | 46 | When the invitation email fails, the invitee gets no notification | The bell entry and the live update are skipped, although the invitation is saved | Small |
 | 47 | Task requests are limited to 100 a minute per address, but the import accepts 500 rows | An import over about 100 rows stops halfway, fewer when rows need a status change | Small |
 | 48 | `nginx-exporter` always shows as unhealthy | Its health check calls `wget`, which the image does not have; anyone running `docker ps` at the evaluation sees "unhealthy" | 1 line |
-| 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Small |
+| 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Delete 3 lines |
 | 28 | The login limit counts successful logins, not just failed ones | Signing in and out a few times spends the budget, then it is one attempt every three minutes | 1 number |
 | 30 | The dead public API key is still committed | Reads like a working credential, and it is in the public history | Delete 3 lines |
 
@@ -90,8 +90,9 @@ dashboard, the task board and everywhere else. The subject's general requirement
 is rejected if warnings or errors appear in the browser console, and an evaluator who stops one
 container to see what happens will see them.
 
-**Fix:** drop the three console calls, or put them behind `import.meta.env.DEV`. The file is
-aarab's and is vendored here unchanged, so it has to be fixed on his branch.
+**Fix:** delete the three console calls. Putting them behind `import.meta.env.DEV` would hide
+nothing: the frontend container runs `npm run dev`, so `DEV` is true in the app the evaluator
+opens. The file is aarab's and is vendored here unchanged, so it has to be fixed on his branch.
 
 ## 28. The login limit counts successful logins, so ordinary use spends the budget
 
