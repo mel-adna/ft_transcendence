@@ -23,6 +23,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import javax.annotation.Nullable;
+
 @Entity
 @Table(name="workspaces")
 @Getter
@@ -46,9 +48,10 @@ public class Workspace {
     @Column(name="type", nullable=false, length=50)
     private WorkspaceType type;
 
-    @NotFound(action = NotFoundAction.IGNORE)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="owner_id")
+    @NotFound(action = NotFoundAction.IGNORE)
+    @Nullable
     private User owner;
 
     @Column(name="deleted", nullable=false)

@@ -2,13 +2,15 @@ package com.teampulse.backend.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 import java.util.UUID;
 
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,7 +29,7 @@ public class WorkspaceStatsResponse {
 	private List<MemberActivityStat> memberStats;
 	private List<DailyCompletionTrend> completionTrend;
 
-	// Backward-compatibility accessors for frontend flexibility
+
 	public long getTotal() {
 		return totalTasks;
 	}
@@ -48,7 +50,8 @@ public class WorkspaceStatsResponse {
 		return activeColleaguesCount;
 	}
 
-	@Data
+	@Getter
+	@Setter
 	@Builder
 	@NoArgsConstructor
 	@AllArgsConstructor
@@ -58,7 +61,8 @@ public class WorkspaceStatsResponse {
 		private long completed;
 	}
 
-	@Data
+	@Getter
+	@Setter
 	@Builder
 	@NoArgsConstructor
 	@AllArgsConstructor
@@ -68,7 +72,8 @@ public class WorkspaceStatsResponse {
 		private long high;
 	}
 
-	@Data
+	@Getter
+	@Setter
 	@Builder
 	@NoArgsConstructor
 	@AllArgsConstructor
@@ -84,14 +89,15 @@ public class WorkspaceStatsResponse {
 		private double completionRate;
 	}
 
-	@Data
+	@Getter
+	@Setter
 	@Builder
 	@NoArgsConstructor
 	@AllArgsConstructor
 	public static class DailyCompletionTrend {
-		private String key;        // "YYYY-MM-DD" or "YYYY-MM"
-		private String label;      // "Sun", "27 Sep", "Sep 2026", etc.
-		private long count;        // completed tasks count for prompt compatibility
-		private long completed;    // completed tasks alias for chart compatibility
+		private String key;
+		private String label;
+		private long count;
+		private long completed;
 	}
 }

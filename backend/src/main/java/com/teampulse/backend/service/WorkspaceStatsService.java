@@ -13,6 +13,7 @@ import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.repository.TaskRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.repository.WorkspaceRepository;
+import com.teampulse.backend.security.utils.EmailUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,9 +43,11 @@ public class WorkspaceStatsService {
 			throw new BadRequestException("Workspace ID cannot be null");
 		}
 
-		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail);
+		String cleanEmail = EmailUtils.normalize(userEmail);
+
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, cleanEmail);
 		if (!isMember) {
-			log.warn("Access denied. User '{}' is not a member of workspace '{}'", userEmail, workspaceId);
+			log.warn("Access denied. User '{}' is not a member of workspace '{}'", EmailUtils.maskEmail(cleanEmail), workspaceId);
 			throw new UnauthorizedAccessException("Access denied. You are not a member of this workspace.");
 		}
 
@@ -52,7 +55,8 @@ public class WorkspaceStatsService {
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
 
 		List<Task> tasks = taskRepository.findByWorkspaceId(workspaceId);
-		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
+
+		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
 
 		long totalTasks = tasks.size();
 		long todoCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.TODO).count();
@@ -66,7 +70,6 @@ public class WorkspaceStatsService {
 		long activeColleagues = workspaceMemberRepository.countByWorkspaceId(workspaceId);
 		long backlogCount = todoCount;
 
-		// Priority distribution
 		long lowPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.LOW).count();
 		long mediumPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.MEDIUM || t.getPriority() == null).count();
 		long highPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.HIGH).count();
@@ -77,14 +80,12 @@ public class WorkspaceStatsService {
 				.high(highPriority)
 				.build();
 
-		// Status distribution
 		WorkspaceStatsResponse.StatusDistribution statusDistribution = WorkspaceStatsResponse.StatusDistribution.builder()
 				.todo(todoCount)
 				.inProgress(inProgressCount)
 				.completed(completedCount)
 				.build();
 
-		// Member activity breakdown
 		Map<UUID, WorkspaceStatsResponse.MemberActivityStat> memberMap = new LinkedHashMap<>();
 		for (WorkspaceMember member : members) {
 			User user = member.getUser();
@@ -176,7 +177,6 @@ public class WorkspaceStatsService {
 					.build());
 		}
 
-		// Date range handling (days = 0 means All Time; days < 0 defaults to 7)
 		int effectiveDays = days < 0 ? 7 : days;
 		LocalDate today = LocalDate.now(ZoneId.systemDefault());
 		long tasksCompletedInPeriod;
@@ -218,7 +218,6 @@ public class WorkspaceStatsService {
 						.build());
 			}
 		} else {
-			// All Time
 			tasksCompletedInPeriod = completedCount;
 
 			LocalDate earliestDate = tasks.stream()

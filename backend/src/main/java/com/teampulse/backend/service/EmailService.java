@@ -1,7 +1,7 @@
 package com.teampulse.backend.service;
 
 import com.teampulse.backend.exception.EmailDeliveryException;
-import com.teampulse.backend.utils.EmailUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
@@ -23,6 +23,7 @@ public class EmailService {
 	private String fromEmail;
 
 
+	@Async
 	public void sendEmail(String to, String subject, String body) {
 		log.info("Initiating email dispatch sequence to: {}", EmailUtils.maskEmail(to));
 
@@ -57,6 +58,22 @@ public class EmailService {
 						"You can now log in and start collaborating with your team.\n\n" +
 						"Best regards,\nThe Team-Pulse Team", name
 		);
-		sendEmail(to, subject, body);
+//		sendEmail(to, subject, body);
+		sendEmailDirect(to, subject, body);
+	}
+
+	private void sendEmailDirect(String to, String subject, String body) {
+		try {
+			SimpleMailMessage message = new SimpleMailMessage();
+			message.setFrom(fromEmail);
+			message.setTo(to);
+			message.setSubject(subject);
+			message.setText(body);
+
+			mailSender.send(message);
+			log.info("Email successfully sent to: {}", EmailUtils.maskEmail(to));
+		} catch (Exception ex) {
+			log.error("Failed to send email to [{}]: {}", EmailUtils.maskEmail(to), ex.getMessage());
+		}
 	}
 }

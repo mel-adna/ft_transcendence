@@ -7,7 +7,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.teampulse.backend.utils.EmailUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,7 +78,8 @@ public class WorkspaceService {
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceResponse> getAllWorkSpaceForUser(String email) {
-		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(email);
+		String cleanEmail = EmailUtils.normalize(email);
+		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail);
 
 		Map<String, Long> nameCounts = workspaces.stream()
 				.collect(Collectors.groupingBy(Workspace::getName, Collectors.counting()));
@@ -110,7 +111,8 @@ public class WorkspaceService {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
 
-		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
+		String cleanEmail = EmailUtils.normalize(email);
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, cleanEmail);
 
 		if (!isMember)
 			throw new UnauthorizedAccessException("Access denied. You are not a member of this workspace.");
@@ -126,7 +128,8 @@ public class WorkspaceService {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
 
-		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
+		String cleanEmail = EmailUtils.normalize(email);
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, cleanEmail);
 		if (!isMember)
 			throw new UnauthorizedAccessException("You are not a member of this workspace.");
 
@@ -203,9 +206,12 @@ public class WorkspaceService {
 
 	@Transactional
 	public void updateMemberRole(UUID workspaceId, String adminEmail, WorkspaceMemberRoleUpdateRequest request) {
-		verifyUserIsAdmin(workspaceId, adminEmail);
+		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
+		String cleanMemberEmail = EmailUtils.normalize(request.getEmail());
 
-		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, request.getEmail())
+		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
+
+		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanMemberEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User is not a member of this workspace"));
 
 		memberShip.setRole(request.getRole());
@@ -214,28 +220,33 @@ public class WorkspaceService {
 
 	@Transactional
 	public void removeMemberFromWorkspace(UUID workspaceId, String adminEmail, String memberEmail) {
-		verifyUserIsAdmin(workspaceId, adminEmail);
+		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
+		String cleanMemberEmail = EmailUtils.normalize(memberEmail);
 
-		if (adminEmail.equals(memberEmail))
+		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
+
+		if (cleanAdminEmail.equals(cleanMemberEmail))
 			throw new BadRequestException("Admins cannot remove themselves from the workspace. Delete the workspace instead.");
 
-		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, memberEmail)
+		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanMemberEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User is not a member of this workspace"));
 
 		Workspace workspace = memberShip.getWorkspace();
 		User removedUser = memberShip.getUser();
-		User admin = userRepository.findByEmail(adminEmail).orElse(null);
+		User admin = userRepository.findByEmail(cleanAdminEmail).orElse(null);
 
 		workspaceMemberRepository.delete(Objects.requireNonNull(memberShip));
 
 		eventPublisher.publishEvent(new WorkspaceMemberRemovedEvent(this, workspace, removedUser, admin));
 
 		log.info("User {} was removed from workspace {} by admin {}",
-				EmailUtils.maskEmail(memberEmail), workspace.getName(), EmailUtils.maskEmail(adminEmail));
+				EmailUtils.maskEmail(cleanMemberEmail), workspace.getName(), EmailUtils.maskEmail(cleanAdminEmail));
 	}
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {
-		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, email)
+		String cleanEmail = EmailUtils.normalize(email);
+
+		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanEmail)
 				.orElseThrow(() -> new UnauthorizedAccessException("Access denied. You are not part of this workspace."));
 
 		if (member.getRole() != WorkspaceMemberRole.ADMIN)

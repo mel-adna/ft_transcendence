@@ -1,6 +1,8 @@
 package com.teampulse.backend.security.ratelimit;
 
 import com.teampulse.backend.exception.RateLimitExceededException;
+import com.teampulse.backend.security.utils.ClientIpUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
 import com.teampulse.backend.service.RateLimitingService;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
@@ -45,7 +47,7 @@ public class RateLimitAspect {
 		}
 
 		HttpServletRequest request = attributes.getRequest();
-		String clientIp = getClientIp(request);
+		String clientIp = ClientIpUtils.getClientIp(request);
 		String email = extractEmailFromArgs(joinPoint);
 
 		String key = buildCacheKey(rateLimit.keyType(), clientIp, email, signature.toShortString());
@@ -65,19 +67,8 @@ public class RateLimitAspect {
 		return switch (keyType) {
 			case IP -> "rl:ip:" + ip + ":" + methodSignature;
 			case EMAIL -> "rl:email:" + (email != null ? email : ip) + ":" + methodSignature;
-			case IP_AND_EMAIL ->
-					"rl:combo:" + ip + ":" + (email != null ? email : "anonymous") + ":" + methodSignature;
+			case IP_AND_EMAIL -> "rl:combo:" + ip + ":" + (email != null ? email : "anonymous") + ":" + methodSignature;
 		};
-	}
-
-
-	private String getClientIp(HttpServletRequest request) {
-		String xfHeader = request.getHeader("X-Forwarded-For");
-
-		if (xfHeader == null || xfHeader.isEmpty())
-			return request.getRemoteAddr();
-
-		return xfHeader.split(",")[0].trim();
 	}
 
 
@@ -91,7 +82,7 @@ public class RateLimitAspect {
 				Method getEmailMethod = arg.getClass().getMethod("getEmail");
 				Object result = getEmailMethod.invoke(arg);
 				if (result instanceof String emailStr && !emailStr.isBlank()) {
-					return emailStr.trim().toLowerCase(Locale.ROOT);
+					return EmailUtils.normalize(emailStr);
 				}
 			} catch (Exception ignored) {
 			}

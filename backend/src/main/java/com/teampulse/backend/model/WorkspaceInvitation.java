@@ -11,6 +11,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
 
+import javax.annotation.Nullable;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -33,6 +34,7 @@ public class WorkspaceInvitation {
 	private String inviteeEmail;
 
 	@NotFound(action = NotFoundAction.IGNORE)
+	@Nullable
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "inviter_id")
 	private User inviter;

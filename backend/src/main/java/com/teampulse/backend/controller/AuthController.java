@@ -68,7 +68,7 @@ public class AuthController {
 	}
 
 
-	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+	@RateLimit(capacity = 20, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Authentication successful"),

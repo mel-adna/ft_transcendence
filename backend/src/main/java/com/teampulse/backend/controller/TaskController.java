@@ -41,7 +41,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/tasks")
 @RequiredArgsConstructor
-@RateLimit(capacity = 100, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
+@RateLimit(capacity = 1200, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
 @Tag(name = "Task Management", description = "Endpoints for handling Kanban board cards, task assignments, and lifecycle states.")
 public class TaskController {
 

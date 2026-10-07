@@ -1,6 +1,7 @@
 package com.teampulse.backend.repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,9 +16,18 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, UUID> {
-    
+
     Optional<PasswordResetToken> findByToken(String token);
+
+    @Modifying
     void deleteByUser(User user);
+
+    @Modifying
+    void deleteByUserId(UUID userId);
+
+    @Modifying
+    @Query("DELETE FROM PasswordResetToken p WHERE p.user.id IN :userIds")
+    void deleteByUserIdIn(@Param("userIds") List<UUID> userIds);
 
     @Modifying
     @Query("DELETE FROM PasswordResetToken p WHERE p.expiryDate < :now")

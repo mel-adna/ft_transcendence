@@ -16,7 +16,9 @@ import com.teampulse.backend.model.*;
 import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
 import com.teampulse.backend.security.UserPrincipal;
-import com.teampulse.backend.utils.EmailUtils;
+import com.teampulse.backend.security.utils.ClientIpUtils;
+import com.teampulse.backend.security.utils.EmailUtils;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -64,6 +67,7 @@ public class UserService {
 	private final ApiKeyRepository apiKeyRepository;
 	private final NotificationRepository notificationRepository;
 	private final HttpServletRequest httpServletRequest;
+	private final VerificationCodeRepository verificationCodeRepository;
 
 
 	@Value("${app.frontend-url}")
@@ -71,6 +75,17 @@ public class UserService {
 
 	@Value("${spring.security.oauth2.client.registration.google.client-id}")
 	private String googleClientId;
+
+	private GoogleIdTokenVerifier googleIdTokenVerifier;
+
+	@PostConstruct
+	public void initGoogleVerifier() {
+		this.googleIdTokenVerifier = new GoogleIdTokenVerifier.Builder(
+				new NetHttpTransport(),
+				GsonFactory.getDefaultInstance())
+				.setAudience(Collections.singletonList(googleClientId))
+				.build();
+	}
 
 	private static final List<String> ALLOWED_CONTENT_TYPES = List.of(
 			"image/jpeg",
@@ -87,7 +102,7 @@ public class UserService {
 
 	@Transactional
 	public String signup(SignupRequest request) {
-		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
 		if (userRepository.findByEmail(cleanEmail).isPresent())
 			throw new ResourceAlreadyExistsException("Email '" + cleanEmail + "' is already registered!");
@@ -108,7 +123,7 @@ public class UserService {
 
 	@Transactional
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
-		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
 		User user = userRepository.findByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + cleanEmail));
@@ -123,7 +138,8 @@ public class UserService {
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
 		String accessToken = jwtUtils.generateToken(userPrincipal);
-		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
+		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user,
+				ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 		return AuthResponse.builder()
 				.accessToken(accessToken)
@@ -134,12 +150,12 @@ public class UserService {
 
 	@Transactional
 	public void resendVerificationCode(ResendVerificationRequest request) {
-		verificationService.genrateAndSendCodeInNewTrasactional(request.getEmail());
+		verificationService.genrateAndSendCodeInNewTrasactional(EmailUtils.normalize(request.getEmail()));
 	}
 
 	@Transactional
 	public AuthResponse login(LoginRequest request) {
-		String cleanEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
 		try {
 			Authentication authentication = authenticationManager.authenticate(
@@ -151,7 +167,8 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+					user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
@@ -167,9 +184,10 @@ public class UserService {
 					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
 				} catch (Exception ignored) {
 				}
+				throw new AccountNotVerifiedException("Account not yet verified. A new verification code has been sent to your email.");
 			}
 
-			throw new AccountNotVerifiedException("Invalid email/password or account not yet verified. Please check your email.");
+			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
 
 		} catch (BadCredentialsException ex) {
 			throw new UnauthorizedAccessException("Invalid email or password. Please try again.");
@@ -180,11 +198,13 @@ public class UserService {
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 
-		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(tokenStr, getClientIp(), getUserAgent());
+		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(
+				tokenStr, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 		User user = verifiedToken.getUser();
 
 		refreshTokenService.deleteByToken(tokenStr);
-		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
+		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+				user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 		String newAccessToken = jwtUtils.generateToken(userPrincipal);
@@ -250,10 +270,12 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public UserResponse getCurrentUserByEmail(String email) {
-		if (email == null)
+		String cleanEmail = EmailUtils.normalize(email);
+
+		if (cleanEmail == null)
 			throw new BadRequestException("Email cannot be null");
 
-		User user = userRepository.findByEmail(email)
+		User user = userRepository.findByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
 		return userMapper.toResponse(user);
@@ -264,7 +286,7 @@ public class UserService {
 		if (email == null || email.trim().length() < 3)
 			return List.of();
 
-		String cleanQuery = email.trim().toLowerCase(Locale.ROOT);
+		String cleanQuery = EmailUtils.normalize(email);
 
 		List<User> users = userRepository.findTop10ByEmailContainingIgnoreCase(cleanQuery);
 
@@ -275,7 +297,9 @@ public class UserService {
 	public void processForgotPassword(ForgotPasswordRequest request) {
 		log.info("Received password reset request for email: {}", EmailUtils.maskEmail(request.getEmail()));
 
-		Optional<User> userOptional = userRepository.findByEmail(request.getEmail());
+		String cleanEmail = EmailUtils.normalize(request.getEmail());
+
+		Optional<User> userOptional = userRepository.findByEmail(cleanEmail);
 		if (userOptional.isEmpty()) {
 			log.warn("Password reset initiated for non-existing email: {}", EmailUtils.maskEmail(request.getEmail()));
 			return;
@@ -329,7 +353,9 @@ public class UserService {
 
 	@Transactional
 	public void softDeleteUser(String email) {
-		User user = userRepository.findByEmail(email)
+		String cleanEmail = EmailUtils.normalize(email);
+
+		User user = userRepository.findByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
 		UUID userId = user.getId();
@@ -366,8 +392,14 @@ public class UserService {
 			throw new BadRequestException(message);
 		}
 
-		if (!workspacesToDelete.isEmpty())
+		if (!workspacesToDelete.isEmpty()) {
+			List<UUID> workspaceIdsToDelete = workspacesToDelete.stream()
+					.map(Workspace::getId)
+					.toList();
+			workspaceInvitationRepository.deleteByWorkspaceIdIn(workspaceIdsToDelete);
+
 			workspaceRepository.deleteAll(workspacesToDelete);
+		}
 
 		for (Workspace ws : workspacesToTransfer) {
 			WorkspaceMember nextAdmin = workspaceMemberRepository
@@ -382,11 +414,14 @@ public class UserService {
 
 		notificationRepository.deleteByRecipientId(userId);
 		workspaceMemberRepository.deleteByUserId(userId);
+
 		workspaceInvitationRepository.deleteByInviterId(userId);
 		workspaceInvitationRepository.deleteByInviteeEmail(originalEmail);
+
+		verificationCodeRepository.deleteByUserId(userId);
 		refreshTokenRepository.deleteByUserId(userId);
 		apiKeyRepository.deleteByUserId(userId);
-		passwordResetTokenRepository.deleteByUser(user);
+		passwordResetTokenRepository.deleteByUserId(userId);
 
 		user.setEmail("deleted_" + userId + "@teampulse.local");
 		user.setFirstName("Deleted");
@@ -419,7 +454,6 @@ public class UserService {
 						);
 
 						emailService.sendEmail(originalEmail, subject, body);
-
 						log.info("Account deletion confirmation email sent to: {}", EmailUtils.maskEmail(originalEmail));
 
 					} catch (Exception ex) {
@@ -428,6 +462,28 @@ public class UserService {
 				}
 			});
 		}
+	}
+
+	@Transactional
+	public void hardDeleteUnverifiedAccounts(int expirationHours) {
+		LocalDateTime cutoffDate = LocalDateTime.now().minusHours(expirationHours);
+
+		List<UUID> unverifiedUserIds = userRepository.findUnverifiedUserIdsOlderThan(cutoffDate);
+
+		if (unverifiedUserIds.isEmpty()) {
+			log.info("No unverified accounts found for hard deletion.");
+			return;
+		}
+		log.info("Starting hard deletion for {} unverified user accounts...", unverifiedUserIds.size());
+
+		verificationCodeRepository.deleteByUserIdIn(unverifiedUserIds);
+		refreshTokenRepository.deleteByUserIdIn(unverifiedUserIds);
+		apiKeyRepository.deleteByUserIdIn(unverifiedUserIds);
+		passwordResetTokenRepository.deleteByUserIdIn(unverifiedUserIds);
+
+		userRepository.deleteByIdIn(unverifiedUserIds);
+
+		log.info("Successfully hard deleted {} unverified accounts and associated entities.", unverifiedUserIds.size());
 	}
 
 	@Transactional
@@ -455,19 +511,13 @@ public class UserService {
 	@Transactional
 	public AuthResponse googleLogin(GoogleLoginRequest request) {
 		try {
-			GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-					new NetHttpTransport(),
-					GsonFactory.getDefaultInstance())
-					.setAudience(Collections.singletonList(googleClientId))
-					.build();
-
-			GoogleIdToken idToken = verifier.verify(request.getIdToken());
+			GoogleIdToken idToken = googleIdTokenVerifier.verify(request.getIdToken());
 			if (idToken == null)
 				throw new BadCredentialsException("Invalid Google ID Token");
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
-			String email = payload.getEmail().trim().toLowerCase(Locale.ROOT);
+			String email = EmailUtils.normalize(payload.getEmail());
 			String googleId = payload.getSubject();
 			String firstName = (String) payload.get("given_name");
 			String lastName = (String) payload.get("family_name");
@@ -512,7 +562,8 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, getClientIp(), getUserAgent());
+			RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+					user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
@@ -520,8 +571,11 @@ public class UserService {
 					.user(userMapper.toResponse(user))
 					.build();
 
+		} catch (BadCredentialsException e) {
+			throw e;
 		} catch (Exception e) {
-			throw new BadCredentialsException("Failed to authenticate with Google: " + e.getMessage());
+			log.error("Google authentication failed: {}", e.getMessage(), e);
+			throw new BadCredentialsException("Failed to authenticate with Google. Please try again later.");
 		}
 	}
 
@@ -550,18 +604,6 @@ public class UserService {
 		}
 	}
 
-	private String getClientIp() {
-		if (httpServletRequest == null) return "0.0.0.0";
-		String xfHeader = httpServletRequest.getHeader("X-Forwarded-For");
-		if (xfHeader != null && !xfHeader.isBlank()) {
-			return xfHeader.split(",")[0].trim();
-		}
-		String realIp = httpServletRequest.getHeader("X-Real-IP");
-		if (realIp != null && !realIp.isBlank()) {
-			return realIp.trim();
-		}
-		return httpServletRequest.getRemoteAddr();
-	}
 
 	private String getUserAgent() {
 		if (httpServletRequest == null) return "Unknown";

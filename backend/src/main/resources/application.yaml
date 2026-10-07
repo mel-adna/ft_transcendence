@@ -32,6 +32,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -104,8 +105,6 @@ app:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:259200000}
-  api:
-    public-key: ${PUBLIC_API_KEY}
 
   redis:
     channel: ${REDIS_CHANNEL:teampulse-realtime-events}

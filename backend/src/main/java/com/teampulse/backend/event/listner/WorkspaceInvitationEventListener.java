@@ -12,17 +12,21 @@ import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class WorkspaceInvitationEventListener {
 
@@ -58,7 +62,8 @@ public class WorkspaceInvitationEventListener {
 					workspaceName, inviterName, actionUrl
 			);
 		} else {
-			actionUrl = frontendUrl + "/signup?email=" + inviteeEmail;
+			String encodedEmail = URLEncoder.encode(inviteeEmail, StandardCharsets.UTF_8);
+			actionUrl = frontendUrl + "/signup?email=" + encodedEmail;
 			emailBody = String.format(
 					"Hello,\n\n" +
 							"You have been invited to join workspace '%s' by %s.\n\n" +
@@ -68,7 +73,11 @@ public class WorkspaceInvitationEventListener {
 			);
 		}
 
-		emailService.sendEmail(inviteeEmail, "Invitation to Workspace: " + workspaceName, emailBody);
+		try {
+			emailService.sendEmail(inviteeEmail, "Invitation to Workspace: " + workspaceName, emailBody);
+		} catch (Exception ex) {
+			log.error("Failed to dispatch invitation email to [{}]: {}", inviteeEmail, ex.getMessage());
+		}
 
 		if (isRegisteredUser) {
 			String notificationMsg = String.format("You have been invited to join workspace '%s' by %s.", workspaceName, inviterName);
