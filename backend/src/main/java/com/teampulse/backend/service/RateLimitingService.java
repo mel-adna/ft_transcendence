@@ -12,6 +12,7 @@ import java.time.Duration;
 @Service
 public class RateLimitingService {
 	private final Cache<String, Bucket> buckets = Caffeine.newBuilder()
+			.maximumSize(50_000)
 			.expireAfterAccess(Duration.ofHours(2))
 			.build();
 

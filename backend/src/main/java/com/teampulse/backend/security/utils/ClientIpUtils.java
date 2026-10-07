@@ -12,14 +12,9 @@ public class ClientIpUtils {
 		String ip = request.getHeader("X-Real-IP");
 
 		if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-			String forwarded = request.getHeader("X-Forwarded-For");
-			if (forwarded != null && !forwarded.isBlank())
-				ip = forwarded.split(",")[0].trim();
+			ip = request.getRemoteAddr();
 		}
 
-		if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip))
-			ip = request.getRemoteAddr();
-
-		return ip;
+		return ip != null ? ip.trim() : "0.0.0.0";
 	}
 }

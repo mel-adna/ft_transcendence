@@ -40,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class WorkspaceService {
 	private final WorkspaceRepository workspaceRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -47,7 +48,6 @@ public class WorkspaceService {
 	private final WorkspaceMapper workspaceMapper;
 	private final ApplicationEventPublisher eventPublisher;
 
-	@Transactional
 	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
 		User creator = userRepository.findByEmail(creatorEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -141,7 +141,6 @@ public class WorkspaceService {
 	}
 
 
-	@Transactional
 	public WorkspaceResponse updateWorkspace(UUID workspaceId, String email, WorkspaceUpdateRequest request) {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -177,7 +176,6 @@ public class WorkspaceService {
 		return workspaceMapper.toResponse(updatedWorkspace);
 	}
 
-	@Transactional
 	public void deleteWorkspace(UUID workspaceId, String email) {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -204,7 +202,6 @@ public class WorkspaceService {
 		log.info("Workspace with ID: {} has been soft-deleted successfully.", workspaceId);
 	}
 
-	@Transactional
 	public void updateMemberRole(UUID workspaceId, String adminEmail, WorkspaceMemberRoleUpdateRequest request) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
 		String cleanMemberEmail = EmailUtils.normalize(request.getEmail());
@@ -218,7 +215,6 @@ public class WorkspaceService {
 		workspaceMemberRepository.save(memberShip);
 	}
 
-	@Transactional
 	public void removeMemberFromWorkspace(UUID workspaceId, String adminEmail, String memberEmail) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
 		String cleanMemberEmail = EmailUtils.normalize(memberEmail);

@@ -54,14 +54,26 @@ public class WorkspaceStatsService {
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
 
-		List<Task> tasks = taskRepository.findByWorkspaceId(workspaceId);
+		// 1. حساب تجميع الحالات مباشرة باستخدام SQL GROUP BY
+		List<Object[]> statusCounts = taskRepository.countTasksByStatusForWorkspace(workspaceId);
+		long todoCount = 0;
+		long inProgressCount = 0;
+		long completedCount = 0;
+		long totalTasks = 0;
 
-		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
+		for (Object[] row : statusCounts) {
+			TaskStatus status = (TaskStatus) row[0];
+			Long count = (Long) row[1];
+			totalTasks += count;
 
-		long totalTasks = tasks.size();
-		long todoCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.TODO).count();
-		long inProgressCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DOING).count();
-		long completedCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count();
+			if (status == TaskStatus.TODO) {
+				todoCount = count;
+			} else if (status == TaskStatus.DOING) {
+				inProgressCount = count;
+			} else if (status == TaskStatus.DONE) {
+				completedCount = count;
+			}
+		}
 
 		double completionRate = totalTasks > 0
 				? Math.round(((double) completedCount / (double) totalTasks * 100.0) * 10.0) / 10.0
@@ -70,9 +82,24 @@ public class WorkspaceStatsService {
 		long activeColleagues = workspaceMemberRepository.countByWorkspaceId(workspaceId);
 		long backlogCount = todoCount;
 
-		long lowPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.LOW).count();
-		long mediumPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.MEDIUM || t.getPriority() == null).count();
-		long highPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.HIGH).count();
+		// 2. حساب تجميع الأولويات مباشرة باستخدام SQL GROUP BY
+		List<Object[]> priorityCounts = taskRepository.countTasksByPriorityForWorkspace(workspaceId);
+		long lowPriority = 0;
+		long mediumPriority = 0;
+		long highPriority = 0;
+
+		for (Object[] row : priorityCounts) {
+			TaskPriority priority = (TaskPriority) row[0];
+			Long count = (Long) row[1];
+
+			if (priority == TaskPriority.LOW) {
+				lowPriority = count;
+			} else if (priority == TaskPriority.MEDIUM || priority == null) {
+				mediumPriority += count;
+			} else if (priority == TaskPriority.HIGH) {
+				highPriority = count;
+			}
+		}
 
 		WorkspaceStatsResponse.PriorityDistribution priorityDistribution = WorkspaceStatsResponse.PriorityDistribution.builder()
 				.low(lowPriority)
@@ -85,6 +112,9 @@ public class WorkspaceStatsService {
 				.inProgress(inProgressCount)
 				.completed(completedCount)
 				.build();
+
+		List<Task> tasks = taskRepository.findByWorkspaceId(workspaceId);
+		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
 
 		Map<UUID, WorkspaceStatsResponse.MemberActivityStat> memberMap = new LinkedHashMap<>();
 		for (WorkspaceMember member : members) {

@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class UserService {
 
 	private final UserRepository userRepository;
@@ -100,7 +101,6 @@ public class UserService {
 	);
 	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-	@Transactional
 	public String signup(SignupRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
@@ -121,7 +121,6 @@ public class UserService {
 		return "Verification code has been sent to your email.";
 	}
 
-	@Transactional
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
@@ -148,12 +147,10 @@ public class UserService {
 				.build();
 	}
 
-	@Transactional
 	public void resendVerificationCode(ResendVerificationRequest request) {
-		verificationService.genrateAndSendCodeInNewTrasactional(EmailUtils.normalize(request.getEmail()));
+		verificationService.generateAndSendCodeInNewTrasactional(EmailUtils.normalize(request.getEmail()));
 	}
 
-	@Transactional
 	public AuthResponse login(LoginRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
@@ -181,7 +178,7 @@ public class UserService {
 
 			if (user != null && user.getPasswordHashed() != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
 				try {
-					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
+					verificationService.generateAndSendCodeInNewTrasactional(cleanEmail);
 				} catch (Exception ignored) {
 				}
 				throw new AccountNotVerifiedException("Account not yet verified. A new verification code has been sent to your email.");
@@ -194,7 +191,6 @@ public class UserService {
 		}
 	}
 
-	@Transactional
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 
@@ -216,13 +212,11 @@ public class UserService {
 				.build();
 	}
 
-	@Transactional
 	public void logout(String refreshToken) {
 		if (refreshToken != null && !refreshToken.isBlank())
 			refreshTokenService.deleteByToken(refreshToken);
 	}
 
-	@Transactional
 	public UserResponse updateProfile(String currentEmail, ProfileUpdateRequest request) {
 		User user = userRepository.findByEmail(currentEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -251,7 +245,6 @@ public class UserService {
 		return userMapper.toResponse(updateUser);
 	}
 
-	@Transactional
 	public void changePassword(String currentEmail, PasswordChangeRequest request) {
 		User user = userRepository.findByEmail(currentEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -293,7 +286,6 @@ public class UserService {
 		return users.stream().map(userMapper::toResponse).toList();
 	}
 
-	@Transactional
 	public void processForgotPassword(ForgotPasswordRequest request) {
 		log.info("Received password reset request for email: {}", EmailUtils.maskEmail(request.getEmail()));
 
@@ -327,7 +319,6 @@ public class UserService {
 		emailService.sendEmail(user.getEmail(), "Reset Your Team-Pulse Password", emailBody);
 	}
 
-	@Transactional
 	public void processResetPassword(ResetPasswordRequest request) {
 		log.info("Attempting to execute password reset via token.");
 
@@ -351,7 +342,6 @@ public class UserService {
 	}
 
 
-	@Transactional
 	public void softDeleteUser(String email) {
 		String cleanEmail = EmailUtils.normalize(email);
 
@@ -464,7 +454,6 @@ public class UserService {
 		}
 	}
 
-	@Transactional
 	public void hardDeleteUnverifiedAccounts(int expirationHours) {
 		LocalDateTime cutoffDate = LocalDateTime.now().minusHours(expirationHours);
 
@@ -486,7 +475,6 @@ public class UserService {
 		log.info("Successfully hard deleted {} unverified accounts and associated entities.", unverifiedUserIds.size());
 	}
 
-	@Transactional
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {
 		validateAvatarFile(file);
 
@@ -508,7 +496,6 @@ public class UserService {
 		return userMapper.toResponse(updatedUser);
 	}
 
-	@Transactional
 	public AuthResponse googleLogin(GoogleLoginRequest request) {
 		try {
 			GoogleIdToken idToken = googleIdTokenVerifier.verify(request.getIdToken());
@@ -528,16 +515,7 @@ public class UserService {
 			User user = userRepository.findByEmail(email)
 					.map(existingUser -> {
 						if (existingUser.getProvider() == AuthProvider.LOCAL) {
-							existingUser.setProvider(AuthProvider.GOOGLE);
-							existingUser.setProviderId(googleId);
-							existingUser.setEnabled(true);
-
-							if (existingUser.getAvatarUrl() == null)
-								existingUser.setAvatarUrl(pictureUrl);
-
-							isNewSignup.set(true);
-
-							return userRepository.save(existingUser);
+							throw new BadRequestException("An account with this email already exists via standard login");
 						}
 						return existingUser;
 					})
@@ -571,12 +549,19 @@ public class UserService {
 					.user(userMapper.toResponse(user))
 					.build();
 
-		} catch (BadCredentialsException e) {
+		} catch (BadCredentialsException | BadRequestException e) {
 			throw e;
 		} catch (Exception e) {
 			log.error("Google authentication failed: {}", e.getMessage(), e);
 			throw new BadCredentialsException("Failed to authenticate with Google. Please try again later.");
 		}
+	}
+
+	private String getFileExtension(String filename) {
+		if (filename == null || !filename.contains(".")) {
+			throw new BadRequestException("Invalid file name or extension.");
+		}
+		return filename.substring(filename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
 	}
 
 	private void validateAvatarFile(MultipartFile file) {
@@ -593,12 +578,7 @@ public class UserService {
 			throw new BadRequestException("Invalid file type. Only JPG, PNG, and WEBP images are allowed.");
 		}
 
-		String originalFilename = file.getOriginalFilename();
-		if (originalFilename == null || !originalFilename.contains(".")) {
-			throw new BadRequestException("Invalid file name or extension.");
-		}
-
-		String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
+		String extension = getFileExtension(file.getOriginalFilename());
 		if (!ALLOWED_EXTENSIONS.contains(extension)) {
 			throw new BadRequestException("Invalid file extension.");
 		}

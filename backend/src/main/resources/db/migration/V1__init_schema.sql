@@ -1,4 +1,5 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE
+EXTENSION IF NOT EXISTS pgcrypto;
 
 -- 1. Users
 CREATE TABLE users
@@ -125,11 +126,11 @@ CREATE TABLE refresh_tokens
 CREATE TABLE verification_codes
 (
     id          UUID PRIMARY KEY,
-    code        VARCHAR(6) NOT NULL,
-    user_id     UUID       NOT NULL,
-    expiry_date TIMESTAMP  NOT NULL,
-    enabled     BOOLEAN    NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    code        VARCHAR(64) NOT NULL,
+    user_id     UUID        NOT NULL,
+    expiry_date TIMESTAMP   NOT NULL,
+    enabled     BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_verification_codes_user UNIQUE (user_id),
     CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
@@ -179,3 +180,6 @@ CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens (token);
 CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens (user_id);
 CREATE INDEX idx_verification_codes_code ON verification_codes (code);
 CREATE INDEX idx_verification_codes_user ON verification_codes (user_id);
+CREATE INDEX IF NOT EXISTS idx_invitation_workspace_status ON workspace_invitation (workspace_id, invitation_status);
+CREATE INDEX IF NOT EXISTS idx_invitation_invitee_status ON workspace_invitation (invitee_email, invitation_status);
+CREATE INDEX IF NOT EXISTS idx_invitation_inviter ON workspace_invitation (inviter_id);

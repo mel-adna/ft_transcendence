@@ -4,7 +4,7 @@ import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.model.RefreshToken;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.repository.RefreshTokenRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -15,6 +15,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class RefreshTokenService {
 	private final RefreshTokenRepository refreshTokenRepository;
 
@@ -38,11 +39,10 @@ public class RefreshTokenService {
 
 	@Transactional
 	public RefreshToken verifyExpirationAndRevocation(String tokenStr, String currentClientIp, String currentUserAgent) {
-		RefreshToken token = refreshTokenRepository.findByToken(tokenStr)
+		RefreshToken token = refreshTokenRepository.findAndDeleteByToken(tokenStr)
 				.orElseThrow(() -> new UnauthorizedAccessException("Invalid or expired refresh token. Please log in again."));
 
 		if (token.isRevoked() || token.getExpiryDate().isBefore(Instant.now())) {
-			refreshTokenRepository.delete(token);
 			throw new UnauthorizedAccessException("Refresh token has expired or been revoked. Please log in again.");
 		}
 
@@ -51,7 +51,6 @@ public class RefreshTokenService {
 		boolean agentMismatch = token.getUserAgent() != null && !token.getUserAgent().equals(truncatedUserAgent);
 
 		if (ipMismatch || agentMismatch) {
-			refreshTokenRepository.delete(token);
 			throw new UnauthorizedAccessException("Security alert: Client context mismatch. Session invalidated. Please log in again.");
 		}
 
