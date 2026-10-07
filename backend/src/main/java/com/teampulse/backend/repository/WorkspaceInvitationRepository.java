@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,4 +38,8 @@ public interface WorkspaceInvitationRepository extends JpaRepository<WorkspaceIn
 	List<WorkspaceInvitation> findByWorkspaceIdAndStatus(UUID workspaceId, InvitationStatus status);
 
 	int deleteByStatusInAndCreatedAtBefore(List<InvitationStatus> statuses, Instant cutoff);
+
+	void deleteByWorkspaceIdIn(Collection<UUID> workspaceIds);
+
+	void deleteByWorkspaceId(UUID workspaceId);
 }
