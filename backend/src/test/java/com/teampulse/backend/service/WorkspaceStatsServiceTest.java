@@ -432,4 +432,97 @@ public class WorkspaceStatsServiceTest {
 		assertEquals(1, todayTrend.getCount());
 		assertEquals(1, todayTrend.getCompleted());
 	}
+
+	private Task task(TaskStatus status, TaskPriority priority, User assignee, Instant updatedAt) {
+		Task task = new Task();
+		task.setStatus(status);
+		task.setPriority(priority);
+		task.setAssignee(assignee);
+		task.setUpdatedAt(updatedAt);
+		return task;
+	}
+
+	private void stubWorkspace(List<Task> tasks) {
+		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
+		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
+		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(tasks);
+		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1, member2));
+	}
+
+	@Test
+	@DisplayName("Should count only completions inside an inclusive custom from/to range")
+	void shouldUseCustomFromToRange() {
+		LocalDate today = LocalDate.now(ZoneId.systemDefault());
+		Instant tenDaysAgo = today.minusDays(10).atStartOfDay(ZoneId.systemDefault()).toInstant().plusSeconds(3600);
+		stubWorkspace(List.of(
+				task(TaskStatus.DONE, TaskPriority.LOW, null, Instant.now()),
+				task(TaskStatus.DONE, TaskPriority.LOW, null, tenDaysAgo)));
+
+		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7,
+				today.minusDays(12).toString(), today.minusDays(10).toString(), null, null, null);
+
+		assertEquals(1, response.getTasksCompletedInPeriod());
+		assertEquals(3, response.getCompletionTrend().size());
+		assertEquals(today.minusDays(12).toString(), response.getCompletionTrend().get(0).getKey());
+	}
+
+	@Test
+	@DisplayName("Should compute stats only for tasks matching the status filter")
+	void shouldFilterByStatus() {
+		stubWorkspace(List.of(
+				task(TaskStatus.TODO, TaskPriority.LOW, null, null),
+				task(TaskStatus.DOING, TaskPriority.LOW, null, null),
+				task(TaskStatus.DONE, TaskPriority.LOW, null, Instant.now())));
+
+		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7,
+				null, null, "done", null, null);
+
+		assertEquals(1, response.getTotalTasks());
+		assertEquals(1, response.getCompletedCount());
+		assertEquals(0, response.getTodoCount());
+	}
+
+	@Test
+	@DisplayName("Should filter by priority and treat a missing priority as MEDIUM")
+	void shouldFilterByPriority() {
+		stubWorkspace(List.of(
+				task(TaskStatus.TODO, TaskPriority.HIGH, null, null),
+				task(TaskStatus.TODO, TaskPriority.MEDIUM, null, null),
+				task(TaskStatus.TODO, null, null, null)));
+
+		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7,
+				null, null, null, "MEDIUM", null);
+
+		assertEquals(2, response.getTotalTasks());
+		assertEquals(0, response.getPriorityDistribution().getHigh());
+	}
+
+	@Test
+	@DisplayName("Should compute stats only for tasks assigned to the selected member")
+	void shouldFilterByAssignee() {
+		stubWorkspace(List.of(
+				task(TaskStatus.DONE, TaskPriority.LOW, user1, Instant.now()),
+				task(TaskStatus.TODO, TaskPriority.LOW, user2, null),
+				task(TaskStatus.TODO, TaskPriority.LOW, null, null)));
+
+		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7,
+				null, null, null, null, user1.getId().toString());
+
+		assertEquals(1, response.getTotalTasks());
+		assertEquals(100.0, response.getCompletionRate());
+	}
+
+	@Test
+	@DisplayName("Should reject an inverted date range and unknown filter values")
+	void shouldRejectInvalidRangeAndFilters() {
+		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
+		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
+
+		assertThrows(BadRequestException.class, () -> workspaceStatsService.getWorkspaceStats(
+				workspaceId, userEmail, 7, "2026-09-10", "2026-09-01", null, null, null));
+		assertThrows(BadRequestException.class, () -> workspaceStatsService.getWorkspaceStats(
+				workspaceId, userEmail, 7, "2026-09-01", null, null, null, null));
+		assertThrows(BadRequestException.class, () -> workspaceStatsService.getWorkspaceStats(
+				workspaceId, userEmail, 7, null, null, "BLOCKED", null, null));
+	}
 }

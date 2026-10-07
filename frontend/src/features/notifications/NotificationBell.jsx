@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Check, Loader2 } from 'lucide-react';
-import { useNotifications } from './useNotifications';
 
 function formatRelativeTime(value) {
   if (!value) return '';
@@ -16,18 +15,15 @@ function formatRelativeTime(value) {
   return `${days}d ago`;
 }
 
-export default function NotificationBell(props) {
-  // Support both passed-in notification state (for sharing across desktop/mobile headers)
-  // and standalone hook usage.
-  const fallback = useNotifications();
-  const {
-    notifications = fallback.notifications,
-    unreadCount = fallback.unreadCount,
-    loading = fallback.loading,
-    markAsRead = fallback.markAsRead,
-    markAllAsRead = fallback.markAllAsRead,
-  } = props.notifications !== undefined ? props : fallback;
-
+// Presentational only: AppLayout owns the single useNotifications() instance
+// and passes its state to both the desktop and mobile bells.
+export default function NotificationBell({
+  notifications = [],
+  unreadCount = 0,
+  loading = false,
+  markAsRead,
+  markAllAsRead,
+}) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
 

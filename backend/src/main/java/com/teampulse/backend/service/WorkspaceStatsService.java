@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.function.Function;
 
 @Slf4j
 @Service
@@ -37,8 +38,16 @@ public class WorkspaceStatsService {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final TaskRepository taskRepository;
 
+	private static final int MAX_CUSTOM_RANGE_DAYS = 366;
+
 	@Transactional(readOnly = true)
 	public WorkspaceStatsResponse getWorkspaceStats(UUID workspaceId, String userEmail, int days) {
+		return getWorkspaceStats(workspaceId, userEmail, days, null, null, null, null, null);
+	}
+
+	@Transactional(readOnly = true)
+	public WorkspaceStatsResponse getWorkspaceStats(UUID workspaceId, String userEmail, int days,
+	                                                String from, String to, String status, String priority, String assigneeId) {
 		if (workspaceId == null) {
 			throw new BadRequestException("Workspace ID cannot be null");
 		}
@@ -54,8 +63,31 @@ public class WorkspaceStatsService {
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
 
-		List<Task> tasks = taskRepository.findByWorkspaceId(workspaceId);
+		LocalDate fromDate = parseParam(from, "from", LocalDate::parse);
+		LocalDate toDate = parseParam(to, "to", LocalDate::parse);
+		TaskStatus statusFilter = parseParam(status, "status", value -> TaskStatus.valueOf(value.toUpperCase()));
+		TaskPriority priorityFilter = parseParam(priority, "priority", value -> TaskPriority.valueOf(value.toUpperCase()));
+		UUID assigneeFilter = parseParam(assigneeId, "assigneeId", UUID::fromString);
 
+		if ((fromDate == null) != (toDate == null)) {
+			throw new BadRequestException("Both 'from' and 'to' are required for a custom date range");
+		}
+		if (fromDate != null && fromDate.isAfter(toDate)) {
+			throw new BadRequestException("'from' must be on or before 'to'");
+		}
+		if (fromDate != null && ChronoUnit.DAYS.between(fromDate, toDate) + 1 > MAX_CUSTOM_RANGE_DAYS) {
+			throw new BadRequestException("Custom date range cannot exceed " + MAX_CUSTOM_RANGE_DAYS + " days");
+		}
+
+		// Filters narrow the task list once; every stat below is computed from the filtered list.
+		// A missing priority counts as MEDIUM, matching the priority distribution.
+		List<Task> tasks = taskRepository.findByWorkspaceId(workspaceId).stream()
+				.filter(task -> statusFilter == null || task.getStatus() == statusFilter)
+				.filter(task -> priorityFilter == null
+						|| Objects.requireNonNullElse(task.getPriority(), TaskPriority.MEDIUM) == priorityFilter)
+				.filter(task -> assigneeFilter == null
+						|| (task.getAssignee() != null && assigneeFilter.equals(task.getAssignee().getId())))
+				.toList();
 		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
 
 		long totalTasks = tasks.size();
@@ -63,9 +95,7 @@ public class WorkspaceStatsService {
 		long inProgressCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DOING).count();
 		long completedCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count();
 
-		double completionRate = totalTasks > 0
-				? Math.round(((double) completedCount / (double) totalTasks * 100.0) * 10.0) / 10.0
-				: 0.0;
+		double completionRate = percent(completedCount, totalTasks);
 
 		long activeColleagues = workspaceMemberRepository.countByWorkspaceId(workspaceId);
 		long backlogCount = todoCount;
@@ -86,75 +116,25 @@ public class WorkspaceStatsService {
 				.completed(completedCount)
 				.build();
 
+		// Member activity breakdown: every member gets a row, even with no tasks
 		Map<UUID, WorkspaceStatsResponse.MemberActivityStat> memberMap = new LinkedHashMap<>();
 		for (WorkspaceMember member : members) {
 			User user = member.getUser();
 			if (user != null && user.getId() != null) {
-				String name = buildDisplayName(user.getFirstName(), user.getLastName(), user.getEmail());
-				memberMap.put(user.getId(), WorkspaceStatsResponse.MemberActivityStat.builder()
-						.userId(user.getId())
-						.name(name)
-						.email(user.getEmail())
-						.avatarUrl(user.getAvatarUrl())
-						.totalAssigned(0)
-						.completed(0)
-						.inProgress(0)
-						.todo(0)
-						.completionRate(0.0)
-						.build());
+				memberMap.put(user.getId(), newMemberStat(user));
 			}
 		}
 
-		long unassignedTotal = 0;
-		long unassignedCompleted = 0;
-		long unassignedInProgress = 0;
-		long unassignedTodo = 0;
+		WorkspaceStatsResponse.MemberActivityStat unassigned = WorkspaceStatsResponse.MemberActivityStat.builder()
+				.name("Unassigned")
+				.build();
 
 		for (Task task : tasks) {
 			User assignee = task.getAssignee();
 			if (assignee == null || assignee.getId() == null) {
-				unassignedTotal++;
-				if (task.getStatus() == TaskStatus.DONE) {
-					unassignedCompleted++;
-				} else if (task.getStatus() == TaskStatus.DOING) {
-					unassignedInProgress++;
-				} else {
-					unassignedTodo++;
-				}
+				countTask(unassigned, task);
 			} else {
-				UUID uid = assignee.getId();
-				WorkspaceStatsResponse.MemberActivityStat stat = memberMap.get(uid);
-				if (stat == null) {
-					String name = buildDisplayName(assignee.getFirstName(), assignee.getLastName(), assignee.getEmail());
-					stat = WorkspaceStatsResponse.MemberActivityStat.builder()
-							.userId(uid)
-							.name(name)
-							.email(assignee.getEmail())
-							.avatarUrl(assignee.getAvatarUrl())
-							.totalAssigned(0)
-							.completed(0)
-							.inProgress(0)
-							.todo(0)
-							.completionRate(0.0)
-							.build();
-					memberMap.put(uid, stat);
-				}
-				stat.setTotalAssigned(stat.getTotalAssigned() + 1);
-				if (task.getStatus() == TaskStatus.DONE) {
-					stat.setCompleted(stat.getCompleted() + 1);
-				} else if (task.getStatus() == TaskStatus.DOING) {
-					stat.setInProgress(stat.getInProgress() + 1);
-				} else {
-					stat.setTodo(stat.getTodo() + 1);
-				}
-			}
-		}
-
-		for (WorkspaceStatsResponse.MemberActivityStat stat : memberMap.values()) {
-			if (stat.getTotalAssigned() > 0) {
-				stat.setCompletionRate(Math.round(((double) stat.getCompleted() / (double) stat.getTotalAssigned() * 100.0) * 10.0) / 10.0);
-			} else {
-				stat.setCompletionRate(0.0);
+				countTask(memberMap.computeIfAbsent(assignee.getId(), id -> newMemberStat(assignee)), task);
 			}
 		}
 
@@ -162,60 +142,53 @@ public class WorkspaceStatsService {
 		memberStats.sort(Comparator.comparingLong(WorkspaceStatsResponse.MemberActivityStat::getTotalAssigned).reversed()
 				.thenComparing(WorkspaceStatsResponse.MemberActivityStat::getName, String.CASE_INSENSITIVE_ORDER));
 
-		if (unassignedTotal > 0) {
-			double unassignedRate = Math.round(((double) unassignedCompleted / (double) unassignedTotal * 100.0) * 10.0) / 10.0;
-			memberStats.add(WorkspaceStatsResponse.MemberActivityStat.builder()
-					.userId(null)
-					.name("Unassigned")
-					.email(null)
-					.avatarUrl(null)
-					.totalAssigned(unassignedTotal)
-					.completed(unassignedCompleted)
-					.inProgress(unassignedInProgress)
-					.todo(unassignedTodo)
-					.completionRate(unassignedRate)
-					.build());
+		if (unassigned.getTotalAssigned() > 0) {
+			memberStats.add(unassigned);
 		}
 
+		for (WorkspaceStatsResponse.MemberActivityStat stat : memberStats) {
+			stat.setCompletionRate(percent(stat.getCompleted(), stat.getTotalAssigned()));
+		}
+
+		// Date range handling: from/to wins; otherwise days = 0 means All Time and days < 0 defaults to 7
 		int effectiveDays = days < 0 ? 7 : days;
 		LocalDate today = LocalDate.now(ZoneId.systemDefault());
+		LocalDate rangeStart = fromDate != null ? fromDate : (effectiveDays > 0 ? today.minusDays(effectiveDays - 1) : null);
+		LocalDate rangeEnd = toDate != null ? toDate : today;
 		long tasksCompletedInPeriod;
 		double averageCompletedPerDay;
 		List<WorkspaceStatsResponse.DailyCompletionTrend> trendList = new ArrayList<>();
 
-		if (effectiveDays > 0) {
-			LocalDate startDate = today.minusDays(effectiveDays - 1);
-			Instant startInstant = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
+		Map<String, Long> completedPerDay = new HashMap<>();
+		Map<String, Long> completedPerMonth = new HashMap<>();
+		for (Task task : tasks) {
+			if (task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null) {
+				LocalDate taskDate = LocalDate.ofInstant(task.getUpdatedAt(), ZoneId.systemDefault());
+				completedPerDay.merge(taskDate.format(DateTimeFormatter.ISO_LOCAL_DATE), 1L, Long::sum);
+				completedPerMonth.merge(taskDate.format(DateTimeFormatter.ofPattern("yyyy-MM")), 1L, Long::sum);
+			}
+		}
+
+		if (rangeStart != null) {
+			long rangeDays = ChronoUnit.DAYS.between(rangeStart, rangeEnd) + 1;
+			Instant startInstant = rangeStart.atStartOfDay(ZoneId.systemDefault()).toInstant();
+			Instant endInstant = rangeEnd.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
 
 			tasksCompletedInPeriod = tasks.stream()
-					.filter(task -> task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null && !task.getUpdatedAt().isBefore(startInstant))
+					.filter(task -> task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null
+							&& !task.getUpdatedAt().isBefore(startInstant) && task.getUpdatedAt().isBefore(endInstant))
 					.count();
 
-			averageCompletedPerDay = Math.round(((double) tasksCompletedInPeriod / (double) effectiveDays) * 100.0) / 100.0;
+			averageCompletedPerDay = Math.round(((double) tasksCompletedInPeriod / (double) rangeDays) * 100.0) / 100.0;
 
-			Map<String, Long> completedPerDay = new HashMap<>();
-			for (Task task : tasks) {
-				if (task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null) {
-					LocalDate taskDate = LocalDate.ofInstant(task.getUpdatedAt(), ZoneId.systemDefault());
-					String key = taskDate.format(DateTimeFormatter.ISO_LOCAL_DATE);
-					completedPerDay.put(key, completedPerDay.getOrDefault(key, 0L) + 1L);
-				}
-			}
-
-			for (int offset = effectiveDays - 1; offset >= 0; offset--) {
-				LocalDate date = today.minusDays(offset);
+			for (LocalDate date = rangeStart; !date.isAfter(rangeEnd); date = date.plusDays(1)) {
 				String key = date.format(DateTimeFormatter.ISO_LOCAL_DATE);
-				String label = (effectiveDays <= 7)
+				String label = (rangeDays <= 7)
 						? date.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
 						: date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH));
 				long count = completedPerDay.getOrDefault(key, 0L);
 
-				trendList.add(WorkspaceStatsResponse.DailyCompletionTrend.builder()
-						.key(key)
-						.label(label)
-						.count(count)
-						.completed(count)
-						.build());
+				trendList.add(trendPoint(key, label, count));
 			}
 		} else {
 			tasksCompletedInPeriod = completedCount;
@@ -234,30 +207,12 @@ public class WorkspaceStatsService {
 
 			averageCompletedPerDay = Math.round(((double) completedCount / (double) daysSpan) * 100.0) / 100.0;
 
-			Map<String, Long> completedPerDay = new HashMap<>();
-			Map<String, Long> completedPerMonth = new HashMap<>();
-			for (Task task : tasks) {
-				if (task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null) {
-					LocalDate taskDate = LocalDate.ofInstant(task.getUpdatedAt(), ZoneId.systemDefault());
-					String dayKey = taskDate.format(DateTimeFormatter.ISO_LOCAL_DATE);
-					completedPerDay.put(dayKey, completedPerDay.getOrDefault(dayKey, 0L) + 1L);
-
-					String monthKey = taskDate.format(DateTimeFormatter.ofPattern("yyyy-MM"));
-					completedPerMonth.put(monthKey, completedPerMonth.getOrDefault(monthKey, 0L) + 1L);
-				}
-			}
-
 			if (daysSpan <= 60) {
 				for (LocalDate date = earliestDate; !date.isAfter(today); date = date.plusDays(1)) {
 					String key = date.format(DateTimeFormatter.ISO_LOCAL_DATE);
 					String label = date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH));
 					long count = completedPerDay.getOrDefault(key, 0L);
-					trendList.add(WorkspaceStatsResponse.DailyCompletionTrend.builder()
-							.key(key)
-							.label(label)
-							.count(count)
-							.completed(count)
-							.build());
+					trendList.add(trendPoint(key, label, count));
 				}
 			} else {
 				YearMonth startMonth = YearMonth.from(earliestDate);
@@ -266,23 +221,13 @@ public class WorkspaceStatsService {
 					String key = month.format(DateTimeFormatter.ofPattern("yyyy-MM"));
 					String label = month.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH));
 					long count = completedPerMonth.getOrDefault(key, 0L);
-					trendList.add(WorkspaceStatsResponse.DailyCompletionTrend.builder()
-							.key(key)
-							.label(label)
-							.count(count)
-							.completed(count)
-							.build());
+					trendList.add(trendPoint(key, label, count));
 				}
 			}
 
 			if (trendList.isEmpty()) {
 				String key = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
-				trendList.add(WorkspaceStatsResponse.DailyCompletionTrend.builder()
-						.key(key)
-						.label("Today")
-						.count(0L)
-						.completed(0L)
-						.build());
+				trendList.add(trendPoint(key, "Today", 0L));
 			}
 		}
 
@@ -304,6 +249,50 @@ public class WorkspaceStatsService {
 				.memberStats(memberStats)
 				.completionTrend(trendList)
 				.build();
+	}
+
+	private static double percent(long part, long total) {
+		return total > 0 ? Math.round(((double) part / (double) total * 100.0) * 10.0) / 10.0 : 0.0;
+	}
+
+	private WorkspaceStatsResponse.MemberActivityStat newMemberStat(User user) {
+		return WorkspaceStatsResponse.MemberActivityStat.builder()
+				.userId(user.getId())
+				.name(buildDisplayName(user.getFirstName(), user.getLastName(), user.getEmail()))
+				.email(user.getEmail())
+				.avatarUrl(user.getAvatarUrl())
+				.build();
+	}
+
+	private static void countTask(WorkspaceStatsResponse.MemberActivityStat stat, Task task) {
+		stat.setTotalAssigned(stat.getTotalAssigned() + 1);
+		if (task.getStatus() == TaskStatus.DONE) {
+			stat.setCompleted(stat.getCompleted() + 1);
+		} else if (task.getStatus() == TaskStatus.DOING) {
+			stat.setInProgress(stat.getInProgress() + 1);
+		} else {
+			stat.setTodo(stat.getTodo() + 1);
+		}
+	}
+
+	private static WorkspaceStatsResponse.DailyCompletionTrend trendPoint(String key, String label, long count) {
+		return WorkspaceStatsResponse.DailyCompletionTrend.builder()
+				.key(key)
+				.label(label)
+				.count(count)
+				.completed(count)
+				.build();
+	}
+
+	private static <T> T parseParam(String value, String name, Function<String, T> parser) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		try {
+			return parser.apply(value.trim());
+		} catch (RuntimeException e) {
+			throw new BadRequestException("Invalid '" + name + "' value: " + value);
+		}
 	}
 
 	private String buildDisplayName(String firstName, String lastName, String email) {
