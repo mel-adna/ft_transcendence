@@ -92,7 +92,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(Collections.emptyList());
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1));
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(List.of(member1));
 		when(workspaceMemberRepository.countByWorkspaceId(workspaceId)).thenReturn(1L);
 
 		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7);
@@ -161,7 +161,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(tasks);
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1, member2));
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(List.of(member1, member2));
 		when(workspaceMemberRepository.countByWorkspaceId(workspaceId)).thenReturn(2L);
 
 		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7);
@@ -227,7 +227,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(tasks);
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(members);
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(members);
 		when(workspaceMemberRepository.countByWorkspaceId(workspaceId)).thenReturn(3L);
 
 		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7);
@@ -304,7 +304,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(tasks);
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1));
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(List.of(member1));
 
 		// 7 Days: only taskRecent is in period
 		WorkspaceStatsResponse stats7 = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7);
@@ -348,7 +348,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(tasks);
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1));
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(List.of(member1));
 
 		WorkspaceStatsResponse stats = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 0);
 
@@ -397,7 +397,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(Collections.emptyList());
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(Collections.emptyList());
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(Collections.emptyList());
 
 		workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7);
 
@@ -418,7 +418,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(taskDoneToday));
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1));
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(List.of(member1));
 
 		WorkspaceStatsResponse response = workspaceStatsService.getWorkspaceStats(workspaceId, userEmail, 7);
 
@@ -446,7 +446,7 @@ public class WorkspaceStatsServiceTest {
 		when(workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, userEmail)).thenReturn(true);
 		when(workspaceRepository.findById(workspaceId)).thenReturn(Optional.of(workspace));
 		when(taskRepository.findByWorkspaceId(workspaceId)).thenReturn(tasks);
-		when(workspaceMemberRepository.findByWorkspaceId(workspaceId)).thenReturn(List.of(member1, member2));
+		when(workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId)).thenReturn(List.of(member1, member2));
 	}
 
 	@Test
