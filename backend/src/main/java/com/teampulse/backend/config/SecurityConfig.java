@@ -1,5 +1,6 @@
 package com.teampulse.backend.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teampulse.backend.security.ApiKeyAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -24,6 +25,8 @@ import com.teampulse.backend.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Objects;
 
 @Configuration
 @EnableWebSecurity
@@ -35,7 +38,7 @@ public class SecurityConfig {
 	private final ApiKeyAuthFilter apiKeyAuthFilter;
 
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
 		http
 				/*
 				 * CSRF protection is intentionally disabled due to the stateless architecture:
@@ -55,13 +58,21 @@ public class SecurityConfig {
 							response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 							response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
-							String json = String.format(
-									"{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Full authentication is required or token has expired.\",\"path\":\"%s\"}",
-									LocalDateTime.now(),
-									request.getRequestURI()
+//							String json = String.format(
+//									"{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Full authentication is required or token has expired.\",\"path\":\"%s\"}",
+//									LocalDateTime.now(),
+//									request.getRequestURI()
+//							);
+
+							Map<String, Object> body = Map.of(
+									"timestamp", LocalDateTime.now().toString(),
+									"status", 401,
+									"error", "Unauthorized",
+									"message", "Full authentication is required or token has expired.",
+									"path", request.getRequestURI()
 							);
 
-							response.getWriter().write(json);
+							response.getWriter().write(objectMapper.writeValueAsString(body));
 						})
 				)
 
@@ -82,9 +93,14 @@ public class SecurityConfig {
 								"/actuator/health",
 								"/actuator/prometheus",
 
+								/*
+								 * Intentionally permitted in production:
+								 * Enables external clients & API key holders to inspect public API documentation.
+								 */
 								"/v3/api-docs/**",
 								"/swagger-ui/**",
 								"/swagger-ui.html",
+
 								"/error"
 						).permitAll()
 						.anyRequest().authenticated()
@@ -111,6 +127,6 @@ public class SecurityConfig {
 
 	@Bean
 	public PasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder();
+		return new BCryptPasswordEncoder(12);
 	}
 }

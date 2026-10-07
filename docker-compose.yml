@@ -39,6 +39,7 @@ services:
     environment:
       - VITE_API_URL=/api
       - VITE_CORE_API_URL=/api/v1
+      - VITE_WS_URL=/
       - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
     networks:
       - teampulse_net
