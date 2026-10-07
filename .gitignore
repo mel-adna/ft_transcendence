@@ -87,3 +87,4 @@ en.subject.pdf
 # !secrets/*.txt.example
 # .env
 secrets/
+.env
