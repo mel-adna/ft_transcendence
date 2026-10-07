@@ -13,19 +13,19 @@ at 45. Its 39 is the same as 39 below.
 
 An evaluator can run into this during normal use.
 
-| # | Issue | Why it matters | Effort |
-|---|---|---|---|
-| 50 | The PDF export prints errors in the console | Exporting the dashboard after signing in prints five errors, and the subject rejects a project with console errors | 1 line |
+| # | Issue | Why it matters | Effort | Who fixes it |
+|---|---|---|---|---|
+| 50 | The PDF export prints errors in the console | Exporting the dashboard after signing in prints five errors, and the subject rejects a project with console errors | 1 line | mel-adna |
 
 ## Not blocking
 
 Real defects, but none of them breaks the app at the evaluation.
 
-| # | Issue | Why it matters | Effort |
-|---|---|---|---|
-| 49 | `make` does not create new secret files when `secrets/` already exists | After pulling the Redis password, a teammate who ran `make` before cannot start the stack | 1 line |
-| 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Delete 3 lines |
-| 51 | The stats tests still mock the old member query | `mvn test` fails 11 of the 15 stats tests; the app is fine because the Docker build skips tests | Rename in 8 places |
+| # | Issue | Why it matters | Effort | Who fixes it |
+|---|---|---|---|---|
+| 49 | `make` does not create new secret files when `secrets/` already exists | After pulling the Redis password, a teammate who ran `make` before cannot start the stack | 1 line | mdbentaleb |
+| 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Delete 3 lines | aarab |
+| 51 | The stats tests still mock the old member query | `mvn test` fails 11 of the 15 stats tests; the app is fine because the Docker build skips tests | Rename in 8 places | mel-adna |
 
 ---
 
@@ -49,7 +49,7 @@ Reloading the dashboard before exporting removes Google's stylesheet, which is w
 miss. The app loads no web fonts (`Inter` is only used when it is installed on the computer), so
 this step embeds nothing anyway.
 
-**Fix:** add `skipFonts: true` to the `toJpeg(...)` options. Tested on 2026-10-07 by changing the
+**Fix (mel-adna):** add `skipFonts: true` to the `toJpeg(...)` options. Tested on 2026-10-07 by changing the
 running container only: the console stays clean and the PDF has the same size (320 KB).
 
 # Not blocking
@@ -70,7 +70,7 @@ anyone who ran `make` before, and `docker compose up` stops with "bind source pa
 for Redis, the backend and chat-service. A fresh clone at the evaluation is not affected, since it
 has no `secrets/` folder yet.
 
-**Fix:** add `.PHONY: all secrets ps clean fclean backend re` at the top of the `Makefile`. Until
+**Fix (mdbentaleb):** add `.PHONY: all secrets ps clean fclean backend re` at the top of the `Makefile`. Until
 then, `make -B secrets` creates the missing files without touching the existing ones.
 
 ## 39. The socket client logs to the console on every page
@@ -87,7 +87,7 @@ dashboard, the task board and everywhere else. The subject's general requirement
 is rejected if warnings or errors appear in the browser console, and an evaluator who stops one
 container to see what happens will see them.
 
-**Fix:** delete the three console calls. Putting them behind `import.meta.env.DEV` would hide
+**Fix (aarab):** delete the three console calls. Putting them behind `import.meta.env.DEV` would hide
 nothing: the frontend container runs `npm run dev`, so `DEV` is true in the app the evaluator
 opens. The file is aarab's and is vendored here unchanged, so it has to be fixed on his branch.
 
@@ -104,5 +104,5 @@ Tests run: 15, Failures: 2, Errors: 9
 With the old name put back in a throwaway copy, all 15 pass, so this is the only cause. The Docker
 build runs `mvn clean package -DskipTests`, so the app itself is not affected.
 
-**Fix:** in the test, replace `findByWorkspaceId(workspaceId)` with
+**Fix (mel-adna):** in the test, replace `findByWorkspaceId(workspaceId)` with
 `findByWorkspaceIdWithUser(workspaceId)` (8 places).
