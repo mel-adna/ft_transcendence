@@ -40,7 +40,7 @@ fi
 # Check if certificates already exist
 if [ -f "$KEY_FILE" ] && [ -f "$CRT_FILE" ]; then
     echo -e "${YELLOW}⚠️  Existing SSL key certificates found in ${CERT_DIR}.${NC}"
-    read -p "Do you want to overwrite them and generate fresh keys? (y/n) " -n 1 -r
+    read -p "Do you want to overwrite them and generate fresh keys? (y/N) " -n 1 -r
     echo ""
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo -e "${GREEN}✅ Keeping existing SSL certificates. Process complete!${NC}"
