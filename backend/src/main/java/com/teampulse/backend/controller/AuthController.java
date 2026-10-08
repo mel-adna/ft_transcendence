@@ -1,0 +1,159 @@
+package com.teampulse.backend.controller;
+
+import java.security.Principal;
+import java.util.Map;
+
+import com.teampulse.backend.dto.request.*;
+import com.teampulse.backend.security.ratelimit.RateLimit;
+import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.teampulse.backend.dto.response.AuthResponse;
+import com.teampulse.backend.service.UserService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/auth")
+@RequiredArgsConstructor
+@Tag(name = "Authentication & Profile", description = "Endpoints for user identity management, registration, session renewal, and profile adjustments.")
+public class AuthController {
+	private final UserService userService;
+
+	@RateLimit(capacity = 3, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+	@Operation(summary = "Register a new user", description = "Creates an inactive user account and sends a 6-digit verification code to email.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "201", description = "User registered successfully, verification code sent"),
+			@ApiResponse(responseCode = "400", description = "Email already exists")
+	})
+	@PostMapping("/signup")
+	public ResponseEntity<String> signup(@Valid @RequestBody SignupRequest request) {
+		return new ResponseEntity<>(userService.signup(request), HttpStatus.CREATED);
+	}
+
+
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+	@Operation(summary = "Verify account email", description = "Validates the 6-digit code sent via email and activates the user account.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Account verified successfully, returns JWT tokens"),
+			@ApiResponse(responseCode = "400", description = "Invalid or expired verification code")
+	})
+	@PostMapping("/verify-email")
+	public ResponseEntity<AuthResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+		return ResponseEntity.ok(userService.verifyEmail(request));
+	}
+
+
+	@RateLimit(capacity = 3, durationInMinutes = 60, keyType = RateLimitKeyType.EMAIL)
+	@Operation(summary = "Resend verification code", description = "Generates a new 6-digit verification code and emails it to the user if the account is unverified.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Verification code resent successfully"),
+			@ApiResponse(responseCode = "400", description = "Account is already verified or request invalid"),
+			@ApiResponse(responseCode = "404", description = "User not found")
+	})
+	@PostMapping("/resend-verification")
+	public ResponseEntity<Map<String, String>> resendVerificationCode(@Valid @RequestBody ResendVerificationRequest request) {
+		userService.resendVerificationCode(request);
+		return ResponseEntity.ok(Map.of("message", "Verification code has been resent to your email."));
+	}
+
+
+	@RateLimit(capacity = 20, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+	@Operation(summary = "Authenticate user", description = "Verifies user credentials and issues short-lived Access Tokens and long-lived Refresh Tokens.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Authentication successful"),
+			@ApiResponse(responseCode = "401", description = "Bad credentials - Invalid email or password")
+	})
+	@PostMapping("/login")
+	public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+		return ResponseEntity.ok(userService.login(request));
+	}
+
+
+	@RateLimit(capacity = 10, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
+	@Operation(summary = "Refresh access token", description = "Provides a new, valid Access Token using a non-expired Refresh Token.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+			@ApiResponse(responseCode = "403", description = "Forbidden - Refresh token is expired or revoked")
+	})
+	@PostMapping("/refresh")
+	public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+		return ResponseEntity.ok(userService.refreshToken(request));
+	}
+
+
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP)
+	@Operation(summary = "Change account password", description = "Allows the logged-in user to change their password after validating the old one.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Password changed successfully"),
+			@ApiResponse(responseCode = "400", description = "Current password does not match or new password rules violated"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized")
+	})
+	@PostMapping("/change-password")
+	public ResponseEntity<String> changePassword(Principal principal,
+	                                             @Valid @RequestBody PasswordChangeRequest request) {
+		userService.changePassword(principal.getName(), request);
+		return ResponseEntity.ok("Password changed successfully");
+	}
+
+
+	@RateLimit(capacity = 10, durationInMinutes = 1, keyType = RateLimitKeyType.IP)
+	@Operation(summary = "Logout user", description = "Revokes and deletes the provided Refresh Token from the database to invalidate the session.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "204", description = "Logged out successfully"),
+			@ApiResponse(responseCode = "400", description = "Invalid request payload")
+	})
+	@PostMapping("/logout")
+	public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
+		userService.logout(request.getRefreshToken());
+		return ResponseEntity.noContent().build();
+	}
+
+
+	@RateLimit(capacity = 3, durationInMinutes = 60, keyType = RateLimitKeyType.EMAIL)
+	@Operation(summary = "Initiate password reset sequence", description = "Generates a secure token and sends a recovery link to the user's email if the account exists.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "If the email exists, a password reset link has been dispatched.")
+	})
+	@PostMapping("/forgot-password")
+	public ResponseEntity<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+		userService.processForgotPassword(request);
+		return ResponseEntity.ok("If the email is registered, a password reset link has been sent successfully.");
+	}
+
+
+	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP)
+	@Operation(summary = "Execute password reset", description = "Validates the security token and updates the user's account password.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Password reset successfully completed"),
+			@ApiResponse(responseCode = "400", description = "Token is expired or constraints failed"),
+			@ApiResponse(responseCode = "404", description = "Token not found")
+	})
+	@PostMapping("/reset-password")
+	public ResponseEntity<String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+		userService.processResetPassword(request);
+		return ResponseEntity.ok("Your password has been successfully reset. You can now log in.");
+	}
+
+
+	@RateLimit(capacity = 10, durationInMinutes = 15, keyType = RateLimitKeyType.IP)
+	@Operation(summary = "Authenticate with Google", description = "Validates Google ID Token and issues access/refresh tokens.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Authentication successful"),
+			@ApiResponse(responseCode = "401", description = "Invalid Google ID Token")
+	})
+	@PostMapping("/google")
+	public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+		return ResponseEntity.ok(userService.googleLogin(request));
+	}
+}

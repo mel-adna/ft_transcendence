@@ -1,0 +1,251 @@
+package com.teampulse.backend.service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.teampulse.backend.security.utils.EmailUtils;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.teampulse.backend.dto.request.WorkspaceCreateRequest;
+import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
+import com.teampulse.backend.dto.request.WorkspaceUpdateRequest;
+import com.teampulse.backend.dto.response.WorkspaceMemberResponse;
+import com.teampulse.backend.dto.response.WorkspaceResponse;
+import com.teampulse.backend.enums.WorkspaceMemberRole;
+import com.teampulse.backend.enums.WorkspaceType;
+import com.teampulse.backend.event.WorkspaceDeletedEvent;
+import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
+import com.teampulse.backend.event.WorkspaceUpdatedEvent;
+import com.teampulse.backend.exception.BadRequestException;
+import com.teampulse.backend.exception.ResourceNotFoundException;
+import com.teampulse.backend.exception.UnauthorizedAccessException;
+import com.teampulse.backend.mapper.WorkspaceMapper;
+import com.teampulse.backend.model.User;
+import com.teampulse.backend.model.Workspace;
+import com.teampulse.backend.model.WorkspaceMember;
+import com.teampulse.backend.model.WorkspaceMemberId;
+import com.teampulse.backend.repository.UserRepository;
+import com.teampulse.backend.repository.WorkspaceMemberRepository;
+import com.teampulse.backend.repository.WorkspaceRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
+public class WorkspaceService {
+	private final WorkspaceRepository workspaceRepository;
+	private final WorkspaceMemberRepository workspaceMemberRepository;
+	private final UserRepository userRepository;
+	private final WorkspaceMapper workspaceMapper;
+	private final ApplicationEventPublisher eventPublisher;
+
+	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
+		User creator = userRepository.findByEmail(creatorEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		boolean nameExits = workspaceRepository.existsByUserIdAndWorkspaceName(creator.getId(), request.getName());
+		if (nameExits)
+			throw new BadRequestException("You already own or belong to a workspace with the name: " + request.getName());
+
+		Workspace workspace = new Workspace();
+		workspace.setName(request.getName());
+		workspace.setDescription(request.getDescription());
+		workspace.setType(request.getType());
+		workspace.setOwner(creator);
+
+		Workspace savedWorkspace = workspaceRepository.save(workspace);
+
+		WorkspaceMemberId memberId = new WorkspaceMemberId(savedWorkspace.getId(), creator.getId());
+		WorkspaceMember admin = new WorkspaceMember();
+		admin.setId(memberId);
+		admin.setWorkspace(savedWorkspace);
+		admin.setUser(creator);
+		admin.setRole(WorkspaceMemberRole.ADMIN);
+
+		workspaceMemberRepository.save(admin);
+
+		return workspaceMapper.toResponse(savedWorkspace);
+	}
+
+	@Transactional(readOnly = true)
+	public List<WorkspaceResponse> getAllWorkSpaceForUser(String email) {
+		String cleanEmail = EmailUtils.normalize(email);
+		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail);
+
+		Map<String, Long> nameCounts = workspaces.stream()
+				.collect(Collectors.groupingBy(Workspace::getName, Collectors.counting()));
+
+		Map<String, Integer> nameOccurrences = new HashMap<>();
+
+		return workspaces.stream().map(ws -> {
+			WorkspaceResponse wsResponse = workspaceMapper.toResponse(ws);
+
+			String originalName = ws.getName();
+
+			if (nameCounts.get(originalName) > 1) {
+				int occurrence = nameOccurrences.getOrDefault(originalName, 0) + 1;
+				nameOccurrences.put(originalName, occurrence);
+
+				if (occurrence > 1) {
+					return wsResponse.toBuilder()
+							.name(originalName + "(" + occurrence + ")")
+							.build();
+				}
+			}
+			return wsResponse;
+		}).collect(Collectors.toList());
+	}
+
+	@Transactional(readOnly = true)
+	public WorkspaceResponse getWorkspaceById(UUID workspaceId, String email) {
+
+		if (workspaceId == null)
+			throw new BadRequestException("Workspace ID cannot be null");
+
+		String cleanEmail = EmailUtils.normalize(email);
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, cleanEmail);
+
+		if (!isMember)
+			throw new UnauthorizedAccessException("Access denied. You are not a member of this workspace.");
+
+		Workspace workspace = workspaceRepository.findById(workspaceId).orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
+
+		return workspaceMapper.toResponse(workspace);
+	}
+
+
+	@Transactional(readOnly = true)
+	public List<WorkspaceMemberResponse> getWorkspaceMembers(UUID workspaceId, String email) {
+		if (workspaceId == null)
+			throw new BadRequestException("Workspace ID cannot be null");
+
+		String cleanEmail = EmailUtils.normalize(email);
+		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, cleanEmail);
+		if (!isMember)
+			throw new UnauthorizedAccessException("You are not a member of this workspace.");
+
+		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
+
+		return members.stream()
+				.map(workspaceMapper::toMemberResponse)
+				.toList();
+	}
+
+
+	public WorkspaceResponse updateWorkspace(UUID workspaceId, String email, WorkspaceUpdateRequest request) {
+		if (workspaceId == null)
+			throw new BadRequestException("Workspace ID cannot be null");
+
+		verifyUserIsAdmin(workspaceId, email);
+
+		Workspace workspace = workspaceRepository.findById(workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
+		User admin = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		if (!workspace.getName().equalsIgnoreCase(request.getName())) {
+			boolean nameExits = workspaceRepository.existsByUserIdAndWorkspaceName(admin.getId(), request.getName());
+			if (nameExits)
+				throw new BadRequestException("You already have another workspace with the name: " + request.getName());
+		}
+
+		if (request.getType() == WorkspaceType.PERSONAL && workspace.getType() != WorkspaceType.PERSONAL) {
+			long memberCount = workspaceMemberRepository.countByWorkspaceId(workspaceId);
+			if (memberCount > 1)
+				throw new BadRequestException("Remove all members before changing to PERSONAL workspace.");
+		}
+
+		workspace.setName(request.getName());
+		workspace.setDescription(request.getDescription());
+		workspace.setType(request.getType());
+
+		Workspace updatedWorkspace = workspaceRepository.save(workspace);
+
+		eventPublisher.publishEvent(new WorkspaceUpdatedEvent(this, updatedWorkspace, admin));
+
+		return workspaceMapper.toResponse(updatedWorkspace);
+	}
+
+	public void deleteWorkspace(UUID workspaceId, String email) {
+		if (workspaceId == null)
+			throw new BadRequestException("Workspace ID cannot be null");
+
+		Workspace workspace = workspaceRepository.findById(workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
+		verifyUserIsAdmin(workspaceId, email);
+
+		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
+		List<UUID> memberIds = members.stream()
+				.map(m -> m.getUser().getId())
+				.toList();
+
+		String workspaceName = workspace.getName();
+
+		User admin = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		workspaceRepository.softDeleteById(workspaceId);
+
+		eventPublisher.publishEvent(new WorkspaceDeletedEvent(this, workspaceId, workspaceName, admin, memberIds));
+
+		log.info("Workspace with ID: {} has been soft-deleted successfully.", workspaceId);
+	}
+
+	public void updateMemberRole(UUID workspaceId, String adminEmail, WorkspaceMemberRoleUpdateRequest request) {
+		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
+		String cleanMemberEmail = EmailUtils.normalize(request.getEmail());
+
+		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
+
+		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanMemberEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User is not a member of this workspace"));
+
+		memberShip.setRole(request.getRole());
+		workspaceMemberRepository.save(memberShip);
+	}
+
+	public void removeMemberFromWorkspace(UUID workspaceId, String adminEmail, String memberEmail) {
+		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
+		String cleanMemberEmail = EmailUtils.normalize(memberEmail);
+
+		verifyUserIsAdmin(workspaceId, cleanAdminEmail);
+
+		if (cleanAdminEmail.equals(cleanMemberEmail))
+			throw new BadRequestException("Admins cannot remove themselves from the workspace. Delete the workspace instead.");
+
+		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanMemberEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User is not a member of this workspace"));
+
+		Workspace workspace = memberShip.getWorkspace();
+		User removedUser = memberShip.getUser();
+		User admin = userRepository.findByEmail(cleanAdminEmail).orElse(null);
+
+		workspaceMemberRepository.delete(Objects.requireNonNull(memberShip));
+
+		eventPublisher.publishEvent(new WorkspaceMemberRemovedEvent(this, workspace, removedUser, admin));
+
+		log.info("User {} was removed from workspace {} by admin {}",
+				EmailUtils.maskEmail(cleanMemberEmail), workspace.getName(), EmailUtils.maskEmail(cleanAdminEmail));
+	}
+
+	private void verifyUserIsAdmin(UUID workspaceId, String email) {
+		String cleanEmail = EmailUtils.normalize(email);
+
+		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanEmail)
+				.orElseThrow(() -> new UnauthorizedAccessException("Access denied. You are not part of this workspace."));
+
+		if (member.getRole() != WorkspaceMemberRole.ADMIN)
+			throw new UnauthorizedAccessException("Only workspace ADMINs can perform this action!");
+	}
+}

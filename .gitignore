@@ -3,11 +3,11 @@
 # ==========================================
 
 # 🔒 Secrets & Credentials
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# .env
+# .env.local
+# .env.development.local
+# .env.test.local
+# .env.production.local
 *.pem
 *.key
 *.pub
@@ -77,3 +77,10 @@ logs
 *.sqlite
 .pnp
 .pnp.js
+
+.vscode
+
+
+# secrets/*.txt
+# !secrets/*.txt.example
+# .env

@@ -1,0 +1,161 @@
+import { useEffect, useRef, useState } from 'react';
+import { MoreVertical, Pencil, Trash2, ArrowRight, CalendarDays } from 'lucide-react';
+import Avatar from '../../components/Avatar';
+import {
+  taskRef,
+  shortDate,
+  PRIORITY_STYLE,
+  PRIORITY_LABEL,
+  STATUS_LABEL,
+  STATUSES,
+} from './taskFormat';
+import { personName } from '../../lib/people';
+
+export default function TaskCard({ task, onEdit, onDelete, onMove, onOpen }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setMenuOpen(false);
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
+
+  const isDone = task.status === 'DONE';
+  const otherStatuses = STATUSES.filter((status) => status !== task.status);
+  const created = shortDate(task.createdAt);
+
+  function handleDragStart(event) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(task.id));
+  }
+
+  function runAction(action) {
+    setMenuOpen(false);
+    action();
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${task.title}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className="cursor-grab rounded-xl border border-card bg-panel p-4 shadow-sm transition-colors hover:border-primary/40 focus:border-primary focus:outline-none active:cursor-grabbing"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
+            PRIORITY_STYLE[task.priority] ?? PRIORITY_STYLE.LOW
+          }`}
+        >
+          {PRIORITY_LABEL[task.priority] ?? task.priority}
+        </span>
+
+        <div className="relative shrink-0" ref={menuRef} onClick={(event) => event.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label="Task actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="rounded-md p-1 text-muted transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <MoreVertical size={16} />
+          </button>
+
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-7 z-10 w-44 overflow-hidden rounded-lg border border-card bg-canvas py-1 shadow-xl"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runAction(onEdit)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-white hover:bg-white/5"
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
+
+              {otherStatuses.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => runAction(() => onMove(status))}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-white hover:bg-white/5"
+                >
+                  <ArrowRight size={14} />
+                  Move to {STATUS_LABEL[status]}
+                </button>
+              ))}
+
+              <div className="my-1 border-t border-card" />
+
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => runAction(onDelete)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger hover:bg-danger/10"
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <h3
+        className={`mt-3 text-sm font-bold ${isDone ? 'text-muted line-through' : 'text-white'}`}
+      >
+        {task.title}
+      </h3>
+
+      {task.description && (
+        <p className="mt-1.5 line-clamp-2 text-xs text-muted">{task.description}</p>
+      )}
+
+      <div className="mt-4 flex items-center gap-3 border-t border-card pt-3">
+        {created && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
+            <CalendarDays size={13} />
+            {created}
+          </span>
+        )}
+        <span className="ml-auto font-mono text-[11px] text-muted">{taskRef(task)}</span>
+        {task.assignee && (
+          <>
+            <Avatar user={task.assignee} size={26} />
+            <span className="sr-only">{personName(task.assignee)}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
