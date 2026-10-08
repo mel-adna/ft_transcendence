@@ -1,0 +1,109 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id              String       @id @default(uuid())
+  // Display name only — NOT an identity key. Two different Java accounts can
+  // legitimately share one (two people named "Said", or two emails whose
+  // local-part happens to match: test@gmail.com vs test@yahoo.com). `id`
+  // (the Java account's UUID) is the only thing this service treats as
+  // unique per person; a duplicate username must never fail a chat request.
+  username        String
+  email           String       @unique
+  passwordHash    String
+  avatarUrl       String?
+  presenceStatus  String       @default("OFFLINE") // ONLINE | OFFLINE | AWAY
+  lastSeenAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sentMessages    Message[]
+  roomMemberships RoomMember[]
+  readReceipts    ReadReceipt[]
+
+  @@index([presenceStatus])
+}
+
+// ─── ROOM ─────────────────────────────────────────────────────────────────
+
+model Room {
+  id        String       @id @default(uuid())
+  name      String?
+  type      String       @default("GROUP") // GROUP | DIRECT
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  members      RoomMember[]
+  messages     Message[]
+  readReceipts ReadReceipt[]
+
+  @@index([type])
+}
+
+// ─── ROOM MEMBERSHIP ──────────────────────────────────────────────────────
+
+model RoomMember {
+  roomId    String
+  userId    String
+  role      String   @default("MEMBER") // MEMBER | ADMIN | OWNER
+  status    String   @default("ACCEPTED") // PENDING | ACCEPTED
+  joinedAt  DateTime @default(now())
+
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId])
+  @@index([status])
+}
+
+// ─── MESSAGE ──────────────────────────────────────────────────────────────
+
+model Message {
+  id        String    @id @default(uuid())
+  roomId    String
+  senderId  String
+  content   String    @db.VarChar(4000)
+  type      String    @default("TEXT") // TEXT | IMAGE | FILE | SYSTEM
+  parentId  String?   // thread/reply reference (self-relation)
+  isEdited  Boolean   @default(false)
+  deletedAt DateTime? // soft delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender    User      @relation(fields: [senderId], references: [id])
+  parent    Message?  @relation("MessageThread", fields: [parentId], references: [id])
+  replies   Message[] @relation("MessageThread")
+  readReceipts ReadReceipt[] @relation("ReadReceiptMessage")
+
+  @@index([roomId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([parentId])
+}
+
+// ─── READ RECEIPT ─────────────────────────────────────────────────────────
+// One row per (room, user): tracks the last message a user has read in a room.
+// Drives unread counts and read-status indicators.
+
+model ReadReceipt {
+  roomId            String
+  userId            String
+  lastReadMessageId String?
+  readAt            DateTime @default(now())
+
+  room            Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadMessage Message? @relation("ReadReceiptMessage", fields: [lastReadMessageId], references: [id], onDelete: SetNull)
+
+  @@id([roomId, userId])
+  @@index([userId])
+}
