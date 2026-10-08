@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -25,6 +25,8 @@ import {
   BarChart3,
   TrendingUp,
   Users,
+  FileDown,
+  Loader2,
 } from 'lucide-react';
 import { useWorkspaceStats } from './useWorkspaceStats';
 import { buildActivityFeed } from './activityLog';
@@ -39,7 +41,24 @@ const CHART = {
   primary: '#3B82F6',
   muted: '#71717A',
   panel: '#181824',
+  canvas: '#0c0c14',
   mutedLine: 'rgba(113, 113, 122, 0.2)',
+};
+
+const TOOLTIP_STYLE = {
+  background: CHART.panel,
+  border: `1px solid ${CHART.mutedLine}`,
+  borderRadius: '12px',
+  color: '#fff',
+};
+
+const AXIS_PROPS = {
+  stroke: CHART.muted,
+  opacity: 0.8,
+  fontSize: 11,
+  fontWeight: 600,
+  tickLine: false,
+  axisLine: false,
 };
 
 const RANGE_OPTIONS = [
@@ -48,6 +67,28 @@ const RANGE_OPTIONS = [
   { value: 30, label: '30 Days' },
   { value: 0, label: 'All Time' },
 ];
+
+const STATUS_FILTERS = [
+  { value: 'TODO', label: 'To Do' },
+  { value: 'DOING', label: 'In Progress' },
+  { value: 'DONE', label: 'Done' },
+];
+
+const PRIORITY_FILTERS = [
+  { value: 'LOW', label: 'Low' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'HIGH', label: 'High' },
+];
+
+const NO_FILTERS = { status: '', priority: '', assigneeId: '' };
+
+const controlClass =
+  'rounded-lg border border-muted/20 bg-canvas/60 px-2 py-1 text-xs font-semibold text-white focus:border-primary focus:outline-none';
+
+// <input type="date"> needs YYYY-MM-DD in local time; the en-CA locale uses that format.
+function toDateInput(date) {
+  return date.toLocaleDateString('en-CA');
+}
 
 const TONE_STYLE = {
   done: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
@@ -111,6 +152,45 @@ function StatCard({ icon: Icon, label, value, badge, subtitle }) {
   );
 }
 
+// One filter <select>: an "All" option followed by the given { value, label } options.
+function FilterSelect({ label, allLabel, value, options, onChange, className = '' }) {
+  return (
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      aria-label={label}
+      className={`${controlClass} ${className}`}
+    >
+      <option value="">{allLabel}</option>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>{option.label}</option>
+      ))}
+    </select>
+  );
+}
+
+// Legend under a chart: color dot, name, count and share of all tasks.
+function ChartLegend({ items, total }) {
+  return (
+    <div className="mt-4 grid grid-cols-3 gap-2 border-t border-card/60 pt-3 text-center">
+      {items.map((item) => (
+        <div key={item.key} className="flex flex-col items-center">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-[11px] font-semibold text-muted">{item.name}</span>
+          </div>
+          <span className="mt-1 text-sm font-bold text-white">{item.value}</span>
+          <span className="text-[10px] text-muted">{Math.round((item.value / total) * 100)}%</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function labelOf(options, value) {
+  return options.find((option) => option.value === value)?.label;
+}
+
 export default function StatsDashboard({
   workspaceId,
   activityLogs,
@@ -118,8 +198,88 @@ export default function StatsDashboard({
   activityError,
   onRetryActivity,
 }) {
-  const [range, setRange] = useState(7);
-  const { stats, loading: statsLoading } = useWorkspaceStats(workspaceId, range);
+  const [range, setRange] = useState(7); // preset days (0 = All Time) or 'custom'
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [filters, setFilters] = useState(NO_FILTERS);
+  const [filtersWorkspaceId, setFiltersWorkspaceId] = useState(workspaceId);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(false);
+  const dashboardRef = useRef(null);
+
+  // A member from the previous workspace is not valid in the new one.
+  if (filtersWorkspaceId !== workspaceId) {
+    setFiltersWorkspaceId(workspaceId);
+    setFilters(NO_FILTERS);
+  }
+
+  // Everything is sent to the backend; empty filters are left out of the query.
+  const params = useMemo(
+    () => ({
+      ...(range === 'custom' ? { from, to } : { days: range }),
+      status: filters.status || undefined,
+      priority: filters.priority || undefined,
+      assigneeId: filters.assigneeId || undefined,
+    }),
+    [range, from, to, filters],
+  );
+
+  const {
+    stats,
+    loading: statsLoading,
+    error: statsError,
+    reload: reloadStats,
+  } = useWorkspaceStats(workspaceId, params);
+
+  function selectCustomRange() {
+    if (!from) {
+      const start = new Date();
+      start.setDate(start.getDate() - 6);
+      setFrom(toDateInput(start));
+      setTo(toDateInput(new Date()));
+    }
+    setRange('custom');
+  }
+
+  function updateFilter(name, value) {
+    setFilters((previous) => ({ ...previous, [name]: value }));
+  }
+
+  function clearFilters() {
+    setFilters(NO_FILTERS);
+  }
+
+  async function handleExportPdf() {
+    const node = dashboardRef.current;
+    if (!node) return;
+    setExporting(true);
+    setExportError(false);
+    try {
+      // Loaded on click so the PDF libraries stay out of the main bundle.
+      const [{ toJpeg }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
+      // JPEG is embedded as-is by jsPDF; a PNG is re-encoded and makes the file ~50x larger.
+      const image = await toJpeg(node, {
+        backgroundColor: CHART.canvas,
+        pixelRatio: 2,
+        quality: 0.92,
+        filter: (element) => element.dataset?.pdfIgnore === undefined,
+      });
+      // One page sized to the dashboard keeps charts and tables unsplit.
+      const width = node.offsetWidth;
+      const height = node.offsetHeight;
+      const pdf = new jsPDF({
+        orientation: width > height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [width, height],
+      });
+      pdf.addImage(image, 'JPEG', 0, 0, width, height);
+      pdf.save('team-pulse-analytics.pdf');
+    } catch {
+      setExportError(true);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const activity = useMemo(() => buildActivityFeed(activityLogs), [activityLogs]);
 
@@ -131,58 +291,149 @@ export default function StatsDashboard({
   const tasksCompletedInPeriod = stats.tasksCompletedInPeriod ?? 0;
   const averageCompletedPerDay = stats.averageCompletedPerDay ?? 0;
 
-  // Status Distribution Data
-  const statusData = useMemo(() => {
-    const dist = stats.statusDistribution ?? { todo: 0, inProgress: 0, completed: 0 };
-    return [
-      { key: 'TODO', name: 'To Do', value: dist.todo ?? 0, color: STATUS_COLORS.TODO },
-      { key: 'DOING', name: 'In Progress', value: dist.inProgress ?? 0, color: STATUS_COLORS.DOING },
-      { key: 'DONE', name: 'Done', value: dist.completed ?? 0, color: STATUS_COLORS.DONE },
-    ];
-  }, [stats.statusDistribution]);
+  const statusDist = stats.statusDistribution ?? {};
+  const statusData = [
+    { key: 'TODO', name: 'To Do', value: statusDist.todo ?? 0, color: STATUS_COLORS.TODO },
+    { key: 'DOING', name: 'In Progress', value: statusDist.inProgress ?? 0, color: STATUS_COLORS.DOING },
+    { key: 'DONE', name: 'Done', value: statusDist.completed ?? 0, color: STATUS_COLORS.DONE },
+  ];
 
-  // Priority Distribution Data
-  const priorityData = useMemo(() => {
-    const dist = stats.priorityDistribution ?? { low: 0, medium: 0, high: 0 };
-    return [
-      { key: 'LOW', name: 'Low', count: dist.low ?? 0, color: PRIORITY_COLORS.LOW },
-      { key: 'MEDIUM', name: 'Medium', count: dist.medium ?? 0, color: PRIORITY_COLORS.MEDIUM },
-      { key: 'HIGH', name: 'High', count: dist.high ?? 0, color: PRIORITY_COLORS.HIGH },
-    ];
-  }, [stats.priorityDistribution]);
+  const priorityDist = stats.priorityDistribution ?? {};
+  const priorityData = [
+    { key: 'LOW', name: 'Low', value: priorityDist.low ?? 0, color: PRIORITY_COLORS.LOW },
+    { key: 'MEDIUM', name: 'Medium', value: priorityDist.medium ?? 0, color: PRIORITY_COLORS.MEDIUM },
+    { key: 'HIGH', name: 'High', value: priorityDist.high ?? 0, color: PRIORITY_COLORS.HIGH },
+  ];
 
-  // Member stats array
   const memberStats = stats.memberStats ?? [];
+  const memberOptions = memberStats
+    .filter((member) => member.userId != null)
+    .map((member) => ({ value: member.userId, label: member.name }));
 
-  const rangeLabel = RANGE_OPTIONS.find((opt) => opt.value === range)?.label ?? `${range} Days`;
+  const rangeLabel =
+    range === 'custom'
+      ? `${from} to ${to}`
+      : RANGE_OPTIONS.find((opt) => opt.value === range)?.label ?? `${range} Days`;
+
+  const filterLabel =
+    [
+      labelOf(STATUS_FILTERS, filters.status),
+      labelOf(PRIORITY_FILTERS, filters.priority),
+      labelOf(memberOptions, filters.assigneeId),
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'All tasks';
 
   return (
-    <div className="space-y-5 text-left">
-      {/* Date Range Selector Header */}
-      <div className="flex flex-col gap-2.5 rounded-2xl border border-card bg-panel px-4 py-3 sm:px-5 sm:py-3.5 shadow-lg sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-sm sm:text-base font-bold text-white">Performance Metrics</h2>
-          <p className="text-xs text-muted">
-            Viewing workspace data for <span className="font-semibold text-primary">{rangeLabel}</span>
-          </p>
+    <div ref={dashboardRef} className="space-y-5 text-left">
+      {/* Date Range & Filters Header */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-card bg-panel px-4 py-3 sm:px-5 sm:py-3.5 shadow-lg">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm sm:text-base font-bold text-white">Performance Metrics</h2>
+            <p className="text-xs text-muted">
+              Viewing workspace data for <span className="font-semibold text-primary">{rangeLabel}</span>
+              {' · '}
+              <span className="font-semibold text-slate-200">{filterLabel}</span>
+            </p>
+          </div>
+          <div data-pdf-ignore className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-muted/20 bg-canvas/60 p-1">
+              {[...RANGE_OPTIONS, { value: 'custom', label: 'Custom' }].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => (option.value === 'custom' ? selectCustomRange() : setRange(option.value))}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                    range === option.value
+                      ? 'border border-muted/20 bg-panel text-primary shadow-xs'
+                      : 'text-muted hover:text-slate-200'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {range === 'custom' && (
+              <div className="flex items-center gap-1.5 text-xs text-muted">
+                <input
+                  type="date"
+                  value={from}
+                  max={to}
+                  onChange={(event) => event.target.value && setFrom(event.target.value)}
+                  aria-label="Start date"
+                  className={controlClass}
+                />
+                <span>to</span>
+                <input
+                  type="date"
+                  value={to}
+                  min={from}
+                  onChange={(event) => event.target.value && setTo(event.target.value)}
+                  aria-label="End date"
+                  className={controlClass}
+                />
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1 self-start rounded-xl border border-muted/20 bg-canvas/60 p-1 sm:self-auto">
-          {RANGE_OPTIONS.map((option) => (
+
+        <div data-pdf-ignore className="flex flex-wrap items-center gap-2">
+          <FilterSelect
+            label="Filter by status"
+            allLabel="All statuses"
+            value={filters.status}
+            options={STATUS_FILTERS}
+            onChange={(value) => updateFilter('status', value)}
+          />
+          <FilterSelect
+            label="Filter by priority"
+            allLabel="All priorities"
+            value={filters.priority}
+            options={PRIORITY_FILTERS}
+            onChange={(value) => updateFilter('priority', value)}
+          />
+          <FilterSelect
+            label="Filter by member"
+            allLabel="All members"
+            value={filters.assigneeId}
+            options={memberOptions}
+            onChange={(value) => updateFilter('assigneeId', value)}
+            className="max-w-[11rem]"
+          />
+          {(filters.status || filters.priority || filters.assigneeId) && (
             <button
-              key={option.value}
               type="button"
-              onClick={() => setRange(option.value)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
-                range === option.value
-                  ? 'border border-muted/20 bg-panel text-primary shadow-xs'
-                  : 'text-muted hover:text-slate-200'
-              }`}
+              onClick={clearFilters}
+              className="text-xs font-semibold text-muted transition-colors hover:text-white cursor-pointer"
             >
-              {option.label}
+              Clear
             </button>
-          ))}
+          )}
+          <div className="flex items-center gap-2 sm:ml-auto">
+            {exportError && <span className="text-xs text-rose-300">PDF export failed</span>}
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-muted/30 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+            >
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <FileDown size={13} />}
+              <span>Export PDF</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {statsError && (
+        <div className="rounded-2xl border border-card bg-panel p-5 shadow-lg">
+          <ErrorState
+            title="Could not load analytics"
+            error={statsError}
+            onRetry={() => reloadStats()}
+          />
+        </div>
+      )}
 
       {/* Top Derived Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
@@ -258,33 +509,18 @@ export default function StatsDashboard({
                   <CartesianGrid strokeDasharray="3 3" stroke={CHART.muted} opacity={0.12} vertical={false} />
                   <XAxis
                     dataKey="label"
-                    stroke={CHART.muted}
-                    opacity={0.8}
-                    fontSize={11}
-                    fontWeight={600}
-                    tickLine={false}
-                    axisLine={false}
+                    {...AXIS_PROPS}
                     dy={10}
                   />
                   <YAxis
                     allowDecimals={false}
                     domain={[0, 'auto']}
-                    stroke={CHART.muted}
-                    opacity={0.8}
-                    fontSize={11}
-                    fontWeight={600}
-                    tickLine={false}
-                    axisLine={false}
+                    {...AXIS_PROPS}
                     dx={-10}
                     width={30}
                   />
                   <Tooltip
-                    contentStyle={{
-                      background: CHART.panel,
-                      border: `1px solid ${CHART.mutedLine}`,
-                      borderRadius: '12px',
-                      color: '#fff',
-                    }}
+                    contentStyle={TOOLTIP_STYLE}
                     labelStyle={{ color: CHART.muted }}
                   />
                   <Area
@@ -326,12 +562,7 @@ export default function StatsDashboard({
                 <ResponsiveContainer width="100%" height={170}>
                   <PieChart>
                     <Tooltip
-                      contentStyle={{
-                        background: CHART.panel,
-                        border: `1px solid ${CHART.mutedLine}`,
-                        borderRadius: '12px',
-                        color: '#fff',
-                      }}
+                      contentStyle={TOOLTIP_STYLE}
                       formatter={(val, name) => [`${val} task${val === 1 ? '' : 's'}`, name]}
                     />
                     <Pie
@@ -354,22 +585,7 @@ export default function StatsDashboard({
             )}
           </div>
 
-          {totalTasks > 0 && (
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-card/60 pt-3 text-center">
-              {statusData.map((item) => (
-                <div key={item.key} className="flex flex-col items-center">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-[11px] font-semibold text-muted">{item.name}</span>
-                  </div>
-                  <span className="mt-1 text-sm font-bold text-white">{item.value}</span>
-                  <span className="text-[10px] text-muted">
-                    {totalTasks > 0 ? `${Math.round((item.value / totalTasks) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {totalTasks > 0 && <ChartLegend items={statusData} total={totalTasks} />}
         </div>
       </div>
 
@@ -404,36 +620,21 @@ export default function StatsDashboard({
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.muted} opacity={0.12} vertical={false} />
                     <XAxis
                       dataKey="name"
-                      stroke={CHART.muted}
-                      opacity={0.8}
-                      fontSize={11}
-                      fontWeight={600}
-                      tickLine={false}
-                      axisLine={false}
+                      {...AXIS_PROPS}
                       dy={8}
                     />
                     <YAxis
                       allowDecimals={false}
                       domain={[0, 'auto']}
-                      stroke={CHART.muted}
-                      opacity={0.8}
-                      fontSize={11}
-                      fontWeight={600}
-                      tickLine={false}
-                      axisLine={false}
+                      {...AXIS_PROPS}
                       width={30}
                     />
                     <Tooltip
-                      contentStyle={{
-                        background: CHART.panel,
-                        border: `1px solid ${CHART.mutedLine}`,
-                        borderRadius: '12px',
-                        color: '#fff',
-                      }}
+                      contentStyle={TOOLTIP_STYLE}
                       labelStyle={{ color: CHART.muted }}
                       formatter={(val) => [`${val} task${val === 1 ? '' : 's'}`, 'Count']}
                     />
-                    <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                       {priorityData.map((entry) => (
                         <Cell key={entry.key} fill={entry.color} />
                       ))}
@@ -444,22 +645,7 @@ export default function StatsDashboard({
             )}
           </div>
 
-          {totalTasks > 0 && (
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-card/60 pt-3 text-center">
-              {priorityData.map((item) => (
-                <div key={item.key} className="flex flex-col items-center">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-[11px] font-semibold text-muted">{item.name}</span>
-                  </div>
-                  <span className="mt-1 text-sm font-bold text-white">{item.count}</span>
-                  <span className="text-[10px] text-muted">
-                    {totalTasks > 0 ? `${Math.round((item.count / totalTasks) * 100)}%` : '0%'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {totalTasks > 0 && <ChartLegend items={priorityData} total={totalTasks} />}
         </div>
 
         {/* Recent Activity Feed */}
