@@ -18,7 +18,7 @@ public class VerificationCode {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	UUID id;
 
-	@Column(nullable = false, length = 6)
+	@Column(nullable = false, length = 64)
 	private String code;
 
 	@OneToOne

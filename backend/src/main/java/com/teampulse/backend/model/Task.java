@@ -24,6 +24,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import javax.annotation.Nullable;
+
 @Entity
 @Table(name="tasks")
 @Getter
@@ -56,11 +58,13 @@ public class Task {
 	private TaskPriority priority = TaskPriority.MEDIUM;
 
 	@NotFound(action = NotFoundAction.IGNORE)
+	@Nullable
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="assignee_id")
 	private User assignee;
 
 	@NotFound(action = NotFoundAction.IGNORE)
+	@Nullable
 	@ManyToOne(fetch=FetchType.LAZY)
 	@JoinColumn(name="creator_id", updatable = false)
 	private User creator;
