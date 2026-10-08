@@ -103,8 +103,8 @@ app:
   frontend-url: ${FRONTEND_URL}
   jwt:
     secret: ${JWT_SECRET}
-    access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
-    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:259200000}
+    access-expiration-ms: ${JWT_ACCESS_EXPIRATION}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION}
 
   redis:
     channel: ${REDIS_CHANNEL:teampulse-realtime-events}
