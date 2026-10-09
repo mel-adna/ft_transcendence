@@ -16,9 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.Base64;
-import java.util.UUID;
 import java.security.SecureRandom;
-import java.util.Base64;
 
 
 @Slf4j
@@ -70,10 +68,8 @@ public class RefreshTokenService {
 
 		String tokenHash = DigestUtils.sha256Hex(rawTokenStr);
 
-		// F03 Fix: Use pessimistic lock to prevent concurrent execution races
 		RefreshToken token = refreshTokenRepository.findForRotationByHash(tokenHash)
 				.orElseThrow(() -> {
-					// F02 Fix: Do NOT log the raw token or hash value in warning logs
 					log.warn("Refresh token validation failed: Token not found in database.");
 					return new UnauthorizedAccessException("Invalid or expired refresh token. Please log in again.");
 				});

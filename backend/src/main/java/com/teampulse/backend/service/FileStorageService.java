@@ -63,7 +63,7 @@ public class FileStorageService {
 		}
 	}
 
-	public String uploadAvatar(MultipartFile file) {
+	public String uploadAvatar(UUID userId, MultipartFile file) {
 		if (file == null || file.isEmpty())
 			throw new BadRequestException("File cannot be empty");
 
@@ -81,19 +81,19 @@ public class FileStorageService {
 					? originalFileName.substring(originalFileName.lastIndexOf(".")).toLowerCase(Locale.ROOT)
 					: ".jpg";
 
-			String fileName = "avatar-" + UUID.randomUUID() + extension;
+			String objectKey = "users/" + userId + "/avatars/avatar-" + UUID.randomUUID() + extension;
 
 			try (InputStream input = file.getInputStream()) {
 				minioClient.putObject(
 						PutObjectArgs.builder()
 								.bucket(bucketName)
-								.object(fileName)
+								.object(objectKey)
 								.stream(input, file.getSize(), -1)
 								.contentType(file.getContentType())
 								.build());
 			}
 
-			return String.format("%s/%s/%s", publicUrl, bucketName, fileName);
+			return String.format("%s/%s/%s", publicUrl, bucketName, objectKey);
 
 		} catch (Exception e) {
 			log.error("Error uploading image to MinIO: {}", e.getMessage(), e);
@@ -101,21 +101,34 @@ public class FileStorageService {
 		}
 	}
 
-	public void deleteAvatar(String avatarUrl) {
+	public void deleteAvatar(UUID userId, String avatarUrl) {
 		if (avatarUrl == null || avatarUrl.isBlank()) {
 			return;
 		}
 
 		try {
-			String fileName = avatarUrl.substring(avatarUrl.lastIndexOf('/') + 1);
+			String prefix = publicUrl + "/" + bucketName + "/";
+			String objectKey;
+
+			if (avatarUrl.startsWith(prefix)) {
+				objectKey = avatarUrl.substring(prefix.length());
+			} else {
+				objectKey = avatarUrl.substring(avatarUrl.lastIndexOf('/') + 1);
+			}
+
+			String expectedPrefix = "users/" + userId + "/avatars/";
+			if (!objectKey.startsWith(expectedPrefix)) {
+				log.warn("Security rejection: Attempted to delete unowned avatar object [{}] for user [{}]", objectKey, userId);
+				return;
+			}
 
 			minioClient.removeObject(
 					RemoveObjectArgs.builder()
 							.bucket(bucketName)
-							.object(fileName)
+							.object(objectKey)
 							.build()
 			);
-			log.info("Successfully deleted avatar object [{}] from MinIO.", fileName);
+			log.info("Successfully deleted avatar object [{}] from MinIO.", objectKey);
 		} catch (Exception e) {
 			log.warn("Failed to delete avatar object from MinIO: {}", e.getMessage());
 		}

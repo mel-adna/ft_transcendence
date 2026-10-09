@@ -427,7 +427,7 @@ public class UserService {
 		user.setDeleted(true);
 
 		if (user.getAvatarUrl() != null)
-			fileStorageService.deleteAvatar(user.getAvatarUrl());
+			fileStorageService.deleteAvatar(userId, user.getAvatarUrl());
 
 		user.setAvatarUrl(null);
 		userRepository.save(user);
@@ -488,13 +488,13 @@ public class UserService {
 
 		if (user.getAvatarUrl() != null && user.getAvatarUrl().contains("/avatars/")) {
 			try {
-				fileStorageService.deleteAvatar(user.getAvatarUrl());
+				fileStorageService.deleteAvatar(userId, user.getAvatarUrl());
 			} catch (Exception e) {
 				log.warn("Failed to delete old avatar for user [{}]: {}", userId, e.getMessage());
 			}
 		}
 
-		String avatarUrl = fileStorageService.uploadAvatar(file);
+		String avatarUrl = fileStorageService.uploadAvatar(userId, file);
 		user.setAvatarUrl(avatarUrl);
 		User updatedUser = userRepository.save(user);
 
