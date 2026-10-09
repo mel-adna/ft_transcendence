@@ -1,6 +1,5 @@
 package com.teampulse.backend.repository;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -30,5 +29,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
 	@Modifying
 	@Query("DELETE FROM User u WHERE u.id IN :userIds")
-	int deleteByIdIn(@Param("userIds") List<UUID> userIds);
+	void deleteByIdIn(@Param("userIds") List<UUID> userIds);
 }

@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -150,18 +149,18 @@ public class WorkspaceInvitationService {
 		invitation.setStatus(InvitationStatus.ACCEPTED);
 		invitationRepository.save(invitation);
 
-		WorkspaceMemberId memberId = new WorkspaceMemberId(invitation.getWorkspace().getId(), invitee.getId());
+		WorkspaceMemberId memberId = new WorkspaceMemberId(workspace.getId(), invitee.getId());
 		WorkspaceMember newMember = new WorkspaceMember();
 		newMember.setId(memberId);
-		newMember.setWorkspace(invitation.getWorkspace());
+		newMember.setWorkspace(workspace);
 		newMember.setUser(invitee);
 		newMember.setRole(invitation.getRole() != null ? invitation.getRole() : WorkspaceMemberRole.MEMBER);
 
 		workspaceMemberRepository.save(newMember);
 
-		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, invitation.getWorkspace(), invitation, invitee));
+		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, workspace, invitation, invitee));
 
-		log.info("User {} accepted invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), invitation.getWorkspace().getName());
+		log.info("User {} accepted invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), workspace.getName());
 	}
 
 
