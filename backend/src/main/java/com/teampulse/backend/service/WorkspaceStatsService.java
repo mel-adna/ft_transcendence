@@ -31,6 +31,7 @@ import java.util.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class WorkspaceStatsService {
 
 	private final WorkspaceRepository workspaceRepository;

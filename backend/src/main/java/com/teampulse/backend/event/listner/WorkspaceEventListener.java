@@ -11,7 +11,8 @@ import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -33,7 +34,7 @@ public class WorkspaceEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceUpdatedEvent(WorkspaceUpdatedEvent event) {
 		UUID adminId = event.getUser() != null ? event.getUser().getId() : null;
 		String adminName = getSafeAdminName(event.getUser());
@@ -70,7 +71,7 @@ public class WorkspaceEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceDeletedEvent(WorkspaceDeletedEvent event) {
 		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;
 		String adminName = getSafeAdminName(event.getAdmin());
@@ -104,7 +105,7 @@ public class WorkspaceEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceMemberRemovedEvent(WorkspaceMemberRemovedEvent event) {
 		String adminName = getSafeAdminName(event.getAdmin());
 		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;

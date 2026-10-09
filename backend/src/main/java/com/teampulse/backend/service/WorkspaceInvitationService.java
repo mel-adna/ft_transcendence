@@ -37,8 +37,8 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class WorkspaceInvitationService {
-
 	private final WorkspaceInvitationRepository invitationRepository;
 	private final WorkspaceRepository workspaceRepository;
 	private final UserRepository userRepository;
@@ -49,7 +49,6 @@ public class WorkspaceInvitationService {
 	private static final int INVITATION_EXPIRY_DAYS = 7;
 
 
-	@Transactional
 	public WorkspaceInvitationResponse sendInvitation(UUID workspaceId, SendInvitationRequest request, String inviterEmail) {
 		if (workspaceId == null) {
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -133,7 +132,6 @@ public class WorkspaceInvitationService {
 	}
 
 
-	@Transactional
 	public void acceptInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
 
@@ -164,7 +162,6 @@ public class WorkspaceInvitationService {
 	}
 
 
-	@Transactional
 	public void rejectInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
 
@@ -177,7 +174,6 @@ public class WorkspaceInvitationService {
 	}
 
 
-	@Transactional
 	public void cancelInvitation(UUID workspaceId, UUID invitationId, String adminEmail) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
 

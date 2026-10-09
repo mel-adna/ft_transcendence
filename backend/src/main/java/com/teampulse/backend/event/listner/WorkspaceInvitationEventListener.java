@@ -10,7 +10,8 @@ import com.teampulse.backend.service.ActivityLogService;
 import com.teampulse.backend.service.EmailService;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,7 +41,7 @@ public class WorkspaceInvitationEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceInvitationSentEvent(WorkspaceInvitationSentEvent event) {
 		User inviter = event.getInviter();
 		String inviterName = getSafeFullName(inviter);
@@ -112,7 +113,7 @@ public class WorkspaceInvitationEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceInvitationAcceptedEvent(WorkspaceInvitationAcceptedEvent event) {
 		String inviteeName = getSafeFullName(event.getInvitee());
 		String workspaceName = event.getWorkspace().getName();
