@@ -14,5 +14,5 @@ import org.springframework.stereotype.Repository;
 public interface ActivityLogRepository extends JpaRepository<ActivityLog, UUID> {
 	Slice<ActivityLog> findByWorkspaceIdOrderByCreatedAtDesc(UUID workspaceId, Pageable pageable);
 	Slice<ActivityLog> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
-	Slice<ActivityLog> findByEntityIdOrderByCreatedAtDesc(UUID entityId, Pageable pageable);
+	Slice<ActivityLog> findByWorkspaceIdAndEntityIdOrderByCreatedAtDesc(UUID workspaceId, UUID entityId, Pageable pageable);
 }

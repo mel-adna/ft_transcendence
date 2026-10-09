@@ -137,12 +137,13 @@ public class UserService {
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
 		String accessToken = jwtUtils.generateToken(userPrincipal);
-		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user,
+
+		RefreshTokenService.RefreshTokenResult tokenResult = refreshTokenService.createRefreshToken(user,
 				ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 		return AuthResponse.builder()
 				.accessToken(accessToken)
-				.refreshToken(refreshToken.getToken())
+				.refreshToken(tokenResult.getRawToken())
 				.user(userMapper.toResponse(user))
 				.build();
 	}
@@ -164,12 +165,13 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+
+			RefreshTokenService.RefreshTokenResult tokenResult = refreshTokenService.createRefreshToken(
 					user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
-					.refreshToken(refreshToken.getToken())
+					.refreshToken(tokenResult.getRawToken())
 					.user(userMapper.toResponse(user))
 					.build();
 
@@ -194,12 +196,11 @@ public class UserService {
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 
-		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(
+		RefreshToken verifiedToken = refreshTokenService.verifyAndRotateToken(
 				tokenStr, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 		User user = verifiedToken.getUser();
 
-		refreshTokenService.deleteByToken(tokenStr);
-		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+		RefreshTokenService.RefreshTokenResult newTokenResult = refreshTokenService.createRefreshToken(
 				user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
@@ -207,14 +208,14 @@ public class UserService {
 
 		return AuthResponse.builder()
 				.accessToken(newAccessToken)
-				.refreshToken(newRefreshToken.getToken())
+				.refreshToken(newTokenResult.getRawToken())
 				.user(userMapper.toResponse(user))
 				.build();
 	}
 
 	public void logout(String refreshToken) {
 		if (refreshToken != null && !refreshToken.isBlank())
-			refreshTokenService.deleteByToken(refreshToken);
+			refreshTokenService.deleteByRawToken(refreshToken);
 	}
 
 	public UserResponse updateProfile(String currentEmail, ProfileUpdateRequest request) {
@@ -504,8 +505,12 @@ public class UserService {
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
+			if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+				throw new BadCredentialsException("Google email address is not verified.");
+			}
+
 			String email = EmailUtils.normalize(payload.getEmail());
-			String googleId = payload.getSubject();
+			String googleSubjectId = payload.getSubject();
 			String firstName = (String) payload.get("given_name");
 			String lastName = (String) payload.get("family_name");
 			String pictureUrl = (String) payload.get("picture");
@@ -517,6 +522,21 @@ public class UserService {
 						if (existingUser.getProvider() == AuthProvider.LOCAL) {
 							throw new BadRequestException("An account with this email already exists via standard login");
 						}
+
+						if (existingUser.getProvider() == AuthProvider.GOOGLE) {
+							if (existingUser.getProviderId() != null && !existingUser.getProviderId().equals(googleSubjectId)) {
+								throw new BadCredentialsException("Google account identity mismatch. Security violation.");
+							}
+							if (existingUser.getProviderId() == null) {
+								existingUser.setProviderId(googleSubjectId);
+								userRepository.save(existingUser);
+							}
+						}
+
+						if (!existingUser.isEnabled() || existingUser.isDeleted()) {
+							throw new DisabledException("Account is disabled or has been deleted.");
+						}
+
 						return existingUser;
 					})
 					.orElseGet(() -> {
@@ -528,7 +548,7 @@ public class UserService {
 										.lastName(lastName)
 										.avatarUrl(pictureUrl)
 										.provider(AuthProvider.GOOGLE)
-										.providerId(googleId)
+										.providerId(googleSubjectId)
 										.enabled(true)
 										.build());
 					});
@@ -540,16 +560,17 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+
+			RefreshTokenService.RefreshTokenResult refreshTokenResult = refreshTokenService.createRefreshToken(
 					user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
-					.refreshToken(refreshToken.getToken())
+					.refreshToken(refreshTokenResult.getRawToken())
 					.user(userMapper.toResponse(user))
 					.build();
 
-		} catch (BadCredentialsException | BadRequestException e) {
+		} catch (BadCredentialsException | BadRequestException | DisabledException e) {
 			throw e;
 		} catch (Exception e) {
 			log.error("Google authentication failed: {}", e.getMessage(), e);

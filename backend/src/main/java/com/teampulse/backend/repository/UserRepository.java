@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.teampulse.backend.enums.AuthProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.User;
@@ -19,6 +20,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	Optional<User> findByEmail(String email);
 	List<User> findByEmailContainingIgnoreCase(String email);
 	List<User> findTop10ByEmailContainingIgnoreCase(String email);
+
+	Optional<User> findByProviderAndProviderId(AuthProvider provider, String providerId);
 
 	@Modifying
 	@Query("DELETE FROM User u WHERE u.enabled = false AND u.createdAt < :cutoffDate")
