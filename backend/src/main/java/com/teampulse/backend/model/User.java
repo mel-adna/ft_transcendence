@@ -70,6 +70,10 @@ public class User {
 	@Column(name="deleted", nullable=false)
 	private boolean deleted = false;
 
+	@Builder.Default
+	@Column(name = "security_version", nullable = false)
+	private Long securityVersion = 1L;
+
 	@CreationTimestamp
 	@Column(name="created_at", nullable=false, updatable=false)
 	private LocalDateTime createdAt;

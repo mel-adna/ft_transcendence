@@ -257,6 +257,8 @@ public class UserService {
 			throw new BadRequestException("New password cannot be the same as the current password!");
 
 		user.setPasswordHashed(passwordEncoder.encode(request.getNewPassword()));
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
+
 		userRepository.save(user);
 
 		refreshTokenService.deleteByUserId(user);
@@ -333,6 +335,8 @@ public class UserService {
 
 		User user = resetToken.getUser();
 		user.setPasswordHashed(passwordEncoder.encode(request.getNewPassword()));
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
+
 		userRepository.save(user);
 
 		passwordResetTokenRepository.delete(resetToken);

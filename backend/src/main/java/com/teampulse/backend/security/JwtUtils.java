@@ -41,6 +41,7 @@ public class JwtUtils {
 			var user = principal.getUser();
 
 			extraClaims.put("id", user.getId().toString());
+			extraClaims.put("sv", user.getSecurityVersion());
 
 			String firstName = user.getFirstName() != null ? user.getFirstName() : "";
             String lastName = user.getLastName() != null ? user.getLastName() : "";
@@ -86,5 +87,9 @@ public class JwtUtils {
 	private SecretKey getSignInKey() {
 		byte[] keyBytes = Decoders.BASE64.decode(secretKey);
 		return Keys.hmacShaKeyFor(keyBytes);
+	}
+
+	public Long extractSecurityVersion(String token) {
+		return extractClaim(token, claims -> claims.get("sv", Long.class));
 	}
 }

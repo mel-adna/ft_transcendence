@@ -53,6 +53,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if (jwtUtils.isTokenValid(jwt, userDetails) && userDetails.isEnabled() && userDetails.isAccountNonLocked()) {
 
+                    Long tokenSv = jwtUtils.extractSecurityVersion(jwt);
+                    if (userDetails instanceof UserPrincipal principal) {
+                        Long currentSv = principal.getUser().getSecurityVersion();
+                        if (tokenSv == null || !tokenSv.equals(currentSv)) {
+                            log.warn("JWT rejected due to security version mismatch | Path: {}", request.getRequestURI());
+                            filterChain.doFilter(request, response);
+                            return;
+                        }
+                    }
+
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
                             null,
