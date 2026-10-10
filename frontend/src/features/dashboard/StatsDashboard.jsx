@@ -263,6 +263,7 @@ export default function StatsDashboard({
         pixelRatio: 2,
         quality: 0.92,
         filter: (element) => element.dataset?.pdfIgnore === undefined,
+        skipFonts: true,
       });
       // One page sized to the dashboard keeps charts and tables unsplit.
       const width = node.offsetWidth;
