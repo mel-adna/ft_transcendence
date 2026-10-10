@@ -47,6 +47,10 @@ public class WorkspaceInvitation {
 	@Column(nullable = false, length = 50)
 	private WorkspaceMemberRole role;
 
+	@Version
+	@Column(name = "version", nullable = false)
+	private Long version = 0L;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;

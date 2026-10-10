@@ -24,6 +24,7 @@ import com.teampulse.backend.security.utils.EmailUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -96,7 +97,13 @@ public class WorkspaceInvitationService {
 		invitation.setCreatedAt(Instant.now());
 		invitation.setExpiresAt(Instant.now().plus(INVITATION_EXPIRY_DAYS, ChronoUnit.DAYS));
 
-		WorkspaceInvitation savedInvitation = invitationRepository.save(invitation);
+		WorkspaceInvitation savedInvitation;
+
+		try {
+			savedInvitation = invitationRepository.save(invitation);
+		} catch (DataIntegrityViolationException ex) {
+			throw new BadRequestException("A pending invitation already exists for this email.");
+		}
 
 		eventPublisher.publishEvent(new WorkspaceInvitationSentEvent(this, workspace, savedInvitation, inviter, inviteeUser));
 

@@ -26,6 +26,7 @@ CREATE TABLE workspaces
     type        VARCHAR(50)  NOT NULL,
     owner_id    UUID,
     deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
+    version     BIGINT       NOT NULL DEFAULT 0,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_workspaces_owner FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE RESTRICT
@@ -55,6 +56,7 @@ CREATE TABLE tasks
     assignee_id  UUID,
     creator_id   UUID,
     deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
+    version      BIGINT       NOT NULL DEFAULT 0,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -150,6 +152,7 @@ CREATE TABLE workspace_invitation
     inviter_id        UUID,
     invitation_status VARCHAR(50)  NOT NULL,
     role              VARCHAR(50)  NOT NULL,
+    version           BIGINT       NOT NULL DEFAULT 0,
     created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at        TIMESTAMP    NOT NULL,
 
@@ -175,3 +178,5 @@ CREATE INDEX idx_verification_codes_user ON verification_codes (user_id);
 CREATE INDEX IF NOT EXISTS idx_invitation_workspace_status ON workspace_invitation (workspace_id, invitation_status);
 CREATE INDEX IF NOT EXISTS idx_invitation_invitee_status ON workspace_invitation (invitee_email, invitation_status);
 CREATE INDEX IF NOT EXISTS idx_invitation_inviter ON workspace_invitation (inviter_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_owner_name_active ON workspaces(owner_id, lower (name)) WHERE deleted = FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_workspace_invitation ON workspace_invitation(workspace_id, lower (invitee_email)) WHERE invitation_status = 'PENDING';
