@@ -31,6 +31,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class TaskService {
 
 	private final TaskRepository taskRepository;
@@ -42,7 +43,6 @@ public class TaskService {
 	private final ApplicationEventPublisher eventPublisher;
 
 
-	@Transactional
 	public TaskResponse createTask(UUID workspaceId, String creatorEmail, TaskCreateRequest request) {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -110,7 +110,6 @@ public class TaskService {
 	}
 
 
-	@Transactional
 	public TaskResponse updateTask(UUID taskId, String email, TaskUpdateRequest request) {
 
 		if (taskId == null)
@@ -183,7 +182,6 @@ public class TaskService {
 	}
 
 
-	@Transactional
 	public TaskResponse updateTaskStatus(UUID taskId, String email, TaskStatusUpdateRequest request) {
 
 		if (taskId == null)
@@ -221,7 +219,7 @@ public class TaskService {
 		return taskMapper.toResponse(updatedTask);
 	}
 
-	@Transactional
+
 	public void deleteTask(UUID taskId, String email) {
 
 		if (taskId == null)

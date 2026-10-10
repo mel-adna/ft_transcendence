@@ -24,13 +24,13 @@ import com.teampulse.backend.security.utils.EmailUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,8 +38,8 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class WorkspaceInvitationService {
-
 	private final WorkspaceInvitationRepository invitationRepository;
 	private final WorkspaceRepository workspaceRepository;
 	private final UserRepository userRepository;
@@ -50,7 +50,6 @@ public class WorkspaceInvitationService {
 	private static final int INVITATION_EXPIRY_DAYS = 7;
 
 
-	@Transactional
 	public WorkspaceInvitationResponse sendInvitation(UUID workspaceId, SendInvitationRequest request, String inviterEmail) {
 		if (workspaceId == null) {
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -98,7 +97,13 @@ public class WorkspaceInvitationService {
 		invitation.setCreatedAt(Instant.now());
 		invitation.setExpiresAt(Instant.now().plus(INVITATION_EXPIRY_DAYS, ChronoUnit.DAYS));
 
-		WorkspaceInvitation savedInvitation = invitationRepository.save(invitation);
+		WorkspaceInvitation savedInvitation;
+
+		try {
+			savedInvitation = invitationRepository.save(invitation);
+		} catch (DataIntegrityViolationException ex) {
+			throw new BadRequestException("A pending invitation already exists for this email.");
+		}
 
 		eventPublisher.publishEvent(new WorkspaceInvitationSentEvent(this, workspace, savedInvitation, inviter, inviteeUser));
 
@@ -134,7 +139,6 @@ public class WorkspaceInvitationService {
 	}
 
 
-	@Transactional
 	public void acceptInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
 
@@ -150,22 +154,21 @@ public class WorkspaceInvitationService {
 		invitation.setStatus(InvitationStatus.ACCEPTED);
 		invitationRepository.save(invitation);
 
-		WorkspaceMemberId memberId = new WorkspaceMemberId(invitation.getWorkspace().getId(), invitee.getId());
+		WorkspaceMemberId memberId = new WorkspaceMemberId(workspace.getId(), invitee.getId());
 		WorkspaceMember newMember = new WorkspaceMember();
 		newMember.setId(memberId);
-		newMember.setWorkspace(invitation.getWorkspace());
+		newMember.setWorkspace(workspace);
 		newMember.setUser(invitee);
 		newMember.setRole(invitation.getRole() != null ? invitation.getRole() : WorkspaceMemberRole.MEMBER);
 
 		workspaceMemberRepository.save(newMember);
 
-		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, invitation.getWorkspace(), invitation, invitee));
+		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, workspace, invitation, invitee));
 
-		log.info("User {} accepted invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), invitation.getWorkspace().getName());
+		log.info("User {} accepted invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), workspace.getName());
 	}
 
 
-	@Transactional
 	public void rejectInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
 
@@ -178,7 +181,6 @@ public class WorkspaceInvitationService {
 	}
 
 
-	@Transactional
 	public void cancelInvitation(UUID workspaceId, UUID invitationId, String adminEmail) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
 

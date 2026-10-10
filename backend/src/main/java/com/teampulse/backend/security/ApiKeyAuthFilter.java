@@ -1,6 +1,7 @@
 package com.teampulse.backend.security;
 
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.service.ApiKeyService;
 import jakarta.servlet.FilterChain;
@@ -16,12 +17,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
 	private final ApiKeyService apiKeyService;
+	private final ObjectMapper objectMapper;
 
 	@Override
 	protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -64,6 +67,12 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 	private void sendUnauthorizedError(HttpServletResponse response, String message) throws IOException {
 		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 		response.setContentType("application/json");
-		response.getWriter().write(String.format("{\"error\": \"Unauthorized\", \"message\": \"%s\"}", message));
+
+		Map<String, String> errorResponse = Map.of(
+				"error", "Unauthorized",
+				"message", message
+		);
+
+		response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
 	}
 }

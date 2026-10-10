@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(noRollbackFor = Exception.class)
 public class ActivityLogService {
 	private final ActivityLogRepository activityLogRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -82,7 +83,7 @@ public class ActivityLogService {
 
 		validateWorkspaceMemberShip(workspaceId, email);
 
-		Slice<ActivityLog> logs = activityLogRepository.findByEntityIdOrderByCreatedAtDesc(entityId, pageable);
+		Slice<ActivityLog> logs = activityLogRepository.findByWorkspaceIdAndEntityIdOrderByCreatedAtDesc(workspaceId, entityId, pageable);
         
         return logs.map(activityLogMapper::toResponse);
 	}

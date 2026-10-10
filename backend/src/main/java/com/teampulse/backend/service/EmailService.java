@@ -58,7 +58,6 @@ public class EmailService {
 						"You can now log in and start collaborating with your team.\n\n" +
 						"Best regards,\nThe Team-Pulse Team", name
 		);
-//		sendEmail(to, subject, body);
 		sendEmailDirect(to, subject, body);
 	}
 

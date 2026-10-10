@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +41,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class WorkspaceService {
 	private final WorkspaceRepository workspaceRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -47,7 +49,6 @@ public class WorkspaceService {
 	private final WorkspaceMapper workspaceMapper;
 	private final ApplicationEventPublisher eventPublisher;
 
-	@Transactional
 	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
 		User creator = userRepository.findByEmail(creatorEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -62,7 +63,13 @@ public class WorkspaceService {
 		workspace.setType(request.getType());
 		workspace.setOwner(creator);
 
-		Workspace savedWorkspace = workspaceRepository.save(workspace);
+		Workspace savedWorkspace;
+
+		try {
+			savedWorkspace = workspaceRepository.save(workspace);
+		} catch (DataIntegrityViolationException ex) {
+			throw new BadRequestException("You already own or belong to a workspace with the name: " + request.getName());
+		}
 
 		WorkspaceMemberId memberId = new WorkspaceMemberId(savedWorkspace.getId(), creator.getId());
 		WorkspaceMember admin = new WorkspaceMember();
@@ -141,7 +148,6 @@ public class WorkspaceService {
 	}
 
 
-	@Transactional
 	public WorkspaceResponse updateWorkspace(UUID workspaceId, String email, WorkspaceUpdateRequest request) {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -170,14 +176,19 @@ public class WorkspaceService {
 		workspace.setDescription(request.getDescription());
 		workspace.setType(request.getType());
 
-		Workspace updatedWorkspace = workspaceRepository.save(workspace);
+		Workspace updatedWorkspace;
+
+		try {
+			updatedWorkspace = workspaceRepository.save(workspace);
+		} catch (DataIntegrityViolationException ex) {
+			throw new BadRequestException("You already have another workspace with the name: " + request.getName());
+		}
 
 		eventPublisher.publishEvent(new WorkspaceUpdatedEvent(this, updatedWorkspace, admin));
 
 		return workspaceMapper.toResponse(updatedWorkspace);
 	}
 
-	@Transactional
 	public void deleteWorkspace(UUID workspaceId, String email) {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
@@ -204,7 +215,6 @@ public class WorkspaceService {
 		log.info("Workspace with ID: {} has been soft-deleted successfully.", workspaceId);
 	}
 
-	@Transactional
 	public void updateMemberRole(UUID workspaceId, String adminEmail, WorkspaceMemberRoleUpdateRequest request) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
 		String cleanMemberEmail = EmailUtils.normalize(request.getEmail());
@@ -214,11 +224,19 @@ public class WorkspaceService {
 		WorkspaceMember memberShip = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanMemberEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User is not a member of this workspace"));
 
+		if (memberShip.getRole() == WorkspaceMemberRole.ADMIN && request.getRole() != WorkspaceMemberRole.ADMIN) {
+			long adminCount = workspaceMemberRepository.findByWorkspaceId(workspaceId).stream()
+					.filter(m -> m.getRole() == WorkspaceMemberRole.ADMIN)
+					.count();
+			if (adminCount <= 1) {
+				throw new BadRequestException("Cannot demote the last ADMIN of the workspace.");
+			}
+		}
+
 		memberShip.setRole(request.getRole());
 		workspaceMemberRepository.save(memberShip);
 	}
 
-	@Transactional
 	public void removeMemberFromWorkspace(UUID workspaceId, String adminEmail, String memberEmail) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
 		String cleanMemberEmail = EmailUtils.normalize(memberEmail);
@@ -232,6 +250,11 @@ public class WorkspaceService {
 				.orElseThrow(() -> new ResourceNotFoundException("User is not a member of this workspace"));
 
 		Workspace workspace = memberShip.getWorkspace();
+
+		if (workspace.getOwner() != null && workspace.getOwner().getEmail().equalsIgnoreCase(cleanMemberEmail)) {
+			throw new BadRequestException("Cannot remove the owner of the workspace.");
+		}
+
 		User removedUser = memberShip.getUser();
 		User admin = userRepository.findByEmail(cleanAdminEmail).orElse(null);
 

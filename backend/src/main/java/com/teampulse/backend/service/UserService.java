@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class UserService {
 
 	private final UserRepository userRepository;
@@ -100,7 +101,6 @@ public class UserService {
 	);
 	private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-	@Transactional
 	public String signup(SignupRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
@@ -121,7 +121,6 @@ public class UserService {
 		return "Verification code has been sent to your email.";
 	}
 
-	@Transactional
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
@@ -138,22 +137,21 @@ public class UserService {
 		UserPrincipal userPrincipal = new UserPrincipal(user);
 
 		String accessToken = jwtUtils.generateToken(userPrincipal);
-		RefreshToken refreshToken = refreshTokenService.createRefreshToken(user,
+
+		RefreshTokenService.RefreshTokenResult tokenResult = refreshTokenService.createRefreshToken(user,
 				ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 		return AuthResponse.builder()
 				.accessToken(accessToken)
-				.refreshToken(refreshToken.getToken())
+				.refreshToken(tokenResult.getRawToken())
 				.user(userMapper.toResponse(user))
 				.build();
 	}
 
-	@Transactional
 	public void resendVerificationCode(ResendVerificationRequest request) {
-		verificationService.genrateAndSendCodeInNewTrasactional(EmailUtils.normalize(request.getEmail()));
+		verificationService.generateAndSendCodeInNewTrasactional(EmailUtils.normalize(request.getEmail()));
 	}
 
-	@Transactional
 	public AuthResponse login(LoginRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
@@ -167,12 +165,13 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+
+			RefreshTokenService.RefreshTokenResult tokenResult = refreshTokenService.createRefreshToken(
 					user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
-					.refreshToken(refreshToken.getToken())
+					.refreshToken(tokenResult.getRawToken())
 					.user(userMapper.toResponse(user))
 					.build();
 
@@ -181,7 +180,7 @@ public class UserService {
 
 			if (user != null && user.getPasswordHashed() != null && passwordEncoder.matches(request.getPassword(), user.getPasswordHashed())) {
 				try {
-					verificationService.genrateAndSendCodeInNewTrasactional(cleanEmail);
+					verificationService.generateAndSendCodeInNewTrasactional(cleanEmail);
 				} catch (Exception ignored) {
 				}
 				throw new AccountNotVerifiedException("Account not yet verified. A new verification code has been sent to your email.");
@@ -194,16 +193,14 @@ public class UserService {
 		}
 	}
 
-	@Transactional
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 
-		RefreshToken verifiedToken = refreshTokenService.verifyExpirationAndRevocation(
+		RefreshToken verifiedToken = refreshTokenService.verifyAndRotateToken(
 				tokenStr, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 		User user = verifiedToken.getUser();
 
-		refreshTokenService.deleteByToken(tokenStr);
-		RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+		RefreshTokenService.RefreshTokenResult newTokenResult = refreshTokenService.createRefreshToken(
 				user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 		UserPrincipal userPrincipal = new UserPrincipal(user);
@@ -211,18 +208,16 @@ public class UserService {
 
 		return AuthResponse.builder()
 				.accessToken(newAccessToken)
-				.refreshToken(newRefreshToken.getToken())
+				.refreshToken(newTokenResult.getRawToken())
 				.user(userMapper.toResponse(user))
 				.build();
 	}
 
-	@Transactional
 	public void logout(String refreshToken) {
 		if (refreshToken != null && !refreshToken.isBlank())
-			refreshTokenService.deleteByToken(refreshToken);
+			refreshTokenService.deleteByRawToken(refreshToken);
 	}
 
-	@Transactional
 	public UserResponse updateProfile(String currentEmail, ProfileUpdateRequest request) {
 		User user = userRepository.findByEmail(currentEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -251,7 +246,6 @@ public class UserService {
 		return userMapper.toResponse(updateUser);
 	}
 
-	@Transactional
 	public void changePassword(String currentEmail, PasswordChangeRequest request) {
 		User user = userRepository.findByEmail(currentEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -263,6 +257,8 @@ public class UserService {
 			throw new BadRequestException("New password cannot be the same as the current password!");
 
 		user.setPasswordHashed(passwordEncoder.encode(request.getNewPassword()));
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
+
 		userRepository.save(user);
 
 		refreshTokenService.deleteByUserId(user);
@@ -293,7 +289,6 @@ public class UserService {
 		return users.stream().map(userMapper::toResponse).toList();
 	}
 
-	@Transactional
 	public void processForgotPassword(ForgotPasswordRequest request) {
 		log.info("Received password reset request for email: {}", EmailUtils.maskEmail(request.getEmail()));
 
@@ -327,7 +322,6 @@ public class UserService {
 		emailService.sendEmail(user.getEmail(), "Reset Your Team-Pulse Password", emailBody);
 	}
 
-	@Transactional
 	public void processResetPassword(ResetPasswordRequest request) {
 		log.info("Attempting to execute password reset via token.");
 
@@ -341,6 +335,8 @@ public class UserService {
 
 		User user = resetToken.getUser();
 		user.setPasswordHashed(passwordEncoder.encode(request.getNewPassword()));
+		user.setSecurityVersion(user.getSecurityVersion() + 1);
+
 		userRepository.save(user);
 
 		passwordResetTokenRepository.delete(resetToken);
@@ -351,7 +347,6 @@ public class UserService {
 	}
 
 
-	@Transactional
 	public void softDeleteUser(String email) {
 		String cleanEmail = EmailUtils.normalize(email);
 
@@ -432,7 +427,7 @@ public class UserService {
 		user.setDeleted(true);
 
 		if (user.getAvatarUrl() != null)
-			fileStorageService.deleteAvatar(user.getAvatarUrl());
+			fileStorageService.deleteAvatar(userId, user.getAvatarUrl());
 
 		user.setAvatarUrl(null);
 		userRepository.save(user);
@@ -464,7 +459,6 @@ public class UserService {
 		}
 	}
 
-	@Transactional
 	public void hardDeleteUnverifiedAccounts(int expirationHours) {
 		LocalDateTime cutoffDate = LocalDateTime.now().minusHours(expirationHours);
 
@@ -486,7 +480,6 @@ public class UserService {
 		log.info("Successfully hard deleted {} unverified accounts and associated entities.", unverifiedUserIds.size());
 	}
 
-	@Transactional
 	public UserResponse uploadProfileAvatar(UUID userId, MultipartFile file) {
 		validateAvatarFile(file);
 
@@ -495,20 +488,19 @@ public class UserService {
 
 		if (user.getAvatarUrl() != null && user.getAvatarUrl().contains("/avatars/")) {
 			try {
-				fileStorageService.deleteAvatar(user.getAvatarUrl());
+				fileStorageService.deleteAvatar(userId, user.getAvatarUrl());
 			} catch (Exception e) {
 				log.warn("Failed to delete old avatar for user [{}]: {}", userId, e.getMessage());
 			}
 		}
 
-		String avatarUrl = fileStorageService.uploadAvatar(file);
+		String avatarUrl = fileStorageService.uploadAvatar(userId, file);
 		user.setAvatarUrl(avatarUrl);
 		User updatedUser = userRepository.save(user);
 
 		return userMapper.toResponse(updatedUser);
 	}
 
-	@Transactional
 	public AuthResponse googleLogin(GoogleLoginRequest request) {
 		try {
 			GoogleIdToken idToken = googleIdTokenVerifier.verify(request.getIdToken());
@@ -517,8 +509,12 @@ public class UserService {
 
 			GoogleIdToken.Payload payload = idToken.getPayload();
 
+			if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+				throw new BadCredentialsException("Google email address is not verified.");
+			}
+
 			String email = EmailUtils.normalize(payload.getEmail());
-			String googleId = payload.getSubject();
+			String googleSubjectId = payload.getSubject();
 			String firstName = (String) payload.get("given_name");
 			String lastName = (String) payload.get("family_name");
 			String pictureUrl = (String) payload.get("picture");
@@ -528,17 +524,23 @@ public class UserService {
 			User user = userRepository.findByEmail(email)
 					.map(existingUser -> {
 						if (existingUser.getProvider() == AuthProvider.LOCAL) {
-							existingUser.setProvider(AuthProvider.GOOGLE);
-							existingUser.setProviderId(googleId);
-							existingUser.setEnabled(true);
-
-							if (existingUser.getAvatarUrl() == null)
-								existingUser.setAvatarUrl(pictureUrl);
-
-							isNewSignup.set(true);
-
-							return userRepository.save(existingUser);
+							throw new BadRequestException("An account with this email already exists via standard login");
 						}
+
+						if (existingUser.getProvider() == AuthProvider.GOOGLE) {
+							if (existingUser.getProviderId() != null && !existingUser.getProviderId().equals(googleSubjectId)) {
+								throw new BadCredentialsException("Google account identity mismatch. Security violation.");
+							}
+							if (existingUser.getProviderId() == null) {
+								existingUser.setProviderId(googleSubjectId);
+								userRepository.save(existingUser);
+							}
+						}
+
+						if (!existingUser.isEnabled() || existingUser.isDeleted()) {
+							throw new DisabledException("Account is disabled or has been deleted.");
+						}
+
 						return existingUser;
 					})
 					.orElseGet(() -> {
@@ -550,7 +552,7 @@ public class UserService {
 										.lastName(lastName)
 										.avatarUrl(pictureUrl)
 										.provider(AuthProvider.GOOGLE)
-										.providerId(googleId)
+										.providerId(googleSubjectId)
 										.enabled(true)
 										.build());
 					});
@@ -562,21 +564,29 @@ public class UserService {
 			String accessToken = jwtUtils.generateToken(userPrincipal);
 
 			refreshTokenService.deleteByUserId(user);
-			RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+
+			RefreshTokenService.RefreshTokenResult refreshTokenResult = refreshTokenService.createRefreshToken(
 					user, ClientIpUtils.getClientIp(httpServletRequest), getUserAgent());
 
 			return AuthResponse.builder()
 					.accessToken(accessToken)
-					.refreshToken(refreshToken.getToken())
+					.refreshToken(refreshTokenResult.getRawToken())
 					.user(userMapper.toResponse(user))
 					.build();
 
-		} catch (BadCredentialsException e) {
+		} catch (BadCredentialsException | BadRequestException | DisabledException e) {
 			throw e;
 		} catch (Exception e) {
 			log.error("Google authentication failed: {}", e.getMessage(), e);
 			throw new BadCredentialsException("Failed to authenticate with Google. Please try again later.");
 		}
+	}
+
+	private String getFileExtension(String filename) {
+		if (filename == null || !filename.contains(".")) {
+			throw new BadRequestException("Invalid file name or extension.");
+		}
+		return filename.substring(filename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
 	}
 
 	private void validateAvatarFile(MultipartFile file) {
@@ -593,12 +603,7 @@ public class UserService {
 			throw new BadRequestException("Invalid file type. Only JPG, PNG, and WEBP images are allowed.");
 		}
 
-		String originalFilename = file.getOriginalFilename();
-		if (originalFilename == null || !originalFilename.contains(".")) {
-			throw new BadRequestException("Invalid file name or extension.");
-		}
-
-		String extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase(Locale.ROOT);
+		String extension = getFileExtension(file.getOriginalFilename());
 		if (!ALLOWED_EXTENSIONS.contains(extension)) {
 			throw new BadRequestException("Invalid file extension.");
 		}

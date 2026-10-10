@@ -1,11 +1,11 @@
 package com.teampulse.backend.repository;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.teampulse.backend.enums.AuthProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.User;
@@ -21,6 +21,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 	List<User> findByEmailContainingIgnoreCase(String email);
 	List<User> findTop10ByEmailContainingIgnoreCase(String email);
 
+	Optional<User> findByProviderAndProviderId(AuthProvider provider, String providerId);
+
 	@Modifying
 	@Query("DELETE FROM User u WHERE u.enabled = false AND u.createdAt < :cutoffDate")
 	int hardDeleteUnverifiedAccounts(@Param("cutoffDate")LocalDateTime cutoffDate);
@@ -30,5 +32,5 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
 	@Modifying
 	@Query("DELETE FROM User u WHERE u.id IN :userIds")
-	int deleteByIdIn(@Param("userIds") List<UUID> userIds);
+	void deleteByIdIn(@Param("userIds") List<UUID> userIds);
 }

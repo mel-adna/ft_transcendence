@@ -29,6 +29,10 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 20000
   data:
+    web:
+      pageable:
+        max-page-size: 100
+        default-page-size: 20
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
@@ -103,8 +107,8 @@ app:
   frontend-url: ${FRONTEND_URL}
   jwt:
     secret: ${JWT_SECRET}
-    access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
-    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:259200000}
+    access-expiration-ms: ${JWT_ACCESS_EXPIRATION}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION}
 
   redis:
     channel: ${REDIS_CHANNEL:teampulse-realtime-events}
@@ -113,6 +117,6 @@ app:
 logging:
   level:
     root: INFO
-    com.teampulse.backend: DEBUG
+    com.teampulse.backend: INFO
     org.springframework.security: INFO
     org.hibernate.SQL: WARN

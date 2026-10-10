@@ -37,12 +37,10 @@ services:
       dockerfile: Dockerfile
     container_name: teampulse-frontend
     environment:
-      - VITE_CORE_API_URL=/api/v1
-      - CORE_API_PROXY_TARGET=http://backend:8080
-      - CHAT_PROXY_TARGET=http://chat-service:5005
-      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
       - VITE_API_URL=/api
+      - VITE_CORE_API_URL=/api/v1
       - VITE_WS_URL=/
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
     networks:
       - teampulse_net
     restart: unless-stopped
@@ -76,7 +74,6 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY_FILE=/run/secrets/minio_root_password
       - MINIO_BUCKET_NAME=teampulse-avatars
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-407408718192.apps.googleusercontent.com}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_CHANNEL=${REDIS_CHANNEL}

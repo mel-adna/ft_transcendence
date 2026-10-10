@@ -24,8 +24,8 @@ public class RefreshToken {
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
 
-	@Column(nullable = false, unique = true, length = 255)
-	private String token;
+	@Column(name = "token_hash", nullable = false, unique = true, length = 64)
+	private String tokenHash;
 
 	@Column(name = "expiry_date", nullable = false)
 	private Instant expiryDate;
@@ -39,6 +39,10 @@ public class RefreshToken {
 	@Builder.Default
 	@Column(nullable = false)
 	private boolean revoked = false;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private boolean consumed = false;
 
 	@Builder.Default
 	@CreationTimestamp

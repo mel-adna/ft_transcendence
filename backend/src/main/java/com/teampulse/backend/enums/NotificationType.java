@@ -1,7 +1,6 @@
 package com.teampulse.backend.enums;
 
 public enum NotificationType {
-    // Tasks
     TASK_ASSIGNED,
     TASK_STATUS_CHANGED,
     TASK_COMMENTED,
@@ -9,7 +8,6 @@ public enum NotificationType {
 	TASK_COMPLETED,
     TASK_DELETED,
 
-    // Workspace
     WORKSPACE_INVITATION_SENT,
     WORKSPACE_MEMBER_ADDED,
     WORKSPACE_MEMBER_REMOVED,

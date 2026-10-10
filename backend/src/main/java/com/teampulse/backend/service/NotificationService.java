@@ -26,13 +26,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class NotificationService {
 
 	private final NotificationRepository notificationRepository;
 	private final UserRepository userRepository;
 	private final NotificationMapper notificationMapper;
 
-	@Transactional
 	public void createNotification(User recipient, NotificationType type, EntityType entityType, UUID entityId, String message) {
 		log.info("Persisting new notification in DB for user: {}. Type: {}", EmailUtils.maskEmail(recipient.getEmail()), type);
 
@@ -79,7 +79,6 @@ public class NotificationService {
 		return notificationRepository.countByRecipientIdAndIsReadFalse(user.getId());
 	}
 
-	@Transactional
 	public void markAsRead(UUID notificationId, String currentEmail) {
 		Notification notification = notificationRepository.findById(notificationId)
 				.orElseThrow(() -> new ResourceNotFoundException("Notification not found with ID: " + notificationId));
@@ -98,7 +97,6 @@ public class NotificationService {
 		}
 	}
 
-	@Transactional
 	public void markAllAsRead(String currentEmail) {
 		log.info("Executing bulk mark-all-as-read pipeline for user: {}", EmailUtils.maskEmail(currentEmail));
 		User user = userRepository.findByEmail(currentEmail)

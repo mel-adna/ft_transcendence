@@ -7,6 +7,7 @@ import com.teampulse.backend.model.VerificationCode;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.VerificationCodeRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +28,7 @@ public class VerificationService {
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public void genrateAndSendCodeInNewTrasactional(String email) {
+	public void generateAndSendCodeInNewTrasactional(String email) {
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
@@ -41,10 +42,11 @@ public class VerificationService {
 		verificationCodeRepository.deleteByUser(user);
 		verificationCodeRepository.flush();
 
-		String code = String.format("%06d", new SecureRandom().nextInt(1000000));
+		String rawCode = String.format("%06d", new SecureRandom().nextInt(1000000));
+		String hashCode = DigestUtils.sha256Hex(rawCode);
 
 		VerificationCode verificationCode = VerificationCode.builder()
-				.code(code)
+				.code(hashCode)
 				.user(user)
 				.expiryDate(Instant.now().plusSeconds(15 * 60))
 				.build();
@@ -52,14 +54,16 @@ public class VerificationService {
 		verificationCodeRepository.saveAndFlush(verificationCode);
 
 		String emailBody = String.format("Hello %s,\n\nYour verification code is: %s\nIt expires in 15 minutes.",
-				user.getFirstName(), code);
+				user.getFirstName(), rawCode);
 
 		emailService.sendEmail(user.getEmail(), "Verify Your Team-Pulse Account", emailBody);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public void validateAndConsumeCode(User user, String code) {
-		VerificationCode verificationCode = verificationCodeRepository.findByCodeAndUser(code, user)
+	public void validateAndConsumeCode(User user, String rawCode) {
+		String hashCode = DigestUtils.sha256Hex(rawCode);
+
+		VerificationCode verificationCode = verificationCodeRepository.findByCodeAndUser(hashCode, user)
 				.orElseThrow(() -> new BadRequestException("Invalid verification code."));
 
 		if (verificationCode.isExpired()) {

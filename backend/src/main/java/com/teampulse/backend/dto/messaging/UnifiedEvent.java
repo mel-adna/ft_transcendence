@@ -12,8 +12,8 @@ import java.util.UUID;
 @Builder
 public class UnifiedEvent {
 	private UUID eventId;
-	private String type;      //    WORKSPACE  - CHAT - COMMENT
-	private String action;           // CREATED   - DELETED -  COMPLETED
+	private String type;
+	private String action;
 	private UUID recipientId;
 	private UUID senderId;
 	private String entityType;

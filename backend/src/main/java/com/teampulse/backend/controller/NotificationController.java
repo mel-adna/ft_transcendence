@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.teampulse.backend.security.ratelimit.RateLimit;
 import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
+import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.web.PageableDefault;
@@ -55,7 +56,7 @@ public class NotificationController {
             @PageableDefault(size = 15) Pageable pageable,
             @Parameter(hidden = true) Principal principal) {
         
-        log.info("[REST Request] User '{}' is fetching paginated notification history with page size: {}", principal.getName(), pageable.getPageSize());
+        log.info("[REST Request] User '{}' is fetching paginated notification history with page size: {}", EmailUtils.maskEmail(principal.getName()), pageable.getPageSize());
         Slice<NotificationResponse> slice = notificationService.getUserNotifications(principal.getName(), pageable);
         return ResponseEntity.ok(slice);
     }
@@ -72,7 +73,7 @@ public class NotificationController {
     public ResponseEntity<List<NotificationResponse>> getUnreadNotifications(
             @Parameter(hidden = true) Principal principal) {
         
-        log.info("[REST Request] User '{}' is fetching unread notifications dropdown payload.", principal.getName());
+        log.info("[REST Request] User '{}' is fetching unread notifications dropdown payload.", EmailUtils.maskEmail(principal.getName()));
         List<NotificationResponse> unreadList = notificationService.getUnreadNotifications(principal.getName());
         return ResponseEntity.ok(unreadList);
     }
@@ -89,7 +90,7 @@ public class NotificationController {
     public ResponseEntity<Long> getUnreadCount(
             @Parameter(hidden = true) Principal principal) {
         
-        log.info("[REST Request] User '{}' requested real-time unread badge count.", principal.getName());
+        log.info("[REST Request] User '{}' requested real-time unread badge count.", EmailUtils.maskEmail(principal.getName()));
         long count = notificationService.getUnreadCount(principal.getName());
         return ResponseEntity.ok(count);
     }
@@ -110,7 +111,7 @@ public class NotificationController {
             @PathVariable UUID id, 
             @Parameter(hidden = true) Principal principal) {
         
-        log.info("[REST Request] User '{}' requested state transition to read for notification ID: {}", principal.getName(), id);
+        log.info("[REST Request] User '{}' requested state transition to read for notification ID: {}", EmailUtils.maskEmail(principal.getName()), id);
         notificationService.markAsRead(id, principal.getName());
         return ResponseEntity.noContent().build();
     }
@@ -127,7 +128,7 @@ public class NotificationController {
     public ResponseEntity<Void> markAllNotificationsAsRead(
             @Parameter(hidden = true) Principal principal) {
         
-        log.info("[REST Request] User '{}' triggered bulk 'Mark All as Read' high-performance modification pipeline.", principal.getName());
+        log.info("[REST Request] User '{}' triggered bulk 'Mark All as Read' high-performance modification pipeline.", EmailUtils.maskEmail(principal.getName()));
         notificationService.markAllAsRead(principal.getName());
         return ResponseEntity.noContent().build();
     }

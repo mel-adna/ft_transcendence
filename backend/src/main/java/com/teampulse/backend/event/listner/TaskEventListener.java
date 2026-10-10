@@ -12,7 +12,8 @@ import com.teampulse.backend.service.ActivityLogService;
 import com.teampulse.backend.service.EmailService;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -40,7 +41,7 @@ public class TaskEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleTaskCompletedEvent(TaskCompletedEvent event) {
 
 		Task task = taskRepository.findById(event.getTask().getId()).orElse(null);
@@ -101,7 +102,7 @@ public class TaskEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleTaskAssignedEvent(TaskAssignedEvent event) {
 		Task task = taskRepository.findById(event.getTask().getId()).orElse(null);
 		if (task == null || task.getAssignee() == null || event.getAssignee() == null)

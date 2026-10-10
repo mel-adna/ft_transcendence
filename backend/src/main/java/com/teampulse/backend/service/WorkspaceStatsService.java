@@ -6,7 +6,6 @@ import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
-import com.teampulse.backend.model.Task;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.Workspace;
 import com.teampulse.backend.model.WorkspaceMember;
@@ -79,30 +78,44 @@ public class WorkspaceStatsService {
 			throw new BadRequestException("Custom date range cannot exceed " + MAX_CUSTOM_RANGE_DAYS + " days");
 		}
 
-		// Filters narrow the task list once; every stat below is computed from the filtered list.
-		// A missing priority counts as MEDIUM, matching the priority distribution.
-		List<Task> tasks = taskRepository.findByWorkspaceId(workspaceId).stream()
-				.filter(task -> statusFilter == null || task.getStatus() == statusFilter)
-				.filter(task -> priorityFilter == null
-						|| Objects.requireNonNullElse(task.getPriority(), TaskPriority.MEDIUM) == priorityFilter)
-				.filter(task -> assigneeFilter == null
-						|| (task.getAssignee() != null && assigneeFilter.equals(task.getAssignee().getId())))
-				.toList();
-		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
+		String statusStr = statusFilter != null ? statusFilter.name() : null;
+		String priorityStr = priorityFilter != null ? priorityFilter.name() : null;
 
-		long totalTasks = tasks.size();
-		long todoCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.TODO).count();
-		long inProgressCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DOING).count();
-		long completedCount = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count();
+		List<Object[]> statusCounts = taskRepository.countTasksByStatusFiltered(workspaceId, statusStr, priorityStr, assigneeFilter);
+		long todoCount = 0;
+		long inProgressCount = 0;
+		long completedCount = 0;
+		long totalTasks = 0;
+
+		for (Object[] row : statusCounts) {
+			if (row[0] != null && row[1] != null) {
+				String stName = row[0].toString();
+				long count = ((Number) row[1]).longValue();
+				totalTasks += count;
+				if ("TODO".equalsIgnoreCase(stName)) todoCount = count;
+				else if ("DOING".equalsIgnoreCase(stName)) inProgressCount = count;
+				else if ("DONE".equalsIgnoreCase(stName)) completedCount = count;
+			}
+		}
 
 		double completionRate = percent(completedCount, totalTasks);
-
 		long activeColleagues = workspaceMemberRepository.countByWorkspaceId(workspaceId);
 		long backlogCount = todoCount;
 
-		long lowPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.LOW).count();
-		long mediumPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.MEDIUM || t.getPriority() == null).count();
-		long highPriority = tasks.stream().filter(t -> t.getPriority() == TaskPriority.HIGH).count();
+		List<Object[]> priorityCounts = taskRepository.countTasksByPriorityFiltered(workspaceId, statusStr, priorityStr, assigneeFilter);
+		long lowPriority = 0;
+		long mediumPriority = 0;
+		long highPriority = 0;
+
+		for (Object[] row : priorityCounts) {
+			if (row[0] != null && row[1] != null) {
+				String prName = row[0].toString();
+				long count = ((Number) row[1]).longValue();
+				if ("LOW".equalsIgnoreCase(prName)) lowPriority = count;
+				else if ("MEDIUM".equalsIgnoreCase(prName)) mediumPriority = count;
+				else if ("HIGH".equalsIgnoreCase(prName)) highPriority = count;
+			}
+		}
 
 		WorkspaceStatsResponse.PriorityDistribution priorityDistribution = WorkspaceStatsResponse.PriorityDistribution.builder()
 				.low(lowPriority)
@@ -116,7 +129,7 @@ public class WorkspaceStatsService {
 				.completed(completedCount)
 				.build();
 
-		// Member activity breakdown: every member gets a row, even with no tasks
+		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceIdWithUser(workspaceId);
 		Map<UUID, WorkspaceStatsResponse.MemberActivityStat> memberMap = new LinkedHashMap<>();
 		for (WorkspaceMember member : members) {
 			User user = member.getUser();
@@ -129,12 +142,21 @@ public class WorkspaceStatsService {
 				.name("Unassigned")
 				.build();
 
-		for (Task task : tasks) {
-			User assignee = task.getAssignee();
-			if (assignee == null || assignee.getId() == null) {
-				countTask(unassigned, task);
-			} else {
-				countTask(memberMap.computeIfAbsent(assignee.getId(), id -> newMemberStat(assignee)), task);
+		List<Object[]> memberTaskCounts = taskRepository.countTasksByAssigneeAndStatusFiltered(workspaceId, statusStr, priorityStr, assigneeFilter);
+		for (Object[] row : memberTaskCounts) {
+			UUID assigneeUuid = (UUID) row[0];
+			String stName = row[1] != null ? row[1].toString() : "";
+			long count = row[2] != null ? ((Number) row[2]).longValue() : 0L;
+
+			WorkspaceStatsResponse.MemberActivityStat stat = (assigneeUuid == null)
+					? unassigned
+					: memberMap.get(assigneeUuid);
+
+			if (stat != null) {
+				stat.setTotalAssigned(stat.getTotalAssigned() + count);
+				if ("DONE".equalsIgnoreCase(stName)) stat.setCompleted(stat.getCompleted() + count);
+				else if ("DOING".equalsIgnoreCase(stName)) stat.setInProgress(stat.getInProgress() + count);
+				else stat.setTodo(stat.getTodo() + count);
 			}
 		}
 
@@ -150,8 +172,7 @@ public class WorkspaceStatsService {
 			stat.setCompletionRate(percent(stat.getCompleted(), stat.getTotalAssigned()));
 		}
 
-		// Date range handling: from/to wins; otherwise days = 0 means All Time and days < 0 defaults to 7
-		int effectiveDays = days < 0 ? 7 : days;
+		int effectiveDays = (days < 0 || days > MAX_CUSTOM_RANGE_DAYS) ? 7 : days;
 		LocalDate today = LocalDate.now(ZoneId.systemDefault());
 		LocalDate rangeStart = fromDate != null ? fromDate : (effectiveDays > 0 ? today.minusDays(effectiveDays - 1) : null);
 		LocalDate rangeEnd = toDate != null ? toDate : today;
@@ -159,26 +180,29 @@ public class WorkspaceStatsService {
 		double averageCompletedPerDay;
 		List<WorkspaceStatsResponse.DailyCompletionTrend> trendList = new ArrayList<>();
 
+		Instant startInstant = rangeStart != null ? rangeStart.atStartOfDay(ZoneId.systemDefault()).toInstant() : null;
+		Instant endInstant = rangeEnd != null ? rangeEnd.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant() : null;
+
+		List<Object[]> dailyCounts = taskRepository.countCompletedTasksPerDayFiltered(workspaceId, statusStr, priorityStr, assigneeFilter, startInstant, endInstant);
 		Map<String, Long> completedPerDay = new HashMap<>();
 		Map<String, Long> completedPerMonth = new HashMap<>();
-		for (Task task : tasks) {
-			if (task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null) {
-				LocalDate taskDate = LocalDate.ofInstant(task.getUpdatedAt(), ZoneId.systemDefault());
-				completedPerDay.merge(taskDate.format(DateTimeFormatter.ISO_LOCAL_DATE), 1L, Long::sum);
-				completedPerMonth.merge(taskDate.format(DateTimeFormatter.ofPattern("yyyy-MM")), 1L, Long::sum);
+
+		for (Object[] row : dailyCounts) {
+			if (row[0] != null && row[1] != null) {
+				String dayKey = row[0].toString();
+				long count = ((Number) row[1]).longValue();
+				completedPerDay.put(dayKey, count);
+
+				if (dayKey.length() >= 7) {
+					String monthKey = dayKey.substring(0, 7);
+					completedPerMonth.merge(monthKey, count, Long::sum);
+				}
 			}
 		}
 
 		if (rangeStart != null) {
 			long rangeDays = ChronoUnit.DAYS.between(rangeStart, rangeEnd) + 1;
-			Instant startInstant = rangeStart.atStartOfDay(ZoneId.systemDefault()).toInstant();
-			Instant endInstant = rangeEnd.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-
-			tasksCompletedInPeriod = tasks.stream()
-					.filter(task -> task.getStatus() == TaskStatus.DONE && task.getUpdatedAt() != null
-							&& !task.getUpdatedAt().isBefore(startInstant) && task.getUpdatedAt().isBefore(endInstant))
-					.count();
-
+			tasksCompletedInPeriod = completedPerDay.values().stream().mapToLong(Long::longValue).sum();
 			averageCompletedPerDay = Math.round(((double) tasksCompletedInPeriod / (double) rangeDays) * 100.0) / 100.0;
 
 			for (LocalDate date = rangeStart; !date.isAfter(rangeEnd); date = date.plusDays(1)) {
@@ -192,15 +216,10 @@ public class WorkspaceStatsService {
 			}
 		} else {
 			tasksCompletedInPeriod = completedCount;
-
-			LocalDate earliestDate = tasks.stream()
-					.map(task -> {
-						if (task.getCreatedAt() != null) return LocalDate.ofInstant(task.getCreatedAt(), ZoneId.systemDefault());
-						if (task.getUpdatedAt() != null) return LocalDate.ofInstant(task.getUpdatedAt(), ZoneId.systemDefault());
-						return today;
-					})
-					.min(LocalDate::compareTo)
-					.orElse(today);
+			Instant earliestInstant = taskRepository.findEarliestTaskInstantFiltered(workspaceId, statusStr, priorityStr, assigneeFilter);
+			LocalDate earliestDate = earliestInstant != null
+					? LocalDate.ofInstant(earliestInstant, ZoneId.systemDefault())
+					: today;
 
 			long daysSpan = ChronoUnit.DAYS.between(earliestDate, today) + 1;
 			if (daysSpan < 1) daysSpan = 1;
@@ -262,17 +281,6 @@ public class WorkspaceStatsService {
 				.email(user.getEmail())
 				.avatarUrl(user.getAvatarUrl())
 				.build();
-	}
-
-	private static void countTask(WorkspaceStatsResponse.MemberActivityStat stat, Task task) {
-		stat.setTotalAssigned(stat.getTotalAssigned() + 1);
-		if (task.getStatus() == TaskStatus.DONE) {
-			stat.setCompleted(stat.getCompleted() + 1);
-		} else if (task.getStatus() == TaskStatus.DOING) {
-			stat.setInProgress(stat.getInProgress() + 1);
-		} else {
-			stat.setTodo(stat.getTodo() + 1);
-		}
 	}
 
 	private static WorkspaceStatsResponse.DailyCompletionTrend trendPoint(String key, String label, long count) {

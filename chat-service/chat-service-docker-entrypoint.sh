@@ -9,10 +9,18 @@ for var_file in $(env | grep '_FILE=' | cut -d= -f1); do
   unset "$var_file"
 done
 
-export DATABASE_URL="postgresql://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=${DB_SCHEMA:-chat}"
+urlencode() {
+  node -e 'process.stdout.write(encodeURIComponent(process.argv[1]))' -- "$1"
+}
+
+DB_USERNAME_ENC="$(urlencode "$DB_USERNAME")"
+DB_PASSWORD_ENC="$(urlencode "$DB_PASSWORD")"
+
+export DATABASE_URL="postgresql://${DB_USERNAME_ENC}:${DB_PASSWORD_ENC}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=${DB_SCHEMA:-chat}"
 
 if [ -n "$REDIS_PASSWORD" ]; then
-  export REDIS_URL="redis://:${REDIS_PASSWORD}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}"
+  REDIS_PASSWORD_ENC="$(urlencode "$REDIS_PASSWORD")"
+  export REDIS_URL="redis://:${REDIS_PASSWORD_ENC}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}"
 fi
 
 exec "$@"
