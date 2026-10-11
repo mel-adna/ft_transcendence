@@ -56,7 +56,8 @@ public class RateLimitAspect {
 
 		if (!probe.isConsumed()) {
 			long waitForRefillSeconds = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill());
-			log.warn("[Rate Limit Exceeded] Key: {} | Retry after: {}s", key, waitForRefillSeconds);
+			String maskedKey = maskKeyForLogging(key, email);
+			log.warn("[Rate Limit Exceeded] Key: {} | Retry after: {}s", maskedKey, waitForRefillSeconds);
 			throw new RateLimitExceededException("Too many requests. Please try again later.", waitForRefillSeconds);
 		}
 	}
@@ -68,6 +69,13 @@ public class RateLimitAspect {
 			case EMAIL -> "rl:email:" + (email != null ? email : ip) + ":" + methodSignature;
 			case IP_AND_EMAIL -> "rl:combo:" + ip + ":" + (email != null ? email : "anonymous") + ":" + methodSignature;
 		};
+	}
+
+	private String maskKeyForLogging(String key, String email) {
+		if (email != null && !email.isBlank() && key != null && key.contains(email)) {
+			return key.replace(email, EmailUtils.maskEmail(email));
+		}
+		return key;
 	}
 
 
