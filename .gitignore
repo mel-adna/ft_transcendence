@@ -85,4 +85,4 @@ en.subject.pdf
 
 # secrets/*.txt
 # !secrets/*.txt.example
-# .env
+.env
