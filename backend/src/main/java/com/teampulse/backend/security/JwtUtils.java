@@ -7,6 +7,7 @@ import java.util.function.Function;
 
 import javax.crypto.SecretKey;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,23 @@ public class JwtUtils {
 
 	@Value("${app.jwt.access-expiration-ms}")
 	private long jwtExpiration;
+
+	private SecretKey cachedSignInKey;
+
+	@PostConstruct
+	public void validateAndInitKey() {
+		if (secretKey == null || secretKey.isBlank()) {
+			throw new IllegalStateException("CRITICAL: JWT secret key is not configured.");
+		}
+		byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+		if (keyBytes.length < 32) {
+			throw new IllegalStateException("CRITICAL: JWT secret key must be at least 256 bits (32 bytes) long for HMAC-SHA256 strength.");
+		}
+		if (jwtExpiration <= 0) {
+			throw new IllegalStateException("CRITICAL: JWT expiration time must be greater than 0.");
+		}
+		this.cachedSignInKey = Keys.hmacShaKeyFor(keyBytes);
+	}
 
 	public String extractUsername(String token) {
 		return extractClaim(token, claims -> claims.getSubject());
@@ -44,8 +62,8 @@ public class JwtUtils {
 			extraClaims.put("sv", user.getSecurityVersion());
 
 			String firstName = user.getFirstName() != null ? user.getFirstName() : "";
-            String lastName = user.getLastName() != null ? user.getLastName() : "";
-            String fullName = (firstName + " " + lastName).trim();
+			String lastName = user.getLastName() != null ? user.getLastName() : "";
+			String fullName = (firstName + " " + lastName).trim();
 
 			extraClaims.put("name", fullName.isEmpty() ? user.getEmail() : fullName);
 		}
@@ -85,8 +103,7 @@ public class JwtUtils {
 	}
 
 	private SecretKey getSignInKey() {
-		byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-		return Keys.hmacShaKeyFor(keyBytes);
+		return this.cachedSignInKey != null ? this.cachedSignInKey : Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
 	}
 
 	public Long extractSecurityVersion(String token) {
