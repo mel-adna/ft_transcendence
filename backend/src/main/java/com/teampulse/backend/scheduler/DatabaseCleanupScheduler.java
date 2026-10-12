@@ -23,7 +23,7 @@ public class DatabaseCleanupScheduler {
 	public void dailyDatabaseCleanup() {
 		log.info("[Database Cleanup] Starting daily maintenance job...");
 
-		int deletedRefreshTokens = refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
+		int deletedRefreshTokens = refreshTokenRepository.deleteExpiredOrRevokedTokens(Instant.now());
 		if (deletedRefreshTokens > 0) {
 			log.info("[Database Cleanup] Purged {} expired refresh tokens.", deletedRefreshTokens);
 		}

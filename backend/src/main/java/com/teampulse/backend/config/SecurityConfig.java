@@ -26,7 +26,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.Objects;
 
 @Configuration
 @EnableWebSecurity
@@ -57,12 +56,6 @@ public class SecurityConfig {
 						.authenticationEntryPoint((request, response, authException) -> {
 							response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 							response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-
-//							String json = String.format(
-//									"{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Full authentication is required or token has expired.\",\"path\":\"%s\"}",
-//									LocalDateTime.now(),
-//									request.getRequestURI()
-//							);
 
 							Map<String, Object> body = Map.of(
 									"timestamp", LocalDateTime.now().toString(),

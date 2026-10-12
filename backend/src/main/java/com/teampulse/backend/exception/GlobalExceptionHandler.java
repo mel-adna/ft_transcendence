@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,27 +35,27 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex,
 	                                                            HttpServletRequest request) {
-		log.warn("Resource not found: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Resource not found: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 		return buildResponseEntity(HttpStatus.NOT_FOUND, ex.getMessage(), request, null);
 	}
 
 	@ExceptionHandler(UnauthorizedAccessException.class)
 	public ResponseEntity<ErrorResponse> handleUnauthorizedAccess(UnauthorizedAccessException ex,
 	                                                              HttpServletRequest request) {
-		log.warn("Unauthorized access attempt: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Unauthorized access attempt: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 		return buildResponseEntity(HttpStatus.FORBIDDEN, ex.getMessage(), request, null);
 	}
 
 	@ExceptionHandler(ResourceAlreadyExistsException.class)
 	public ResponseEntity<ErrorResponse> handleResourceAlreadyExists(ResourceAlreadyExistsException ex,
 	                                                                 HttpServletRequest request) {
-		log.warn("Resource already exists conflict: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Resource already exists conflict: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 		return buildResponseEntity(HttpStatus.CONFLICT, ex.getMessage(), request, null);
 	}
 
 	@ExceptionHandler(BadRequestException.class)
 	public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
-		log.warn("Bad request execution: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Bad request execution: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 		return buildResponseEntity(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
 	}
 
@@ -67,12 +68,12 @@ public class GlobalExceptionHandler {
 			validationError.put(fieldError.getField(), fieldError.getDefaultMessage());
 		}
 
-		log.warn("Validation failed for request to: {} | Errors: {}", request.getRequestURI(), validationError);
+		log.warn("Validation failed for request to: {} | Field errors count: {}", request.getRequestURI(), validationError.size());
 		return buildResponseEntity(HttpStatus.BAD_REQUEST, "Validation failed", request, validationError);
 	}
 
 	@ExceptionHandler(io.jsonwebtoken.ExpiredJwtException.class)
-	public ResponseEntity<ErrorResponse> handleExpiredJwtException(io.jsonwebtoken.ExpiredJwtException ex,
+	public ResponseEntity<ErrorResponse> handleExpiredJwtException(ExpiredJwtException ex,
 	                                                               HttpServletRequest request) {
 		log.warn("JWT Token status: Expired | Path: {}", request.getRequestURI());
 		return buildResponseEntity(
@@ -111,7 +112,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(JwtException.class)
 	public ResponseEntity<ErrorResponse> handleJwtException(JwtException ex, HttpServletRequest request) {
-		log.warn("JWT validation failed (Malformed/Invalid): {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("JWT validation failed (Malformed/Invalid) | Path: {}", request.getRequestURI());
 
 		return buildResponseEntity(
 				HttpStatus.UNAUTHORIZED,
@@ -122,7 +123,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(DisabledException.class)
 	public ResponseEntity<ErrorResponse> handleDisabledException(DisabledException ex, HttpServletRequest request) {
-		log.warn("Disabled user attempt: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Disabled user attempt: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 
 		return buildResponseEntity(HttpStatus.FORBIDDEN,
 				"Account is disabled. Please verify your email first.",
@@ -132,7 +133,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(NoResourceFoundException.class)
 	public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex, HttpServletRequest request) {
-		log.warn("No resource found: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("No resource found: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 
 		return buildResponseEntity(
 				HttpStatus.NOT_FOUND,
@@ -143,7 +144,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(AccountNotVerifiedException.class)
 	public ResponseEntity<ErrorResponse> handleAccountNotVerifiedException(AccountNotVerifiedException ex, HttpServletRequest request) {
-		log.warn("Unverified account login attempt: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Unverified account login attempt: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 
 		return buildResponseEntity(
 				HttpStatus.FORBIDDEN,
@@ -155,7 +156,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(RateLimitExceededException.class)
 	public ResponseEntity<ErrorResponse> handleRateLimitExceeded(RateLimitExceededException ex, HttpServletRequest request) {
-		log.warn("Rate limit violation at path: {} | Details: {}", request.getRequestURI(), ex.getMessage());
+		log.warn("Rate limit violation at path: {}", request.getRequestURI());
 
 		ErrorResponse errorResponse = ErrorResponse.builder()
 				.timestamp(LocalDateTime.now())
@@ -173,7 +174,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
 	public ResponseEntity<ErrorResponse> handleIllegalStateAndArgument(RuntimeException ex, HttpServletRequest request) {
-		log.warn("Business rule violation: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Business rule violation: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 
 		return buildResponseEntity(
 				HttpStatus.CONFLICT,
@@ -198,7 +199,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler({EmailDeliveryException.class, MailException.class})
 	public ResponseEntity<ErrorResponse> handleEmailDeliveryException(Exception ex, HttpServletRequest request) {
-		log.error("Email service failure encountered on path: {} | Cause: {}", request.getRequestURI(), ex.getMessage());
+		log.error("Email service failure encountered on path: {} | Exception: {}", request.getRequestURI(), ex.getClass().getSimpleName());
 
 		return buildResponseEntity(
 				HttpStatus.SERVICE_UNAVAILABLE,
@@ -224,7 +225,7 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
 	public ResponseEntity<ErrorResponse> handleTypeMismatchAndMissingParams(Exception ex,
 	                                                                        HttpServletRequest request) {
-		log.warn("Invalid parameter or type mismatch at path: {} | Details: {}", request.getRequestURI(), ex.getMessage());
+		log.warn("Invalid parameter or type mismatch at path: {}", request.getRequestURI());
 
 		return buildResponseEntity(
 				HttpStatus.BAD_REQUEST,
@@ -249,7 +250,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
-		log.warn("Database integrity violation: {} | Path: {}", ex.getMessage(), request.getRequestURI());
+		log.warn("Database integrity constraint violation at path: {}", request.getRequestURI());
 
 		String message = "Database constraint violation or invalid data format.";
 		HttpStatus status = HttpStatus.BAD_REQUEST;
@@ -264,8 +265,14 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {
-		log.error("CRITICAL ERROR internal server crash at path: ", ex);
+		log.error("CRITICAL ERROR internal server crash at path: {}", request.getRequestURI(), ex);
 		return buildResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR,
 				"An unexpected server error occurred. Please try again later.", request, null);
+	}
+
+	private String sanitizeForLog(String msg) {
+		if (msg == null) return "";
+		String clean = msg.replaceAll("[\r\n]", "_");
+		return clean.replaceAll("(?i)\\b([A-Z0-9._%+-]{1,2})[A-Z0-9._%+-]*@([A-Z0-9.-]+\\.[A-Z]{2,})\\b", "$1***@$2");
 	}
 }

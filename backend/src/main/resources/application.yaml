@@ -29,6 +29,10 @@ spring:
       max-lifetime: 1800000
       connection-timeout: 20000
   data:
+    web:
+      pageable:
+        max-page-size: 100
+        default-page-size: 20
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}

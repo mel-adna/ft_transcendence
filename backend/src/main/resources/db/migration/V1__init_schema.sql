@@ -3,18 +3,19 @@ EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE users
 (
-    id            UUID PRIMARY KEY,
-    email         VARCHAR(100) NOT NULL,
-    password_hash VARCHAR(255),
-    first_name    VARCHAR(50),
-    last_name     VARCHAR(50),
-    avatar_url    VARCHAR(255),
-    provider      VARCHAR(20)  NOT NULL DEFAULT 'LOCAL',
-    provider_id   VARCHAR(255),
-    enabled       BOOLEAN      NOT NULL DEFAULT FALSE,
-    deleted       BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id               UUID PRIMARY KEY,
+    email            VARCHAR(100) NOT NULL,
+    password_hash    VARCHAR(255),
+    first_name       VARCHAR(50),
+    last_name        VARCHAR(50),
+    avatar_url       VARCHAR(255),
+    provider         VARCHAR(20)  NOT NULL DEFAULT 'LOCAL',
+    provider_id      VARCHAR(255),
+    enabled          BOOLEAN      NOT NULL DEFAULT FALSE,
+    deleted          BOOLEAN      NOT NULL DEFAULT FALSE,
+    security_version BIGINT       NOT NULL DEFAULT 1,
+    created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE workspaces
@@ -25,6 +26,7 @@ CREATE TABLE workspaces
     type        VARCHAR(50)  NOT NULL,
     owner_id    UUID,
     deleted     BOOLEAN      NOT NULL DEFAULT FALSE,
+    version     BIGINT       NOT NULL DEFAULT 0,
     created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_workspaces_owner FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE RESTRICT
@@ -49,11 +51,12 @@ CREATE TABLE tasks
     workspace_id UUID         NOT NULL,
     title        VARCHAR(150) NOT NULL,
     description  VARCHAR(40000),
-    status       VARCHAR(50)  NOT NULL DEFAULT 'TODO',  
+    status       VARCHAR(50)  NOT NULL DEFAULT 'TODO',
     priority     VARCHAR(50)  NOT NULL DEFAULT 'MEDIUM',
     assignee_id  UUID,
     creator_id   UUID,
     deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
+    version      BIGINT       NOT NULL DEFAULT 0,
     created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -104,13 +107,14 @@ CREATE TABLE password_reset_tokens
 CREATE TABLE refresh_tokens
 (
     id          UUID PRIMARY KEY,
-    user_id     UUID         NOT NULL,
-    token       VARCHAR(255) NOT NULL UNIQUE,
-    expiry_date TIMESTAMP    NOT NULL,
+    user_id     UUID        NOT NULL,
+    token_hash  VARCHAR(64) NOT NULL UNIQUE,
+    expiry_date TIMESTAMP   NOT NULL,
     client_ip   VARCHAR(45),
     user_agent  VARCHAR(512),
-    revoked     BOOLEAN      NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked     BOOLEAN     NOT NULL DEFAULT FALSE,
+    consumed    BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
@@ -148,6 +152,7 @@ CREATE TABLE workspace_invitation
     inviter_id        UUID,
     invitation_status VARCHAR(50)  NOT NULL,
     role              VARCHAR(50)  NOT NULL,
+    version           BIGINT       NOT NULL DEFAULT 0,
     created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at        TIMESTAMP    NOT NULL,
 
@@ -162,6 +167,7 @@ CREATE INDEX idx_workspace_members_user ON workspace_members (user_id);
 CREATE INDEX idx_tasks_workspace_active ON tasks (workspace_id) WHERE deleted = FALSE;
 CREATE INDEX idx_tasks_assignee_active ON tasks (assignee_id) WHERE deleted = FALSE AND assignee_id IS NOT NULL;
 CREATE INDEX idx_tasks_workspace ON tasks (workspace_id);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens (user_id);
 CREATE INDEX idx_logs_workspace_timestamp ON activity_logs (workspace_id, created_at DESC);
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_id, created_at DESC);
 CREATE INDEX idx_notifications_unread ON notifications (recipient_id) WHERE is_read = FALSE;
@@ -172,3 +178,5 @@ CREATE INDEX idx_verification_codes_user ON verification_codes (user_id);
 CREATE INDEX IF NOT EXISTS idx_invitation_workspace_status ON workspace_invitation (workspace_id, invitation_status);
 CREATE INDEX IF NOT EXISTS idx_invitation_invitee_status ON workspace_invitation (invitee_email, invitation_status);
 CREATE INDEX IF NOT EXISTS idx_invitation_inviter ON workspace_invitation (inviter_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_owner_name_active ON workspaces(owner_id, lower (name)) WHERE deleted = FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_workspace_invitation ON workspace_invitation(workspace_id, lower (invitee_email)) WHERE invitation_status = 'PENDING';

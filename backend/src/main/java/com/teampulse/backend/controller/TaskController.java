@@ -1,7 +1,6 @@
 package com.teampulse.backend.controller;
 
 import java.security.Principal;
-import java.util.List;
 import java.util.UUID;
 
 import com.teampulse.backend.security.ratelimit.RateLimit;

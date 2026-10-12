@@ -20,13 +20,13 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(rollbackFor = Exception.class)
 public class ApiKeyService {
 	private final ApiKeyRepository apiKeyRepository;
 	private final UserRepository userRepository;
 
 	private static final String PREFIX = "tp_live_";
 
-	@Transactional
 	public String generateOrRotateApiKey(String userEmail) {
 		User user = userRepository.findByEmail(userEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
@@ -54,7 +54,6 @@ public class ApiKeyService {
 		return fullKey;
 	}
 
-	@Transactional
 	public User validateApiKeyAndGetUser(String rawKey) {
 		if (rawKey == null || !rawKey.startsWith(PREFIX))
 			return null;
@@ -72,7 +71,6 @@ public class ApiKeyService {
 		return apiKey.getUser();
 	}
 
-	@Transactional
 	public void revokeApiKey(String userEmail) {
 		User user = userRepository.findByEmail(userEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
