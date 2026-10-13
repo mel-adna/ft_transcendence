@@ -29,11 +29,6 @@ class SocketClient {
    * @returns {import('socket.io-client').Socket}
    */
   connect() {
-    // Reuse a socket that is connected OR still completing its handshake.
-    // Checking only `.connected` meant a second caller during the async
-    // handshake would tear the in-flight socket down and start over — an
-    // endless reconnect loop that also orphaned every listener already
-    // attached to the discarded instance.
     if (this._socket && (this._socket.connected || this._socket.active)) {
       return this._socket;
     }
@@ -50,9 +45,9 @@ class SocketClient {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 3,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelayMax: 5000,
     });
 
     this._bindLifecycleEvents();
@@ -61,12 +56,6 @@ class SocketClient {
 
   /**
    * Disconnect and destroy the socket.
-   *
-   * No-op while something outside the chat feature is holding the connection
-   * open (see retain/release). ChatPage unmounts whenever the user navigates
-   * to Teams or Tasks, and those pages listen for `data:changed` on this same
-   * socket — without this guard, leaving chat would silently kill their
-   * live updates.
    */
   disconnect() {
     if (this._holders > 0) return;
@@ -138,17 +127,14 @@ class SocketClient {
     const s = this._socket;
 
     s.on('connect', () => {
-      console.log('[SocketClient] Connected:', s.id);
       this._startHeartbeat();
     });
 
-    s.on('disconnect', (reason) => {
-      console.log('[SocketClient] Disconnected:', reason);
+    s.on('disconnect', () => {
       this._stopHeartbeat();
     });
 
     s.on('connect_error', (err) => {
-      console.error('[SocketClient] Connection error:', err.message);
       // If auth error, don't retry indefinitely
       if (
         err.message === 'AUTH_MISSING_TOKEN' ||
@@ -157,6 +143,10 @@ class SocketClient {
       ) {
         s.disconnect();
       }
+    });
+
+    s.on('reconnect_failed', () => {
+      s.disconnect();
     });
   }
 
