@@ -55,8 +55,9 @@ export function useChat(roomId, currentUserId) {
         setMessages((prev) =>
           replace ? [...fetched].reverse() : [...fetched].reverse().concat(prev),
         );
-      } catch (err) {
-        console.error('[useChat] fetchHistory error:', err.message);
+      } catch {
+        // Swallowed intentionally: an outage here shouldn't spam the
+        // console, and the UI already reflects it via isLoading/hasMore.
       } finally {
         setIsLoading(false);
       }

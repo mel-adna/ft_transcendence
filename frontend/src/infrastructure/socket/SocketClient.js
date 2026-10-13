@@ -29,6 +29,9 @@ class SocketClient {
    * @returns {import('socket.io-client').Socket}
    */
   connect() {
+    // .active stays true once the socket exists and hasn't been destroyed,
+    // even mid-reconnect, so this also covers "still reconnecting" without
+    // tearing down and recreating the socket on every call.
     if (this._socket && (this._socket.connected || this._socket.active)) {
       return this._socket;
     }
@@ -42,12 +45,12 @@ class SocketClient {
     }
 
     this._socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:5005', {
-      auth: { token },
+      auth: (cb) => cb({ token: this._tokenGetter?.() }),
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 3,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionDelayMax: 10000,
     });
 
     this._bindLifecycleEvents();
@@ -114,14 +117,11 @@ class SocketClient {
   }
 
   /**
-   * Refresh auth token on reconnect (e.g. after token rotation).
-   * @param {string} newToken
+   * No-op: auth is a function (see connect()), so it already reads the
+   * current token via _tokenGetter on every (re)connect. Kept so existing
+   * callers after a token refresh don't need to change.
    */
-  updateToken(newToken) {
-    if (this._socket) {
-      this._socket.auth = { token: newToken };
-    }
-  }
+  updateToken() {}
 
   _bindLifecycleEvents() {
     const s = this._socket;
@@ -132,21 +132,6 @@ class SocketClient {
 
     s.on('disconnect', () => {
       this._stopHeartbeat();
-    });
-
-    s.on('connect_error', (err) => {
-      // If auth error, don't retry indefinitely
-      if (
-        err.message === 'AUTH_MISSING_TOKEN' ||
-        err.message === 'AUTH_TOKEN_INVALID' ||
-        err.message === 'AUTH_TOKEN_EXPIRED'
-      ) {
-        s.disconnect();
-      }
-    });
-
-    s.on('reconnect_failed', () => {
-      s.disconnect();
     });
   }
 

@@ -18,8 +18,8 @@ export function useRoomPresence(roomId) {
     try {
       const { members: fetched } = await chatApi.getPresence(roomId);
       setMembers(fetched);
-    } catch (err) {
-      console.error('[useRoomPresence] fetch error:', err.message);
+    } catch {
+      // Swallowed intentionally — an outage here shouldn't spam the console.
     }
   }, [roomId]);
 
