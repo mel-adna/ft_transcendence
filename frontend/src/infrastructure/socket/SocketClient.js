@@ -120,11 +120,7 @@ class SocketClient {
     return this._socket?.connected ?? false;
   }
 
-  /**
-   * No-op: auth is a function (see connect()), so it already reads the
-   * current token via _tokenGetter on every (re)connect. Kept so existing
-   * callers after a token refresh don't need to change.
-   */
+  // No-op now — auth is a function that reads the latest token itself.
   updateToken() {}
 
   _bindLifecycleEvents() {
@@ -139,27 +135,15 @@ class SocketClient {
     });
   }
 
-  /**
-   * socket.io-client gives up for good after reconnectionAttempts fails —
-   * `reconnect_failed` resets its own backoff but never tries again on its
-   * own, so an outage longer than the retry budget (~70s at the current
-   * settings) leaves the page stuck until a manual reload. Confirmed live:
-   * stopping chat-service for 110s, then bringing it back, left an open tab
-   * showing "Connection error" indefinitely even 60s after it was healthy
-   * again, while a fresh page load connected immediately.
-   *
-   * `reconnect_failed` is emitted on the Manager (`socket.io`), not the
-   * Socket — a handler on the Socket itself never fires.
-   */
+  // Retries again after socket.io-client gives up for good, otherwise an
+  // outage past the retry budget needs a manual reload. Listens on the
+  // Manager (socket.io), not the Socket — reconnect_failed never fires there.
   _bindGiveUpRecovery() {
     const s = this._socket;
     this._giveUpManager = s.io;
     this._onGiveUp = () => {
       this._giveUpTimer = setTimeout(() => {
         this._giveUpTimer = null;
-        // Only retry if this is still the active socket — disconnect() or
-        // forceClose() (logout, or the last holder releasing) clears
-        // this._socket, and a stray retry on a torn-down socket must not run.
         if (this._socket === s) {
           s.connect();
         }

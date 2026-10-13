@@ -19,7 +19,7 @@ export function useRoomPresence(roomId) {
       const { members: fetched } = await chatApi.getPresence(roomId);
       setMembers(fetched);
     } catch {
-      // Swallowed intentionally — an outage here shouldn't spam the console.
+      // ignore
     }
   }, [roomId]);
 

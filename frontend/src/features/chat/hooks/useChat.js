@@ -56,8 +56,7 @@ export function useChat(roomId, currentUserId) {
           replace ? [...fetched].reverse() : [...fetched].reverse().concat(prev),
         );
       } catch {
-        // Swallowed intentionally: an outage here shouldn't spam the
-        // console, and the UI already reflects it via isLoading/hasMore.
+        // ignore, isLoading already reflects the failure
       } finally {
         setIsLoading(false);
       }
