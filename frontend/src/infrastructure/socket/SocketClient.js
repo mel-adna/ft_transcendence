@@ -29,9 +29,11 @@ class SocketClient {
    * @returns {import('socket.io-client').Socket}
    */
   connect() {
-    // .active stays true once the socket exists and hasn't been destroyed,
-    // even mid-reconnect, so this also covers "still reconnecting" without
-    // tearing down and recreating the socket on every call.
+    // Reuse a socket that is connected OR still completing its handshake.
+    // Checking only `.connected` meant a second caller during the async
+    // handshake would tear the in-flight socket down and start over — an
+    // endless reconnect loop that also orphaned every listener already
+    // attached to the discarded instance.
     if (this._socket && (this._socket.connected || this._socket.active)) {
       return this._socket;
     }
@@ -54,6 +56,7 @@ class SocketClient {
     });
 
     this._bindLifecycleEvents();
+    this._bindGiveUpRecovery();
     return this._socket;
   }
 
@@ -93,6 +96,7 @@ class SocketClient {
 
   _forceDisconnect() {
     this._stopHeartbeat();
+    this._stopGiveUpRecovery();
     if (this._socket) {
       this._socket.disconnect();
       this._socket = null;
@@ -133,6 +137,47 @@ class SocketClient {
     s.on('disconnect', () => {
       this._stopHeartbeat();
     });
+  }
+
+  /**
+   * socket.io-client gives up for good after reconnectionAttempts fails —
+   * `reconnect_failed` resets its own backoff but never tries again on its
+   * own, so an outage longer than the retry budget (~70s at the current
+   * settings) leaves the page stuck until a manual reload. Confirmed live:
+   * stopping chat-service for 110s, then bringing it back, left an open tab
+   * showing "Connection error" indefinitely even 60s after it was healthy
+   * again, while a fresh page load connected immediately.
+   *
+   * `reconnect_failed` is emitted on the Manager (`socket.io`), not the
+   * Socket — a handler on the Socket itself never fires.
+   */
+  _bindGiveUpRecovery() {
+    const s = this._socket;
+    this._giveUpManager = s.io;
+    this._onGiveUp = () => {
+      this._giveUpTimer = setTimeout(() => {
+        this._giveUpTimer = null;
+        // Only retry if this is still the active socket — disconnect() or
+        // forceClose() (logout, or the last holder releasing) clears
+        // this._socket, and a stray retry on a torn-down socket must not run.
+        if (this._socket === s) {
+          s.connect();
+        }
+      }, 15_000);
+    };
+    this._giveUpManager.on('reconnect_failed', this._onGiveUp);
+  }
+
+  _stopGiveUpRecovery() {
+    if (this._giveUpManager && this._onGiveUp) {
+      this._giveUpManager.off('reconnect_failed', this._onGiveUp);
+    }
+    this._giveUpManager = null;
+    this._onGiveUp = null;
+    if (this._giveUpTimer) {
+      clearTimeout(this._giveUpTimer);
+      this._giveUpTimer = null;
+    }
   }
 
   // Heartbeat every 30s to signal ONLINE presence.
