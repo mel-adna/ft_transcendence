@@ -56,9 +56,8 @@ export function SocketProvider({ children, getToken }) {
       setStatus('idle');
     };
 
-    const onConnectError = (err) => {
+    const onConnectError = () => {
       if (cancelled) return;
-      console.error('[SocketProvider] connect_error:', err.message);
       setConnected(false);
       setStatus('error');
     };
