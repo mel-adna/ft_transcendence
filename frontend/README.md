@@ -125,7 +125,7 @@ Teams, colleagues and tasks live in the Java backend, which has no socket of its
 
 Both refetches are **quiet**: `useList.reload({ quiet: true })` skips the loading flag. Without that, a teammate moving a card raised `loading` on your board, the page returned its full-screen spinner, and every modal under it unmounted, including a task form somebody was typing into. The loading spinner is for the first load only.
 
-One more thing worth knowing: the socket takes its token when it connects, and it now stays open for the whole session rather than just while the Chat page is mounted. So `lib/api.js` calls `socketClient.updateToken` when it refreshes the access token, or the next reconnect would authenticate with the expired one and live updates would stop for the rest of the session.
+One more thing worth knowing: the socket stays open for the whole session, not just while the Chat page is mounted. Since aarab's change merged on 14 October, it reads the token from storage on every reconnect, so a reconnect after a renewal sends the new token. `lib/api.js` still calls `socketClient.updateToken` after each refresh. That call does nothing today; issue 55 in `backend-issues.md` would make it bring back a socket that chat-service refused.
 
 ## Colours come from tokens, not from the markup
 
