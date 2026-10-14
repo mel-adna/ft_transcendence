@@ -47,7 +47,7 @@ class SocketClient {
     }
 
     this._socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:5005', {
-      auth: { token },
+      auth: (cb) => cb({ token: this._tokenGetter?.() }),
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -56,17 +56,12 @@ class SocketClient {
     });
 
     this._bindLifecycleEvents();
+    this._bindGiveUpRecovery();
     return this._socket;
   }
 
   /**
    * Disconnect and destroy the socket.
-   *
-   * No-op while something outside the chat feature is holding the connection
-   * open (see retain/release). ChatPage unmounts whenever the user navigates
-   * to Teams or Tasks, and those pages listen for `data:changed` on this same
-   * socket — without this guard, leaving chat would silently kill their
-   * live updates.
    */
   disconnect() {
     if (this._holders > 0) return;
@@ -101,6 +96,7 @@ class SocketClient {
 
   _forceDisconnect() {
     this._stopHeartbeat();
+    this._stopGiveUpRecovery();
     if (this._socket) {
       this._socket.disconnect();
       this._socket = null;
@@ -124,40 +120,48 @@ class SocketClient {
     return this._socket?.connected ?? false;
   }
 
-  /**
-   * Refresh auth token on reconnect (e.g. after token rotation).
-   * @param {string} newToken
-   */
-  updateToken(newToken) {
-    if (this._socket) {
-      this._socket.auth = { token: newToken };
-    }
-  }
+  // No-op now — auth is a function that reads the latest token itself.
+  updateToken() {}
 
   _bindLifecycleEvents() {
     const s = this._socket;
 
     s.on('connect', () => {
-      console.log('[SocketClient] Connected:', s.id);
       this._startHeartbeat();
     });
 
-    s.on('disconnect', (reason) => {
-      console.log('[SocketClient] Disconnected:', reason);
+    s.on('disconnect', () => {
       this._stopHeartbeat();
     });
+  }
 
-    s.on('connect_error', (err) => {
-      console.error('[SocketClient] Connection error:', err.message);
-      // If auth error, don't retry indefinitely
-      if (
-        err.message === 'AUTH_MISSING_TOKEN' ||
-        err.message === 'AUTH_TOKEN_INVALID' ||
-        err.message === 'AUTH_TOKEN_EXPIRED'
-      ) {
-        s.disconnect();
-      }
-    });
+  // Retries again after socket.io-client gives up for good, otherwise an
+  // outage past the retry budget needs a manual reload. Listens on the
+  // Manager (socket.io), not the Socket — reconnect_failed never fires there.
+  _bindGiveUpRecovery() {
+    const s = this._socket;
+    this._giveUpManager = s.io;
+    this._onGiveUp = () => {
+      this._giveUpTimer = setTimeout(() => {
+        this._giveUpTimer = null;
+        if (this._socket === s) {
+          s.connect();
+        }
+      }, 15_000);
+    };
+    this._giveUpManager.on('reconnect_failed', this._onGiveUp);
+  }
+
+  _stopGiveUpRecovery() {
+    if (this._giveUpManager && this._onGiveUp) {
+      this._giveUpManager.off('reconnect_failed', this._onGiveUp);
+    }
+    this._giveUpManager = null;
+    this._onGiveUp = null;
+    if (this._giveUpTimer) {
+      clearTimeout(this._giveUpTimer);
+      this._giveUpTimer = null;
+    }
   }
 
   // Heartbeat every 30s to signal ONLINE presence.

@@ -1,33 +1,52 @@
+.PHONY: all env secrets certs ps clean fclean backend re
 
 
-all: secrets
-	chmod +x generate_certs.sh
-	./generate_certs.sh
-	docker compose up -d --build
+ENV_FILE := $(shell if [ -f .env ]; then echo ".env"; else echo ".env_example"; fi)
+
+all: env secrets certs
+	docker compose --env-file .env up -d --build
+
+env:
+	@if [ ! -f .env ]; then \
+		if [ -f .env_example ]; then \
+			echo "Creating .env from .env_example..."; \
+			cp .env_example .env; \
+		else \
+			echo "Error: .env_example not found!"; \
+			exit 1; \
+		fi; \
+	fi
 
 secrets:
 	@mkdir -p secrets
 	@for example in secrets_example/*.txt.example; do \
-		target="secrets/$$(basename "$$example" .example)"; \
-		if [ ! -f "$$target" ]; then \
-			tr -d '\r\n' < "$$example" > "$$target"; \
-			chmod 600 "$$target"; \
+		if [ -f "$$example" ]; then \
+			target="secrets/$$(basename "$$example" .example)"; \
+			if [ ! -f "$$target" ]; then \
+				echo "Creating $$target..."; \
+				tr -d '\r\n' < "$$example" > "$$target"; \
+				chmod 600 "$$target"; \
+			fi; \
 		fi; \
 	done
 
+certs:
+	@chmod +x generate_certs.sh
+	@./generate_certs.sh
+
 ps:
-	docker ps -a
+	docker compose --env-file $(ENV_FILE) ps -a
 
 clean:
-	docker compose down
+	docker compose --env-file $(ENV_FILE) down -v
 
 fclean:
+	docker compose --env-file $(ENV_FILE) down -v --rmi local
 	rm -rf secrets
 	rm -rf ./nginx/certs
-	docker compose down -v
+	rm -f .env
 
 backend:
-	docker compose up -d --build backend
+	docker compose --env-file $(ENV_FILE) up -d --build backend
 
 re: fclean all
-
