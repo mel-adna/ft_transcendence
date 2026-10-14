@@ -1,108 +1,98 @@
 # Backend issues
 
-Status checked 2026-10-07 against `c2953a6` on `mdbentaleb` and `ebec135` on `mel-adna`, both
-merged into `szemmouri`. Only unresolved issues are listed.
+Status checked 2026-10-14 against `62da2e7` on `main`. Only unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
 
-`backend/frontend-issues.md` used 42 to 44 for its frontend issues, so backend issues here start
-at 45. Its 39 is the same as 39 below.
+Numbers 42 to 44 were used by mdbentaleb's old `backend/frontend-issues.md`, so backend issues here
+start at 45.
 
-## Fix before the evaluation
+## Blocking
 
-An evaluator can run into this during normal use.
+This one stops the app on a fresh clone, which is how an evaluator usually starts.
 
 | # | Issue | Why it matters | Effort | Who fixes it |
 |---|---|---|---|---|
-| 50 | The PDF export prints errors in the console | Exporting the dashboard after signing in prints five errors, and the subject rejects a project with console errors | 1 line | mel-adna |
+| 53 | A fresh clone does not start: the example JWT secret is not base64 | `make` on a fresh clone gives a backend that stops at startup, so nothing works | A few lines in the `Makefile` | mdbentaleb |
 
 ## Not blocking
 
-Real defects, but none of them breaks the app at the evaluation.
+Real defects, but neither breaks the app at the evaluation.
 
 | # | Issue | Why it matters | Effort | Who fixes it |
 |---|---|---|---|---|
-| 49 | `make` does not create new secret files when `secrets/` already exists | After pulling the Redis password, a teammate who ran `make` before cannot start the stack | 1 line | mdbentaleb |
-| 39 | The socket client logs to the console on every page | With chat-service down, every page prints connection errors, and the subject rejects a project with console errors | Delete 3 lines | aarab |
-| 51 | The stats tests still mock the old member query | `mvn test` fails 11 of the 15 stats tests; the app is fine because the Docker build skips tests | Rename in 8 places | mel-adna |
+| 54 | The example env file is named `.env_example` | The subject asks for an `.env.example` file by that name | Rename and 3 lines | mdbentaleb |
+| 55 | A socket refused by chat-service is never retried | After a refused reconnect, live updates stop until a reload | 2 lines | aarab |
 
 ---
 
-# Fix before the evaluation
+# Blocking
 
-## 50. The PDF export prints errors in the console
+## 53. A fresh clone does not start: the example JWT secret is not base64
 
-The dashboard's "Export PDF" button (mel-adna's `features/dashboard/StatsDashboard.jsx`) turns the
-page into an image with `html-to-image`. Before drawing, the library reads every stylesheet on the
-page to embed web fonts. The sign-in page loads Google's sign-in script, which adds its own
-stylesheet (`accounts.google.com/gsi/style`), and that stylesheet stays in the page after signing
-in. The library is not allowed to read it or fetch it from our address, so it prints five errors,
-although the PDF itself comes out fine:
+On 2026-10-14 the `secrets_example` files were changed to placeholders that start with `put_`.
+The `secrets` rule in the `Makefile` copies an example into `secrets/` only when that file is
+missing. Every existing setup keeps its real files and works. A fresh clone gets the placeholders,
+and the backend reads the placeholder as its JWT secret. `JwtUtils.validateAndInitKey()` decodes
+the secret as base64 at startup, and the underscores are not base64:
 
 ```text
-Error inlining remote css file SecurityError: Failed to read the 'cssRules' property from 'CSSStyleSheet'
-Access to fetch at 'https://accounts.google.com/gsi/style' from origin 'https://localhost' has been blocked by CORS policy
+DecodingException: Illegal base64 character: '_'
 ```
 
-Reloading the dashboard before exporting removes Google's stylesheet, which is why it is easy to
-miss. The app loads no web fonts (`Inter` is only used when it is installed on the computer), so
-this step embeds nothing anyway.
+So the backend stops before it answers a single request. Checked on 2026-10-14 by running the same
+jjwt 0.12.6 decode on the placeholder. The real secret in a working `secrets/` passes (384 bits).
 
-**Fix (mel-adna):** add `skipFonts: true` to the `toJpeg(...)` options. Tested on 2026-10-07 by changing the
-running container only: the console stays clean and the PDF has the same size (320 KB).
+**Fix (mdbentaleb):** when a file is missing, let the `secrets` rule generate the five internal
+values instead of copying a placeholder:
+
+- `jwt_secret.txt`: `openssl rand -base64 48 | tr -d '\n'`
+- `db_password.txt`, `redis_password.txt`, `minio_root_password.txt` and
+  `grafana_admin_password.txt`: `openssl rand -hex 16`
+
+Keep the copied placeholders only for `mail_password.txt` and `google_client_secret.txt`, which
+belong to real Google accounts and have to be filled in by hand. Two things to know after the fix:
+
+- The Grafana admin password is then whatever was generated, so read it from
+  `secrets/grafana_admin_password.txt` for the monitoring demo.
+- A generated database password only matches an empty Postgres volume. `make fclean` removes the
+  volume and `secrets/` together, so that stays consistent.
+
+Until the real mail password is in `secrets/mail_password.txt`, sign-up codes cannot be emailed,
+so nobody can finish signing up on a fresh clone. The README's Instructions should say which two
+files to fill in before `make`.
 
 # Not blocking
 
-## 49. `make` does not create new secret files when `secrets/` already exists
+## 54. The example env file is named `.env_example`
 
-The `secrets` target in the `Makefile` copies every `secrets_example/*.txt.example` that is missing
-from `secrets/`. Nothing marks `secrets` as `.PHONY`, so once the `secrets/` folder exists, make
-treats the target as an up-to-date folder and skips it:
+The subject says: "provide an .env.example file". The root file is `.env_example`, with an
+underscore. `frontend/.env.example` already uses the right name.
 
-```text
-$ make secrets
-make: `secrets' is up to date.
-```
+**Fix (mdbentaleb):** run `git mv .env_example .env.example`, then change `.env_example` to
+`.env.example` in the `Makefile` (the `ENV_FILE` line and the `env` rule) and in the
+`!.env_example` line of `.gitignore`.
 
-The Redis password added on 2026-10-05 (`redis_password.txt`) is therefore never created for
-anyone who ran `make` before, and `docker compose up` stops with "bind source path does not exist"
-for Redis, the backend and chat-service. A fresh clone at the evaluation is not affected, since it
-has no `secrets/` folder yet.
+## 55. A socket refused by chat-service is never retried
 
-**Fix (mdbentaleb):** add `.PHONY: all secrets ps clean fclean backend re` at the top of the `Makefile`. Until
-then, `make -B secrets` creates the missing files without touching the existing ones.
+Found while reviewing pull request 1, which was merged on 2026-10-14 without this part. Outages
+are handled now: a 100 second chat-service outage recovers by itself. A refusal is different. When
+chat-service refuses a reconnect, for example with `AUTH_TOKEN_EXPIRED` after a laptop sleeps longer
+than the 15 minute token, socket.io destroys the socket and nothing reconnects it. The next
+`socketClient.connect()` from a page then creates a second socket, so `WorkspaceProvider` and the
+bell keep listening to the first, dead one. Reproduced in Chromium: the first socket's listener
+received 0 events.
 
-## 39. The socket client logs to the console on every page
+**Fix (aarab):** two changes in `frontend/src/infrastructure/socket/SocketClient.js`, both tested
+with the same harness:
 
-`infrastructure/socket/SocketClient.js` prints on connect, on disconnect and on every failed
-attempt:
+1. In `connect()`, replace the `this._socket.disconnect(); this._socket = null;` block with
+   `this._socket.connect(); return this._socket;`, so a refused socket is revived instead of
+   replaced.
+2. Make `updateToken()` revive a refused socket:
+   `if (this._socket && !this._socket.active) this._socket.connect();`. `lib/api.js` calls it
+   after every token refresh, so the socket comes back as soon as the app has a fresh token.
 
-```js
-console.error('[SocketClient] Connection error:', err.message);
-```
-
-The socket is held open on every page, so when chat-service is down, failed attempts print on the
-dashboard, the task board and everywhere else. The subject's general requirements say the project
-is rejected if warnings or errors appear in the browser console, and an evaluator who stops one
-container to see what happens will see them.
-
-**Fix (aarab):** delete the three console calls. Putting them behind `import.meta.env.DEV` would hide
-nothing: the frontend container runs `npm run dev`, so `DEV` is true in the app the evaluator
-opens. The file is aarab's and is vendored here unchanged, so it has to be fixed on his branch.
-
-## 51. The stats tests still mock the old member query
-
-`WorkspaceStatsService` now loads members with `findByWorkspaceIdWithUser` (mdbentaleb's change, so
-each member's user comes in the same query). mel-adna's `WorkspaceStatsServiceTest` still prepares
-`findByWorkspaceId`, so Mockito rejects the unused setup and the member lists come back empty:
-
-```text
-Tests run: 15, Failures: 2, Errors: 9
-```
-
-With the old name put back in a throwaway copy, all 15 pass, so this is the only cause. The Docker
-build runs `mvn clean package -DskipTests`, so the app itself is not affected.
-
-**Fix (mel-adna):** in the test, replace `findByWorkspaceId(workspaceId)` with
-`findByWorkspaceIdWithUser(workspaceId)` (8 places).
+With both, a 15 second and a 100 second outage still recover, and a refused socket comes back on
+the same instance with all its listeners.

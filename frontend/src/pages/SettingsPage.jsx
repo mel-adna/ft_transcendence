@@ -194,12 +194,13 @@ function ProfileCard({ user, onSaved }) {
 }
 
 function PasswordCard() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
-  const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event) {
@@ -218,17 +219,15 @@ function PasswordCard() {
 
     setErrors(nextErrors);
     setServerError(null);
-    setSuccess(false);
 
     if (Object.keys(nextErrors).length > 0) return;
 
     setSubmitting(true);
     try {
       await api.post('/auth/change-password', { currentPassword, newPassword });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setSuccess(true);
+      sessionStorage.setItem('loginNotice', 'Password updated. Sign in with your new password.');
+      await logout();
+      navigate('/login', { replace: true });
     } catch (error) {
       setServerError(getErrorMessage(error));
     } finally {
@@ -285,7 +284,6 @@ function PasswordCard() {
         </Field>
 
         <ErrorBanner message={serverError} />
-        {success && <SuccessBanner message="Password updated." />}
 
         <div className="flex justify-end border-t border-card pt-4">
           <Button type="submit" busy={submitting}>
