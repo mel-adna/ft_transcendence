@@ -1,22 +1,23 @@
 # ==========================================
-# 🧱 Team-Pulse Git Ignore Configuration
+# Team-Pulse Git Ignore Configuration
 # ==========================================
 
-# 🔒 Secrets & Credentials
-# .env
-# .env.local
-# .env.development.local
-# .env.test.local
-# .env.production.local
+# Secrets, Credentials & Local Config
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env_example
+secrets/
 *.pem
 *.key
 *.pub
 
-# 🔑 Private SSL Certificates (Local dev only)
-nginx/certs/*.crt
-nginx/certs/*.key
+# Private SSL Certificates
+nginx/certs/
 
-# 📦 Dependencies
+# Dependencies
 node_modules/
 jspm_packages/
 web_modules/
@@ -28,7 +29,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# 🔨 Build Outputs
+# Build Outputs & Backend Targets
 dist/
 build/
 out/
@@ -40,7 +41,7 @@ out/
 .serverless/
 target/
 
-# 🖥️ Operating System Metadata
+# Operating System Metadata
 .DS_Store
 .DS_Store?
 ._*
@@ -50,7 +51,7 @@ ehthumbs.db
 Thumbs.db
 [Dd]esktop.ini
 
-# 🛠️ IDE & Editor Settings
+# IDE & Editor Settings
 .idea/
 .vscode/
 *.suo
@@ -66,23 +67,17 @@ Thumbs.db
 .settings/
 .launchConfigs/
 
-# 📈 Testing & Coverage
+# Testing & Coverage
 coverage/
 .nyc_output/
 *.lcov
 
-# 📋 Logs & Temporary files
-logs
+# Logs & Temporary files
+logs/
 *.log
 *.sqlite
 .pnp
 .pnp.js
 
-.vscode
-
-# Subject
+# Subject & Documentation
 en.subject.pdf
-
-# secrets/*.txt
-# !secrets/*.txt.example
-.env
