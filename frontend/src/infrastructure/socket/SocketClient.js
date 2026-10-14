@@ -42,8 +42,9 @@ class SocketClient {
     if (!token) throw new Error('SOCKET_NO_AUTH_TOKEN');
 
     if (this._socket) {
-      this._socket.disconnect();
-      this._socket = null;
+      // revive instead of replace, so old listeners don't end up orphaned
+      this._socket.connect();
+      return this._socket;
     }
 
     this._socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:5005', {
@@ -120,8 +121,11 @@ class SocketClient {
     return this._socket?.connected ?? false;
   }
 
-  // No-op now — auth is a function that reads the latest token itself.
-  updateToken() {}
+  // auth reads the token itself, but a refused socket needs a kick to
+  // reconnect, and right after a refresh is the best time to try
+  updateToken() {
+    if (this._socket && !this._socket.active) this._socket.connect();
+  }
 
   _bindLifecycleEvents() {
     const s = this._socket;
