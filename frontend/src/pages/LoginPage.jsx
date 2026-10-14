@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { LayoutGrid, Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
@@ -10,6 +10,7 @@ import AuthCard from '../components/AuthCard';
 import Field from '../components/Field';
 import IconInput from '../components/IconInput';
 import ErrorBanner from '../components/ErrorBanner';
+import SuccessBanner from '../components/SuccessBanner';
 import LegalLinks from '../components/LegalLinks';
 import Spinner from '../components/Spinner';
 
@@ -28,6 +29,11 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [notice] = useState(() => sessionStorage.getItem('loginNotice'));
+
+  useEffect(() => {
+    sessionStorage.removeItem('loginNotice');
+  }, []);
 
   const handleGoogleCredential = useCallback(
     async (idToken) => {
@@ -115,6 +121,8 @@ export default function LoginPage() {
       subtitle="SaaS Workspace"
       footer={<LegalLinks className="mt-6" />}
     >
+      <SuccessBanner message={notice} className="mt-6" />
+
       <div className="mt-6 flex rounded-lg border border-muted/20 bg-canvas p-1">
         <button
           type="button"

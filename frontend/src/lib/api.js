@@ -3,6 +3,10 @@ import { socketClient } from '../infrastructure/socket/SocketClient';
 
 const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
+const RENEW_BEFORE_EXPIRY_MS = 60 * 1000;
+const RENEW_SPREAD_MS = 30 * 1000;
+
+let renewTimer = null;
 
 const baseURL = import.meta.env.VITE_CORE_API_URL ?? 'http://localhost:8080/api/v1';
 
@@ -23,6 +27,7 @@ export function getToken() {
 
 export function setToken(value) {
   localStorage.setItem(TOKEN_KEY, value);
+  scheduleRenewal();
 }
 
 function getRefreshToken() {
@@ -31,11 +36,40 @@ function getRefreshToken() {
 
 export function setRefreshToken(value) {
   if (value) localStorage.setItem(REFRESH_TOKEN_KEY, value);
+  scheduleRenewal();
 }
 
 export function clearToken() {
+  clearTimeout(renewTimer);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+function tokenExpiry(token) {
+  try {
+    const { exp } = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return Number.isFinite(exp) ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function expiresSoon(token) {
+  const expiry = token ? tokenExpiry(token) : null;
+  return expiry !== null && expiry - Date.now() < RENEW_BEFORE_EXPIRY_MS;
+}
+
+function scheduleRenewal() {
+  clearTimeout(renewTimer);
+  const token = getToken();
+  if (!token) return;
+  const expiry = tokenExpiry(token);
+  if (expiry === null || !getRefreshToken()) return;
+  const delay = expiry - Date.now() - RENEW_BEFORE_EXPIRY_MS - Math.random() * RENEW_SPREAD_MS;
+  renewTimer = setTimeout(() => {
+    if (getToken() === token) refreshAccessToken().catch(() => {});
+    else scheduleRenewal();
+  }, Math.max(delay, 0));
 }
 
 export function postWithoutSession(path, body) {
@@ -59,7 +93,10 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  if (!isAuthPath(config.url) && getRefreshToken() && expiresSoon(getToken())) {
+    await refreshAccessToken().catch(() => {});
+  }
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -178,5 +215,7 @@ export function getErrorMessage(error) {
   }
   return 'Something went wrong. Please try again.';
 }
+
+scheduleRenewal();
 
 export default api;
