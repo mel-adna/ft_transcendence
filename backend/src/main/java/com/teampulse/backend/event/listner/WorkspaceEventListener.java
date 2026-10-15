@@ -8,6 +8,7 @@ import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
 import com.teampulse.backend.event.WorkspaceUpdatedEvent;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.WorkspaceMember;
+import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.repository.WorkspaceMemberRepository;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
@@ -30,6 +31,7 @@ public class WorkspaceEventListener {
 	private final NotificationService notificationService;
 	private final RedisEventPublisherService redisEventPublisherService;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
+	private final UserRepository userRepository;
 
 
 	@Async
@@ -47,6 +49,14 @@ public class WorkspaceEventListener {
 
 		members.forEach(member -> {
 			if (adminId != null && adminId.equals(member.getUser().getId())) return;
+
+			notificationService.createNotification(
+					member.getUser(),
+					NotificationType.WORKSPACE_UPDATED,
+					EntityType.WORKSPACE,
+					workspaceId,
+					msg
+			);
 
 			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 					.eventId(UUID.randomUUID())
@@ -81,6 +91,16 @@ public class WorkspaceEventListener {
 
 		event.getMemberIds().forEach(memberId -> {
 			if (adminId != null && adminId.equals(memberId)) return;
+
+			userRepository.findById(memberId).ifPresent(user -> {
+				notificationService.createNotification(
+						user,
+						NotificationType.WORKSPACE_DELETED,
+						EntityType.WORKSPACE,
+						event.getWorkspaceId(),
+						msg
+				);
+			});
 
 			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 					.eventId(UUID.randomUUID())

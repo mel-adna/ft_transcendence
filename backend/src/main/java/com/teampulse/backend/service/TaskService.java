@@ -1,9 +1,12 @@
 package com.teampulse.backend.service;
 
+import com.teampulse.backend.dto.messaging.UnifiedEvent;
 import com.teampulse.backend.dto.request.TaskCreateRequest;
 import com.teampulse.backend.dto.request.TaskStatusUpdateRequest;
 import com.teampulse.backend.dto.request.TaskUpdateRequest;
 import com.teampulse.backend.dto.response.TaskResponse;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.enums.TaskStatus;
 import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.event.TaskAssignedEvent;
@@ -26,6 +29,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -41,6 +46,9 @@ public class TaskService {
 	private final TaskMapper taskMapper;
 	private final ActivityLogService activityLogService;
 	private final ApplicationEventPublisher eventPublisher;
+	private final NotificationService notificationService;
+
+	private final RedisEventPublisherService redisEventPublisherService;
 
 
 	public TaskResponse createTask(UUID workspaceId, String creatorEmail, TaskCreateRequest request) {
@@ -164,6 +172,18 @@ public class TaskService {
 					getSafeFullName(currentUser), updatedTask.getTitle());
 
 			activityLogService.logActivity(workspaceId, currentUser.getId(), updatedTask.getId(), "TASK_UPDATED", logDescription);
+
+			User creator = updatedTask.getCreator();
+			User assignee = updatedTask.getAssignee();
+
+			if (creator != null && !creator.getEmail().equalsIgnoreCase(email)) {
+				String msgCreator = String.format("%s updated details for task '%s'.", getSafeFullName(currentUser), updatedTask.getTitle());
+				notifyUserAndPublish(creator, currentUser, updatedTask, msgCreator, NotificationType.TASK_UPDATED, "UPDATED");
+			}
+			if (assignee != null && !assignee.getEmail().equalsIgnoreCase(email) && (creator == null || !assignee.getId().equals(creator.getId()))) {
+				String msgAssignee = String.format("%s updated details for task '%s' assigned to you.", getSafeFullName(currentUser), updatedTask.getTitle());
+				notifyUserAndPublish(assignee, currentUser, updatedTask, msgAssignee, NotificationType.TASK_UPDATED, "UPDATED");
+			}
 		}
 
 		checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser);
@@ -240,6 +260,19 @@ public class TaskService {
 
 		User currentUser = userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+		User creator = task.getCreator();
+		User assignee = task.getAssignee();
+
+		if (creator != null && !creator.getEmail().equalsIgnoreCase(email)) {
+			String msgCreator = String.format("Task '%s' was deleted by %s.", task.getTitle(), getSafeFullName(currentUser));
+			notifyUserAndPublish(creator, currentUser, task, msgCreator, NotificationType.TASK_DELETED, "DELETED");
+		}
+
+		if (assignee != null && !assignee.getEmail().equalsIgnoreCase(email) && (creator == null || !assignee.getId().equals(creator.getId()))) {
+			String msgAssignee = String.format("Task '%s' assigned to you was deleted by %s.", task.getTitle(), getSafeFullName(currentUser));
+			notifyUserAndPublish(assignee, currentUser, task, msgAssignee, NotificationType.TASK_DELETED, "DELETED");
+		}
+
 		taskRepository.delete(task);
 
 		String logDescription = String.format("%s deleted task '%s'", getSafeFullName(currentUser), task.getTitle());
@@ -291,6 +324,18 @@ public class TaskService {
 						String.format("%s moved task '%s' from %s to %s",
 								getSafeFullName(actor), task.getTitle(), oldStatus, task.getStatus())
 				);
+
+				User creator = task.getCreator();
+				User assignee = task.getAssignee();
+				String actorName = getSafeFullName(actor);
+				String msg = String.format("%s moved task '%s' to %s.", actorName, task.getTitle(), task.getStatus());
+
+				if (creator != null && !creator.getId().equals(actor.getId())) {
+					notifyUserAndPublish(creator, actor, task, msg, NotificationType.TASK_STATUS_CHANGED, "STATUS_CHANGED");
+				}
+				if (assignee != null && !assignee.getId().equals(actor.getId()) && (creator == null || !assignee.getId().equals(creator.getId()))) {
+					notifyUserAndPublish(assignee, actor, task, msg, NotificationType.TASK_STATUS_CHANGED, "STATUS_CHANGED");
+				}
 			}
 		}
 	}
@@ -298,6 +343,34 @@ public class TaskService {
 	private void triggerTaskCompletedEvent(Task completedTask, User actor) {
 		log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED by user Id {}.", completedTask.getId(), actor.getId());
 		eventPublisher.publishEvent(new TaskCompletedEvent(this, completedTask, actor));
+	}
+
+	private void notifyUserAndPublish(User recipient, User actor, Task task, String message,
+	                                  NotificationType notifyType, String redisAction) {
+		if (recipient == null || actor == null || recipient.getId().equals(actor.getId())) {
+			return;
+		}
+
+		notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
+
+		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+				.eventId(UUID.randomUUID())
+				.type("TASK")
+				.action(redisAction)
+				.recipientId(recipient.getId())
+				.senderId(actor.getId())
+				.entityType(EntityType.TASK.name())
+				.entityId(task.getId().toString())
+				.payload(Map.of(
+						"taskTitle", task.getTitle(),
+						"workspaceId", task.getWorkspace().getId().toString(),
+						"actorName", getSafeFullName(actor),
+						"message", message
+				))
+				.timestamp(Instant.now())
+				.build();
+
+		redisEventPublisherService.publish(realTimeEvent);
 	}
 
 	private String getSafeFullName(User user) {

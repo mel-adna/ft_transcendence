@@ -1,5 +1,6 @@
 package com.teampulse.backend.service;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,6 +8,9 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.teampulse.backend.dto.messaging.UnifiedEvent;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,6 +52,8 @@ public class WorkspaceService {
 	private final UserRepository userRepository;
 	private final WorkspaceMapper workspaceMapper;
 	private final ApplicationEventPublisher eventPublisher;
+	private final NotificationService notificationService;
+	private final RedisEventPublisherService redisEventPublisherService;
 
 	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
 		User creator = userRepository.findByEmail(creatorEmail)
@@ -79,6 +85,9 @@ public class WorkspaceService {
 		admin.setRole(WorkspaceMemberRole.ADMIN);
 
 		workspaceMemberRepository.save(admin);
+
+		String msg = String.format("Workspace '%s' was successfully created.", savedWorkspace.getName());
+		notifyUserAndPublish(creator, creator, savedWorkspace, msg, NotificationType.WORKSPACE_CREATED, "CREATED");
 
 		return workspaceMapper.toResponse(savedWorkspace);
 	}
@@ -235,6 +244,14 @@ public class WorkspaceService {
 
 		memberShip.setRole(request.getRole());
 		workspaceMemberRepository.save(memberShip);
+
+		User admin = userRepository.findByEmail(cleanAdminEmail).orElse(null);
+		String adminName = admin != null ? (admin.getFirstName() + " " + admin.getLastName()).trim() : "An admin";
+
+		String msg = String.format("Your role in workspace '%s' was updated to %s by %s.",
+				memberShip.getWorkspace().getName(), request.getRole(), adminName);
+
+		notifyUserAndPublish(memberShip.getUser(), admin, memberShip.getWorkspace(), msg, NotificationType.WORKSPACE_ROLE_CHANGED, "ROLE_CHANGED");
 	}
 
 	public void removeMemberFromWorkspace(UUID workspaceId, String adminEmail, String memberEmail) {
@@ -264,6 +281,40 @@ public class WorkspaceService {
 
 		log.info("User {} was removed from workspace {} by admin {}",
 				EmailUtils.maskEmail(cleanMemberEmail), workspace.getName(), EmailUtils.maskEmail(cleanAdminEmail));
+	}
+
+	private void notifyUserAndPublish(User recipient, User actor, Workspace workspace, String message,
+	                                  NotificationType notifyType, String redisAction) {
+		if (recipient == null) return;
+
+		notificationService.createNotification(recipient, notifyType, EntityType.WORKSPACE, workspace.getId(), message);
+
+		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+				.eventId(UUID.randomUUID())
+				.type("WORKSPACE")
+				.action(redisAction)
+				.recipientId(recipient.getId())
+				.senderId(actor != null ? actor.getId() : null)
+				.entityType(EntityType.WORKSPACE.name())
+				.entityId(workspace.getId().toString())
+				.payload(Map.of(
+						"workspaceName", workspace.getName(),
+						"actorName", getSafeFullName(actor),
+						"message", message
+				))
+				.timestamp(Instant.now())
+				.build();
+
+		redisEventPublisherService.publish(realTimeEvent);
+	}
+
+	private String getSafeFullName(User user) {
+		if (user == null) return "System";
+		String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+		String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+		String fullName = (firstName + " " + lastName).trim();
+		if (!fullName.isEmpty()) return fullName;
+		return user.getEmail() != null ? user.getEmail() : "System";
 	}
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {

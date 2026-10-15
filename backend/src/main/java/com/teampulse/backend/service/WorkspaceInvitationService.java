@@ -1,10 +1,9 @@
 package com.teampulse.backend.service;
 
+import com.teampulse.backend.dto.messaging.UnifiedEvent;
 import com.teampulse.backend.dto.request.SendInvitationRequest;
 import com.teampulse.backend.dto.response.WorkspaceInvitationResponse;
-import com.teampulse.backend.enums.InvitationStatus;
-import com.teampulse.backend.enums.WorkspaceMemberRole;
-import com.teampulse.backend.enums.WorkspaceType;
+import com.teampulse.backend.enums.*;
 import com.teampulse.backend.event.WorkspaceInvitationAcceptedEvent;
 import com.teampulse.backend.event.WorkspaceInvitationSentEvent;
 import com.teampulse.backend.exception.BadRequestException;
@@ -31,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -46,8 +46,10 @@ public class WorkspaceInvitationService {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final WorkspaceInvitationMapper invitationMapper;
 	private final ApplicationEventPublisher eventPublisher;
+	private final RedisEventPublisherService redisEventPublisherService;
 
 	private static final int INVITATION_EXPIRY_DAYS = 7;
+	private final NotificationService notificationService;
 
 
 	public WorkspaceInvitationResponse sendInvitation(UUID workspaceId, SendInvitationRequest request, String inviterEmail) {
@@ -171,11 +173,18 @@ public class WorkspaceInvitationService {
 
 	public void rejectInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
-
 		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, cleanEmail);
 
 		invitation.setStatus(InvitationStatus.REJECTED);
 		invitationRepository.save(invitation);
+
+		User invitee = userRepository.findByEmail(cleanEmail).orElse(null);
+		String inviteeName = getSafeFullName(invitee);
+
+		if (invitation.getInviter() != null) {
+			String msg = String.format("%s declined your invitation to join workspace '%s'.", inviteeName, invitation.getWorkspace().getName());
+			notifyUserAndPublish(invitation.getInviter(), invitee, invitation.getWorkspace(), msg, NotificationType.WORKSPACE_INVITATION_REJECTED, "INVITATION_REJECTED");
+		}
 
 		log.info("User {} rejected invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), invitation.getWorkspace().getName());
 	}
@@ -197,8 +206,15 @@ public class WorkspaceInvitationService {
 			throw new BadRequestException("Only pending invitations can be cancelled.");
 		}
 
-		invitationRepository.delete(invitation);
+		User inviteeUser = userRepository.findByEmail(invitation.getInviteeEmail()).orElse(null);
+		User admin = userRepository.findByEmail(cleanAdminEmail).orElse(null);
 
+		if (inviteeUser != null) {
+			String msg = String.format("The invitation to join workspace '%s' has been cancelled.", invitation.getWorkspace().getName());
+			notifyUserAndPublish(inviteeUser, admin, invitation.getWorkspace(), msg, NotificationType.WORKSPACE_INVITATION_CANCELLED, "INVITATION_CANCELLED");
+		}
+
+		invitationRepository.delete(invitation);
 		log.info("Admin {} cancelled invitation {} for workspace {}", EmailUtils.maskEmail(cleanAdminEmail), invitationId, workspaceId);
 	}
 
@@ -224,6 +240,40 @@ public class WorkspaceInvitationService {
 		}
 
 		return invitation;
+	}
+
+	private void notifyUserAndPublish(User recipient, User actor, Workspace workspace, String message,
+	                                  NotificationType notifyType, String redisAction) {
+		if (recipient == null) return;
+
+		notificationService.createNotification(recipient, notifyType, EntityType.WORKSPACE, workspace.getId(), message);
+
+		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+				.eventId(UUID.randomUUID())
+				.type("WORKSPACE_INVITATION")
+				.action(redisAction)
+				.recipientId(recipient.getId())
+				.senderId(actor != null ? actor.getId() : null)
+				.entityType(EntityType.WORKSPACE.name())
+				.entityId(workspace.getId().toString())
+				.payload(Map.of(
+						"workspaceName", workspace.getName(),
+						"actorName", getSafeFullName(actor),
+						"message", message
+				))
+				.timestamp(Instant.now())
+				.build();
+
+		redisEventPublisherService.publish(realTimeEvent);
+	}
+
+	private String getSafeFullName(User user) {
+		if (user == null) return "System";
+		String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+		String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+		String fullName = (firstName + " " + lastName).trim();
+		if (!fullName.isEmpty()) return fullName;
+		return user.getEmail() != null ? user.getEmail() : "System";
 	}
 
 

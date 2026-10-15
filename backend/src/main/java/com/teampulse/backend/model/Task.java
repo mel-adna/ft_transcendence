@@ -23,7 +23,7 @@ import javax.annotation.Nullable;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@SQLDelete(sql = "UPDATE tasks SET deleted = true WHERE id = ?")
+@SQLDelete(sql = "UPDATE tasks SET deleted = true WHERE id = ? AND version = ?")
 @SQLRestriction("deleted = false")
 public class Task {
 	@Id
