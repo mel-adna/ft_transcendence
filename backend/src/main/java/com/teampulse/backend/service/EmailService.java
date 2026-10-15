@@ -75,4 +75,19 @@ public class EmailService {
 			log.error("Failed to send email to [{}]: {}", EmailUtils.maskEmail(to), ex.getMessage());
 		}
 	}
+
+	@Async
+	public void sendGdprExportEmail(String to, String firstName, String exportedAtFormatted) {
+		String name = (firstName != null && !firstName.isBlank()) ? firstName : "there";
+		String subject = "TeamPulse - GDPR Personal Data Export Confirmation 📦";
+		String body = String.format(
+				"Hello %s,\n\n" +
+						"Your request for a full export of your personal data on TeamPulse was successfully processed on %s.\n\n" +
+						"The requested JSON data payload has been generated and delivered via your active session.\n" +
+						"If you did not initiate this request, please change your password and secure your account immediately.\n\n" +
+						"Best regards,\nThe TeamPulse Security & Privacy Team",
+				name, exportedAtFormatted
+		);
+		sendEmailDirect(to, subject, body);
+	}
 }

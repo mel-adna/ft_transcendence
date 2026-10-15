@@ -83,4 +83,8 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 	@Modifying
 	@Query("UPDATE Task t SET t.assignee = NULL WHERE t.assignee.id = :userId")
 	void unassignTasksByUserId(@Param("userId") UUID userId);
+
+	List<Task> findByCreatorId(UUID creatorId);
+
+	List<Task> findByAssigneeId(UUID assigneeId);
 }

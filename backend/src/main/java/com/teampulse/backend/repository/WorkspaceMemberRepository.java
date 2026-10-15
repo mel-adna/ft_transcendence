@@ -28,4 +28,6 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 	Optional<WorkspaceMember> findFirstByWorkspaceIdAndUserIdNotAndRoleOrderByCreatedAtAsc(UUID workspaceId, UUID userId, WorkspaceMemberRole role);
 
 	void deleteByUserId(UUID userId);
+
+	List<WorkspaceMember> findByUserEmail(String userEmail);
 }

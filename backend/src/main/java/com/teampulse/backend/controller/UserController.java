@@ -3,6 +3,7 @@ package com.teampulse.backend.controller;
 import java.security.Principal;
 import java.util.List;
 
+import com.teampulse.backend.dto.response.UserDataExportDTO;
 import com.teampulse.backend.security.ratelimit.RateLimit;
 import com.teampulse.backend.security.ratelimit.RateLimitKeyType;
 import org.springframework.http.MediaType;
@@ -109,5 +110,19 @@ public class UserController {
 			@Parameter(description = "Image file (JPEG, PNG, etc.) to set as profile avatar", required = true) @RequestParam("file") MultipartFile file) {
 		UserResponse response = userService.uploadProfileAvatar(currentUser.getUser().getId(), file);
 		return ResponseEntity.ok(response);
+	}
+
+
+	@RateLimit(capacity = 3, durationInMinutes = 15, keyType = RateLimitKeyType.EMAIL)
+	@Operation(summary = "Export all user account data (GDPR Compliance)", description = "Generates a full JSON bundle containing profile, teams, tasks, notifications, activity logs, invitations, and API keys. Sends an automatic email notification.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Data export generated successfully", content = @Content(schema = @Schema(implementation = UserDataExportDTO.class))),
+			@ApiResponse(responseCode = "401", description = "Unauthorized - Active session required", content = @Content),
+			@ApiResponse(responseCode = "429", description = "Too Many Requests - GDPR export rate limit exceeded", content = @Content)
+	})
+	@GetMapping("/me/export")
+	public ResponseEntity<UserDataExportDTO> exportMyData(@Parameter(hidden = true) Principal principal) {
+		UserDataExportDTO exportData = userService.exportUserData(principal.getName());
+		return ResponseEntity.ok(exportData);
 	}
 }

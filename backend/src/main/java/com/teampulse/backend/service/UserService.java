@@ -6,12 +6,15 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
+import com.teampulse.backend.dto.response.UserDataExportDTO;
 import com.teampulse.backend.dto.response.UserResponse;
+import com.teampulse.backend.dto.response.WorkspaceInvitationResponse;
 import com.teampulse.backend.enums.AuthProvider;
 import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.event.UserWelcomeEvent;
 import com.teampulse.backend.exception.*;
 import com.teampulse.backend.mapper.UserMapper;
+import com.teampulse.backend.mapper.WorkspaceInvitationMapper;
 import com.teampulse.backend.model.*;
 import com.teampulse.backend.repository.*;
 import com.teampulse.backend.security.JwtUtils;
@@ -19,6 +22,7 @@ import com.teampulse.backend.security.UserPrincipal;
 import com.teampulse.backend.security.utils.ClientIpUtils;
 import com.teampulse.backend.security.utils.EmailUtils;
 import jakarta.annotation.PostConstruct;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +46,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -69,6 +74,8 @@ public class UserService {
 	private final NotificationRepository notificationRepository;
 	private final HttpServletRequest httpServletRequest;
 	private final VerificationCodeRepository verificationCodeRepository;
+	private final ActivityLogRepository activityLogRepository;
+	private final WorkspaceInvitationMapper workspaceInvitationMapper;
 
 
 	@Value("${app.frontend-url}")
@@ -580,6 +587,210 @@ public class UserService {
 			log.error("Google authentication failed: {}", e.getMessage(), e);
 			throw new BadCredentialsException("Failed to authenticate with Google. Please try again later.");
 		}
+	}
+
+	@Transactional(readOnly = true)
+	public UserDataExportDTO exportUserData(String userEmail) {
+		String cleanEmail = EmailUtils.normalize(userEmail);
+
+		User user = userRepository.findByEmail(cleanEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + cleanEmail));
+
+		UUID userId = user.getId();
+
+		UserDataExportDTO.ProfileExportDTO profile = UserDataExportDTO.ProfileExportDTO.builder()
+				.id(user.getId())
+				.firstName(user.getFirstName())
+				.lastName(user.getLastName())
+				.email(user.getEmail())
+				.avatarUrl(user.getAvatarUrl())
+				.role(null)
+				.enabled(user.isEnabled())
+				.build();
+
+		List<WorkspaceMember> memberships = workspaceMemberRepository.findByUserEmail(cleanEmail);
+		List<UserDataExportDTO.TeamExportDTO> teams = memberships.stream()
+				.map(m -> {
+					try {
+						Workspace ws = m.getWorkspace();
+						if (ws == null) return null;
+
+						User owner = null;
+						try {
+							owner = ws.getOwner();
+						} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+
+						return UserDataExportDTO.TeamExportDTO.builder()
+								.id(ws.getId())
+								.name(ws.getName())
+								.description(ws.getDescription())
+								.type(ws.getType() != null ? ws.getType().name() : null)
+								.myRole(m.getRole() != null ? m.getRole().name() : null)
+								.owner(owner != null ? UserDataExportDTO.UserSummaryDTO.builder()
+										.id(owner.getId())
+										.firstName(owner.getFirstName())
+										.lastName(owner.getLastName())
+										.avatarUrl(owner.getAvatarUrl())
+										.email(owner.getEmail())
+										.build() : null)
+								.build();
+					} catch (jakarta.persistence.EntityNotFoundException e) {
+						return null;
+					}
+				})
+				.filter(Objects::nonNull)
+				.toList();
+
+		List<Task> createdTasks = taskRepository.findByCreatorId(userId);
+		List<Task> assignedTasks = taskRepository.findByAssigneeId(userId);
+
+		Set<Task> allUserTasks = new HashSet<>(createdTasks);
+		allUserTasks.addAll(assignedTasks);
+
+		Map<String, List<UserDataExportDTO.TaskExportDTO>> tasksByWorkspace = allUserTasks.stream()
+				.collect(Collectors.groupingBy(
+						t -> {
+							try {
+								return (t.getWorkspace() != null && t.getWorkspace().getName() != null) ? t.getWorkspace().getName() : "Unassigned";
+							} catch (jakarta.persistence.EntityNotFoundException e) {
+								return "Unassigned";
+							}
+						},
+						Collectors.mapping(t -> {
+							Workspace ws = null;
+							try {
+								ws = t.getWorkspace();
+							} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+
+							User assignee = null;
+							try {
+								assignee = t.getAssignee();
+							} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+
+							User creator = null;
+							try {
+								creator = t.getCreator();
+							} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+
+							return UserDataExportDTO.TaskExportDTO.builder()
+									.id(t.getId())
+									.workspaceId(ws != null ? ws.getId() : null)
+									.title(t.getTitle())
+									.description(t.getDescription())
+									.status(t.getStatus() != null ? t.getStatus().name() : null)
+									.priority(t.getPriority() != null ? t.getPriority().name() : null)
+									.assignee(assignee != null ? UserDataExportDTO.UserSummaryDTO.builder()
+											.id(assignee.getId())
+											.firstName(assignee.getFirstName())
+											.lastName(assignee.getLastName())
+											.avatarUrl(assignee.getAvatarUrl())
+											.email(assignee.getEmail())
+											.build() : null)
+									.creator(creator != null ? UserDataExportDTO.UserSummaryDTO.builder()
+											.id(creator.getId())
+											.firstName(creator.getFirstName())
+											.lastName(creator.getLastName())
+											.avatarUrl(creator.getAvatarUrl())
+											.email(creator.getEmail())
+											.build() : null)
+									.createdAt(t.getCreatedAt())
+									.updatedAt(t.getUpdatedAt())
+									.build();
+						}, Collectors.toList())
+				));
+
+		List<Notification> notificationEntities = notificationRepository.findByRecipientIdOrderByCreatedAtDesc(
+				userId, org.springframework.data.domain.PageRequest.of(0, 100)).getContent();
+
+		List<UserDataExportDTO.NotificationExportDTO> notifications = notificationEntities.stream()
+				.map(n -> UserDataExportDTO.NotificationExportDTO.builder()
+						.id(n.getId())
+						.type(n.getType() != null ? n.getType().name() : null)
+						.entityType(n.getEntityType() != null ? n.getEntityType().name() : null)
+						.entityId(n.getEntityId())
+						.message(n.getMessage())
+						.isRead(n.isRead())
+						.createdAt(n.getCreatedAt())
+						.build())
+				.toList();
+		
+		List<ActivityLog> activityEntities = activityLogRepository.findByUserIdOrderByCreatedAtDesc(
+				userId, org.springframework.data.domain.PageRequest.of(0, 100)).getContent();
+
+		List<UserDataExportDTO.ActivityLogExportDTO> activityLogs = activityEntities.stream()
+				.map(a -> {
+					UUID wsId = null;
+					try {
+						if (a.getWorkspace() != null) wsId = a.getWorkspace().getId();
+					} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+
+					return UserDataExportDTO.ActivityLogExportDTO.builder()
+							.id(a.getId())
+							.workspaceId(wsId)
+							.action(a.getActionType() != null ? a.getActionType() : null)
+							.description(a.getDescription())
+							.createdAt(a.getCreatedAt())
+							.build();
+				})
+				.toList();
+
+		List<WorkspaceInvitation> receivedInvites = workspaceInvitationRepository.findByInviteeEmail(cleanEmail);
+		List<WorkspaceInvitation> sentInvites = workspaceInvitationRepository.findByInviterId(userId);
+
+		List<WorkspaceInvitationResponse> safeReceived = receivedInvites.stream()
+				.map(inv -> {
+					try {
+						return workspaceInvitationMapper.toResponse(inv);
+					} catch (EntityNotFoundException e) {
+						return null;
+					}
+				})
+				.filter(Objects::nonNull)
+				.toList();
+
+		List<WorkspaceInvitationResponse> safeSent = sentInvites.stream()
+				.map(inv -> {
+					try {
+						return workspaceInvitationMapper.toResponse(inv);
+					} catch (EntityNotFoundException e) {
+						return null;
+					}
+				})
+				.filter(Objects::nonNull)
+				.toList();
+
+		UserDataExportDTO.InvitationsExportDTO invitations = UserDataExportDTO.InvitationsExportDTO.builder()
+				.received(safeReceived)
+				.sent(safeSent)
+				.build();
+
+		Optional<ApiKey> apiKeyOpt = apiKeyRepository.findByUser(user);
+		List<UserDataExportDTO.ApiKeyExportDTO> apiKeys = apiKeyOpt.stream()
+				.map(k -> UserDataExportDTO.ApiKeyExportDTO.builder()
+						.id(k.getId())
+						.name(k.getUser().getFirstName() + " " + k.getUser().getLastName())
+						.keyPrefix(k.getKeyPrefix())
+						.active(k.isActive())
+						.createdAt(k.getCreatedAt())
+						.build())
+				.toList();
+
+		Instant now = Instant.now();
+
+		emailService.sendGdprExportEmail(user.getEmail(), user.getFirstName(), now.toString());
+
+		log.info("GDPR data export successfully generated and confirmation email dispatched for user: {}", EmailUtils.maskEmail(cleanEmail));
+
+		return UserDataExportDTO.builder()
+				.exportedAt(now)
+				.profile(profile)
+				.teams(teams)
+				.tasks(tasksByWorkspace)
+				.notifications(notifications)
+				.activityLogs(activityLogs)
+				.invitations(invitations)
+				.apiKeys(apiKeys)
+				.build();
 	}
 
 	private String getFileExtension(String filename) {
