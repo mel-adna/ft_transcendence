@@ -713,7 +713,7 @@ public class UserService {
 						.createdAt(n.getCreatedAt())
 						.build())
 				.toList();
-		
+
 		List<ActivityLog> activityEntities = activityLogRepository.findByUserIdOrderByCreatedAtDesc(
 				userId, org.springframework.data.domain.PageRequest.of(0, 100)).getContent();
 
