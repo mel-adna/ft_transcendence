@@ -1,18 +1,18 @@
 .PHONY: all env secrets certs ps clean fclean backend re
 
 
-ENV_FILE := $(shell if [ -f .env ]; then echo ".env"; else echo ".env_example"; fi)
+ENV_FILE := $(shell if [ -f .env ]; then echo ".env"; else echo ".env.example"; fi)
 
 all: env secrets certs
 	docker compose --env-file .env up -d --build
 
 env:
 	@if [ ! -f .env ]; then \
-		if [ -f .env_example ]; then \
-			echo "Creating .env from .env_example..."; \
-			cp .env_example .env; \
+		if [ -f .env.example ]; then \
+			echo "Creating .env from .env.example..."; \
+			cp .env.example .env; \
 		else \
-			echo "Error: .env_example not found!"; \
+			echo "Error: .env.example not found!"; \
 			exit 1; \
 		fi; \
 	fi

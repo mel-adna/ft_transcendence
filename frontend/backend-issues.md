@@ -15,7 +15,7 @@ first, and 53 only shows once 54 is fixed.
 
 | # | Issue | Why it matters | Effort | Who fixes it |
 |---|---|---|---|---|
-| 54 | `make` stops at its first step: the Makefile still looks for `.env_example` | On a fresh clone, and after `make re`, `make` stops before it builds or starts anything | Five names in the `Makefile` | mdbentaleb |
+| 54 | `make` stops at its first step: the Makefile still looks for `.env.example` | On a fresh clone, and after `make re`, `make` stops before it builds or starts anything | Five names in the `Makefile` | mdbentaleb |
 | 53 | A fresh clone does not start: the example JWT secret is not base64 | Once 54 is fixed, `make` on a fresh clone gives a backend that stops at startup, so nothing works | A few lines in the `Makefile` | mdbentaleb |
 
 Until both are fixed, do not run `make re` or `make fclean` on a setup that works: they delete
@@ -25,15 +25,15 @@ Until both are fixed, do not run `make re` or `make fclean` on a setup that work
 
 # Blocking
 
-## 54. `make` stops at its first step: the Makefile still looks for `.env_example`
+## 54. `make` stops at its first step: the Makefile still looks for `.env.example`
 
-On 2026-10-14 the root `.env_example` was renamed to `.env.example`, the name the subject uses
+On 2026-10-14 the root `.env.example` was renamed to `.env.example`, the name the subject uses
 (`3a3b16b`). That rename was the first step of this issue's fix, but the `Makefile` was not
-changed with it. When `.env` is missing, its `env` rule still copies `.env_example`, which no
+changed with it. When `.env` is missing, its `env` rule still copies `.env.example`, which no
 longer exists:
 
 ```text
-Error: .env_example not found!
+Error: .env.example not found!
 make: *** [env] Error 1
 ```
 
@@ -42,8 +42,8 @@ fresh clone, and also after `make re` on any setup, because `fclean` deletes `.e
 still have their `.env` do not see it. Checked on 2026-10-15 by running `make env` on a fresh copy
 of `main`.
 
-**Fix (mdbentaleb):** in the `Makefile`, replace every `.env_example` with `.env.example`. There
-are five: one in the `ENV_FILE` line and four in the `env` rule. The `!.env_example` line in
+**Fix (mdbentaleb):** in the `Makefile`, replace every `.env.example` with `.env.example`. There
+are five: one in the `ENV_FILE` line and four in the `env` rule. The `!.env.example` line in
 `.gitignore` no longer does anything and can go.
 
 ## 53. A fresh clone does not start: the example JWT secret is not base64
