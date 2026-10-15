@@ -1,6 +1,6 @@
 # Backend issues
 
-Status checked 2026-10-14 against `62da2e7` on `main`. Only unresolved issues are listed.
+Status checked 2026-10-15 against `56bf84b` on `main`. Only unresolved issues are listed.
 
 Issue numbers are stable identifiers, not priorities. They never change, so a reference to a given
 issue stays valid. The order of this file is by priority.
@@ -10,32 +10,50 @@ start at 45.
 
 ## Blocking
 
-This one stops the app on a fresh clone, which is how an evaluator usually starts.
+Both stop the app on a fresh clone, which is how an evaluator usually starts. `make` stops at 54
+first, and 53 only shows once 54 is fixed.
 
 | # | Issue | Why it matters | Effort | Who fixes it |
 |---|---|---|---|---|
-| 53 | A fresh clone does not start: the example JWT secret is not base64 | `make` on a fresh clone gives a backend that stops at startup, so nothing works | A few lines in the `Makefile` | mdbentaleb |
+| 54 | `make` stops at its first step: the Makefile still looks for `.env_example` | On a fresh clone, and after `make re`, `make` stops before it builds or starts anything | Five names in the `Makefile` | mdbentaleb |
+| 53 | A fresh clone does not start: the example JWT secret is not base64 | Once 54 is fixed, `make` on a fresh clone gives a backend that stops at startup, so nothing works | A few lines in the `Makefile` | mdbentaleb |
 
-## Not blocking
-
-Real defects, but neither breaks the app at the evaluation.
-
-| # | Issue | Why it matters | Effort | Who fixes it |
-|---|---|---|---|---|
-| 54 | The example env file is named `.env_example` | The subject asks for an `.env.example` file by that name | Rename and 3 lines | mdbentaleb |
-| 55 | A socket refused by chat-service is never retried | After a refused reconnect, live updates stop until a reload | 2 lines | aarab |
+Until both are fixed, do not run `make re` or `make fclean` on a setup that works: they delete
+`.env` and `secrets/`, and `make` cannot bring them back.
 
 ---
 
 # Blocking
+
+## 54. `make` stops at its first step: the Makefile still looks for `.env_example`
+
+On 2026-10-14 the root `.env_example` was renamed to `.env.example`, the name the subject uses
+(`3a3b16b`). That rename was the first step of this issue's fix, but the `Makefile` was not
+changed with it. When `.env` is missing, its `env` rule still copies `.env_example`, which no
+longer exists:
+
+```text
+Error: .env_example not found!
+make: *** [env] Error 1
+```
+
+`all` runs `env` first, so `make` stops before it builds or starts anything. That happens on every
+fresh clone, and also after `make re` on any setup, because `fclean` deletes `.env`. Setups that
+still have their `.env` do not see it. Checked on 2026-10-15 by running `make env` on a fresh copy
+of `main`.
+
+**Fix (mdbentaleb):** in the `Makefile`, replace every `.env_example` with `.env.example`. There
+are five: one in the `ENV_FILE` line and four in the `env` rule. The `!.env_example` line in
+`.gitignore` no longer does anything and can go.
 
 ## 53. A fresh clone does not start: the example JWT secret is not base64
 
 On 2026-10-14 the `secrets_example` files were changed to placeholders that start with `put_`.
 The `secrets` rule in the `Makefile` copies an example into `secrets/` only when that file is
 missing. Every existing setup keeps its real files and works. A fresh clone gets the placeholders,
-and the backend reads the placeholder as its JWT secret. `JwtUtils.validateAndInitKey()` decodes
-the secret as base64 at startup, and the underscores are not base64:
+and so does `make re`, because `fclean` deletes `secrets/`. The backend then reads the placeholder
+as its JWT secret. `JwtUtils.validateAndInitKey()` decodes the secret as base64 at startup, and
+the underscores are not base64:
 
 ```text
 DecodingException: Illegal base64 character: '_'
@@ -62,37 +80,3 @@ belong to real Google accounts and have to be filled in by hand. Two things to k
 Until the real mail password is in `secrets/mail_password.txt`, sign-up codes cannot be emailed,
 so nobody can finish signing up on a fresh clone. The README's Instructions should say which two
 files to fill in before `make`.
-
-# Not blocking
-
-## 54. The example env file is named `.env_example`
-
-The subject says: "provide an .env.example file". The root file is `.env_example`, with an
-underscore. `frontend/.env.example` already uses the right name.
-
-**Fix (mdbentaleb):** run `git mv .env_example .env.example`, then change `.env_example` to
-`.env.example` in the `Makefile` (the `ENV_FILE` line and the `env` rule) and in the
-`!.env_example` line of `.gitignore`.
-
-## 55. A socket refused by chat-service is never retried
-
-Found while reviewing pull request 1, which was merged on 2026-10-14 without this part. Outages
-are handled now: a 100 second chat-service outage recovers by itself. A refusal is different. When
-chat-service refuses a reconnect, for example with `AUTH_TOKEN_EXPIRED` after a laptop sleeps longer
-than the 15 minute token, socket.io destroys the socket and nothing reconnects it. The next
-`socketClient.connect()` from a page then creates a second socket, so `WorkspaceProvider` and the
-bell keep listening to the first, dead one. Reproduced in Chromium: the first socket's listener
-received 0 events.
-
-**Fix (aarab):** two changes in `frontend/src/infrastructure/socket/SocketClient.js`, both tested
-with the same harness:
-
-1. In `connect()`, replace the `this._socket.disconnect(); this._socket = null;` block with
-   `this._socket.connect(); return this._socket;`, so a refused socket is revived instead of
-   replaced.
-2. Make `updateToken()` revive a refused socket:
-   `if (this._socket && !this._socket.active) this._socket.connect();`. `lib/api.js` calls it
-   after every token refresh, so the socket comes back as soon as the app has a fresh token.
-
-With both, a 15 second and a 100 second outage still recover, and a refused socket comes back on
-the same instance with all its listeners.
