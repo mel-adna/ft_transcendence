@@ -3,6 +3,7 @@
 
 ENV_FILE := $(shell if [ -f .env ]; then echo ".env"; else echo ".env.example"; fi)
 
+
 all: env secrets certs
 	docker compose --env-file .env up -d --build
 
@@ -19,13 +20,24 @@ env:
 
 secrets:
 	@mkdir -p secrets
-	@for example in secrets_example/*.txt.example; do \
-		if [ -f "$$example" ]; then \
-			target="secrets/$$(basename "$$example" .example)"; \
-			if [ ! -f "$$target" ]; then \
-				echo "Creating $$target..."; \
-				tr -d '\r\n' < "$$example" > "$$target"; \
-				chmod 600 "$$target"; \
+	@if [ ! -f secrets/jwt_secret.txt ]; then \
+		echo "Generating random valid Base64 JWT secret..."; \
+		openssl rand -base64 48 | tr -d '\r\n' > secrets/jwt_secret.txt; \
+		chmod 600 secrets/jwt_secret.txt; \
+	fi
+	@for secret in db_password redis_password minio_root_password grafana_admin_password; do \
+		if [ ! -f "secrets/$$secret.txt" ]; then \
+			echo "Generating random $$secret..."; \
+			openssl rand -hex 16 | tr -d '\r\n' > "secrets/$$secret.txt"; \
+			chmod 600 "secrets/$$secret.txt"; \
+		fi; \
+	done
+	@for external in mail_password google_client_secret; do \
+		if [ ! -f "secrets/$$external.txt" ]; then \
+			if [ -f "secrets_example/$$external.txt.example" ]; then \
+				echo "Copying template for $$external..."; \
+				tr -d '\r\n' < "secrets_example/$$external.txt.example" > "secrets/$$external.txt"; \
+				chmod 600 "secrets/$$external.txt"; \
 			fi; \
 		fi; \
 	done
