@@ -26,7 +26,12 @@ async function authMiddleware(req, res, next) {
     req.user.token = token;
     next();
   } catch (err) {
-    return res.status(401).json({ error: `Unauthorized: ${err.message}` });
+    // only token problems are a 401, anything else is on us
+    if (err.message?.startsWith('AUTH_')) {
+      return res.status(401).json({ error: `Unauthorized: ${err.message}` });
+    }
+    console.error('[authMiddleware]', err);
+    return res.status(500).json({ error: 'INTERNAL_ERROR' });
   }
 }
 

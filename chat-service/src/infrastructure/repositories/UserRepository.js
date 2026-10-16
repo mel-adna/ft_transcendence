@@ -54,6 +54,18 @@ const UserRepository = {
     const existing = await prisma.user.findUnique({ where: { id }, select: { username: true } });
     const shouldUpdateUsername = isRealName || !existing;
 
+    // a deleted account keeps its row here, so free the email for whoever
+    // signs up with it next (same pattern the java side uses)
+    if (email) {
+      const holder = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (holder && holder.id !== id) {
+        await prisma.user.update({
+          where: { id: holder.id },
+          data: { email: `deleted_${holder.id}@teampulse.local` },
+        });
+      }
+    }
+
     return prisma.user.upsert({
       where: { id },
       update: {

@@ -71,9 +71,11 @@ class SocketServer {
         socket.user = user;
         next();
       } catch (err) {
+        // don't send db errors to the client, or into a metric label
+        const reason = err.message?.startsWith('AUTH_') ? err.message : 'INTERNAL_ERROR';
         console.warn(`[SocketServer] Auth rejected: ${err.message} | socketId=${socket.id}`);
-        socketAuthFailuresCounter.inc({ reason: err.message });
-        next(new Error(err.message));
+        socketAuthFailuresCounter.inc({ reason });
+        next(new Error(reason));
       }
     });
   }
