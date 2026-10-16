@@ -4,6 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import com.teampulse.backend.dto.messaging.UnifiedEvent;
 import com.teampulse.backend.dto.request.*;
 import com.teampulse.backend.dto.response.AuthResponse;
 import com.teampulse.backend.dto.response.UserDataExportDTO;
@@ -76,6 +77,7 @@ public class UserService {
 	private final VerificationCodeRepository verificationCodeRepository;
 	private final ActivityLogRepository activityLogRepository;
 	private final WorkspaceInvitationMapper workspaceInvitationMapper;
+	private final RedisEventPublisherService redisEventPublisherService;
 
 
 	@Value("${app.frontend-url}")
@@ -425,6 +427,7 @@ public class UserService {
 		apiKeyRepository.deleteByUserId(userId);
 		passwordResetTokenRepository.deleteByUserId(userId);
 
+		String deletedEmail = "deleted_" + userId + "@teampulse.local";
 		user.setEmail("deleted_" + userId + "@teampulse.local");
 		user.setFirstName("Deleted");
 		user.setLastName("User");
@@ -438,6 +441,24 @@ public class UserService {
 
 		user.setAvatarUrl(null);
 		userRepository.save(user);
+
+		UnifiedEvent userDeletedEvent = UnifiedEvent.builder()
+				.eventId(UUID.randomUUID())
+				.type("USER")
+				.action("DELETED")
+				.recipientId(userId)
+				.senderId(userId)
+				.entityType("USER")
+				.entityId(userId.toString())
+				.payload(Map.of(
+						"userId", userId.toString(),
+						"originalEmail", originalEmail,
+						"deletedEmail", deletedEmail
+				))
+				.timestamp(Instant.now())
+				.build();
+
+		redisEventPublisherService.publish(userDeletedEvent);
 
 		log.info("User account with email {} has been successfully soft-deleted in DB.", EmailUtils.maskEmail(email));
 
@@ -618,7 +639,8 @@ public class UserService {
 						User owner = null;
 						try {
 							owner = ws.getOwner();
-						} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+						} catch (jakarta.persistence.EntityNotFoundException ignored) {
+						}
 
 						return UserDataExportDTO.TeamExportDTO.builder()
 								.id(ws.getId())
@@ -660,17 +682,20 @@ public class UserService {
 							Workspace ws = null;
 							try {
 								ws = t.getWorkspace();
-							} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+							} catch (jakarta.persistence.EntityNotFoundException ignored) {
+							}
 
 							User assignee = null;
 							try {
 								assignee = t.getAssignee();
-							} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+							} catch (jakarta.persistence.EntityNotFoundException ignored) {
+							}
 
 							User creator = null;
 							try {
 								creator = t.getCreator();
-							} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+							} catch (jakarta.persistence.EntityNotFoundException ignored) {
+							}
 
 							return UserDataExportDTO.TaskExportDTO.builder()
 									.id(t.getId())
@@ -722,7 +747,8 @@ public class UserService {
 					UUID wsId = null;
 					try {
 						if (a.getWorkspace() != null) wsId = a.getWorkspace().getId();
-					} catch (jakarta.persistence.EntityNotFoundException ignored) {}
+					} catch (jakarta.persistence.EntityNotFoundException ignored) {
+					}
 
 					return UserDataExportDTO.ActivityLogExportDTO.builder()
 							.id(a.getId())
