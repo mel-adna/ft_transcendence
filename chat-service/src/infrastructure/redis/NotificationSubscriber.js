@@ -1,5 +1,6 @@
 const { createClient } = require('redis');
 const socketServer = require('../socket/SocketServer');
+const UserRepository = require('../repositories/UserRepository');
 
 /**
  * NotificationSubscriber
@@ -59,6 +60,12 @@ class NotificationSubscriber {
       return;
     }
 
+    // account deleted on the java side: not a notification, it's a sync
+    if (event.type === 'USER' && event.action === 'DELETED') {
+      this._handleUserDeleted(event);
+      return;
+    }
+
     const recipientId = event.recipientId;
     if (!recipientId) {
       // SYSTEM/broadcast-style events with no single recipient aren't routed
@@ -67,6 +74,19 @@ class NotificationSubscriber {
     }
 
     socketServer.emitToUser(String(recipientId), 'notification:new', event);
+  }
+
+  // free the email so it can sign up again, and drop any open sockets,
+  // since the handshake was the only auth check they ever had
+  async _handleUserDeleted(event) {
+    const userId = event.payload?.userId ?? event.entityId;
+    if (!userId) return;
+    try {
+      await UserRepository.releaseEmail(String(userId));
+      socketServer.disconnectUser(String(userId));
+    } catch (err) {
+      console.error('[NotificationSubscriber] USER_DELETED sync failed:', err.message);
+    }
   }
 
   async stop() {

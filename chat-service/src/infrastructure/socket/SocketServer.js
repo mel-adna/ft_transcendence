@@ -123,6 +123,13 @@ class SocketServer {
     }
   }
 
+  disconnectUser(userId) {
+    if (!this.io) return;
+    for (const socketId of registry.getSocketIds(userId)) {
+      this.io.in(socketId).disconnectSockets(true);
+    }
+  }
+
   /**
    * Add all of a user's live sockets to a room so they receive its events
    * immediately (e.g. after being invited). No-op if the user is offline —

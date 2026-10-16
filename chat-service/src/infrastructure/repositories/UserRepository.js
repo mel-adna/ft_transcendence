@@ -55,15 +55,11 @@ const UserRepository = {
     const shouldUpdateUsername = isRealName || !existing;
 
     // a deleted account keeps its row here, so free the email for whoever
-    // signs up with it next (same pattern the java side uses)
+    // signs up with it next. the USER_DELETED event normally does this
+    // already, this catches the ones that event missed
     if (email) {
       const holder = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-      if (holder && holder.id !== id) {
-        await prisma.user.update({
-          where: { id: holder.id },
-          data: { email: `deleted_${holder.id}@teampulse.local` },
-        });
-      }
+      if (holder && holder.id !== id) await UserRepository.releaseEmail(holder.id);
     }
 
     return prisma.user.upsert({
@@ -81,6 +77,15 @@ const UserRepository = {
         passwordHash: 'external-auth',
       },
       select: USER_PUBLIC_SELECT,
+    });
+  },
+
+  // same deleted_<id> pattern the java side uses. updateMany so a user who
+  // never opened chat (no row here) is just a no-op
+  async releaseEmail(id) {
+    await prisma.user.updateMany({
+      where: { id },
+      data: { email: `deleted_${id}@teampulse.local` },
     });
   },
 
