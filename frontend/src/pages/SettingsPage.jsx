@@ -6,8 +6,6 @@ import { downloadFile } from '../lib/csv';
 import { formatDay } from '../lib/dates';
 import { PASSWORD_HINT, validatePassword, validateRequired } from '../lib/validation';
 import { useAuth } from '../context/useAuth';
-import { useWorkspace } from '../context/useWorkspace';
-import { buildDataExport } from '../features/settings/dataExport';
 import Button from '../components/Button';
 import Field from '../components/Field';
 import Spinner from '../components/Spinner';
@@ -295,16 +293,19 @@ function PasswordCard() {
   );
 }
 
-function DataExportCard({ user, workspaces }) {
+function DataExportCard({ user }) {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
+  const [downloaded, setDownloaded] = useState(false);
 
   async function handleExport() {
     setExporting(true);
     setError(null);
+    setDownloaded(false);
     try {
-      const payload = await buildDataExport(user, workspaces);
-      downloadFile(EXPORT_FILENAME, JSON.stringify(payload, null, 2), 'application/json');
+      const { data } = await api.get('/users/me/export');
+      downloadFile(EXPORT_FILENAME, JSON.stringify(data, null, 2), 'application/json');
+      setDownloaded(true);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -316,18 +317,24 @@ function DataExportCard({ user, workspaces }) {
     <section className={cardClass}>
       <h2 className="text-base font-bold text-white">Your data</h2>
       <p className="mt-1 text-sm text-muted">
-        Download a copy of everything Team Pulse stores about you: your profile, your teams and
-        their tasks.
+        Download a copy of everything Team Pulse stores about you: your profile, teams, tasks,
+        notifications, activity, invitations and API key details.
       </p>
 
       <div className="mt-5 flex flex-col gap-3 border-t border-card pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-muted">Saved as a single JSON file.</p>
+        <p className="text-xs text-muted">Saved as a single JSON file. We email you each time you download it.</p>
         <Button variant="secondary" icon={Download} busy={exporting} onClick={handleExport}>
           Download my data
         </Button>
       </div>
 
       <ErrorBanner message={error} className="mt-4" />
+      {downloaded && (
+        <SuccessBanner
+          message={`Downloaded. A confirmation email is on its way to ${user?.email ?? 'your inbox'}.`}
+          className="mt-4"
+        />
+      )}
     </section>
   );
 }
@@ -573,7 +580,6 @@ function DeleteAccountCard({ onDeleted }) {
 
 export default function SettingsPage() {
   const { user, refreshUser, logout } = useAuth();
-  const { workspaces } = useWorkspace();
   const navigate = useNavigate();
 
   async function handleLogout() {
@@ -593,7 +599,7 @@ export default function SettingsPage() {
         <div className="mt-6 space-y-6">
           <ProfileCard user={user} onSaved={refreshUser} />
           <PasswordCard />
-          <DataExportCard user={user} workspaces={workspaces} />
+          <DataExportCard user={user} />
           <ApiKeyCard />
           <DeleteAccountCard onDeleted={handleLogout} />
         </div>
