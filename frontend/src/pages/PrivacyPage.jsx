@@ -2,7 +2,7 @@ import LegalPage, { LegalSection } from '../components/LegalPage';
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="August 1, 2026">
+    <LegalPage title="Privacy Policy" updated="October 16, 2026">
       <p className="text-sm leading-relaxed text-muted">
         Team Pulse is a student software project built to manage tasks and communication inside
         small teams. This page explains, in plain terms, what information the application stores
@@ -15,6 +15,14 @@ export default function PrivacyPage() {
           <li>Your email address, which is also used to sign in.</li>
           <li>An avatar image URL, if you choose to add one.</li>
           <li>The tasks you create, are assigned to, or that belong to your teams.</li>
+          <li>
+            The teams you belong to and your role in each, your notifications and invitations, and
+            the activity in your teams.
+          </li>
+          <li>
+            If you create an API key, its first characters and a hash of it. The key itself is
+            never stored.
+          </li>
           <li>The chat messages you send inside a workspace.</li>
         </ul>
       </LegalSection>
@@ -35,7 +43,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="Your choices">
         From the Settings page, signed-in users can download a copy of everything stored about
-        them (profile, teams and tasks) as a single file, at any time. From the same page, you can
+        them (profile, teams, tasks, notifications, activity, invitations and API key details) as a
+        single file, at any time, and each download is confirmed by email. From the same page, you can
         also permanently delete your account. Deleting your account removes your access immediately
         and cannot be undone.
       </LegalSection>

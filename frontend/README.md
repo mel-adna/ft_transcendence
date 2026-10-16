@@ -20,7 +20,7 @@ What has to be running for the app to actually work:
   empty chat. How that check works, and why it lives outside the vendored components, is under "Which
   code is whose".
 
-The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend; what remains open is tracked in `backend-issues.md`.
+The Colleagues page reads the team's real member list from `GET /workspaces/{id}/members`, Settings uploads a real image file to `POST /users/me/avatar`, and the dashboard's activity feed reads `GET /activity-logs/workspace/{id}`. All three endpoints are recent. The two defects that used to break the first two are fixed on the backend.
 
 Other scripts: `npm run build` produces the production bundle and `npm run lint` runs eslint.
 
@@ -79,7 +79,7 @@ Every board move is logged now. Entering Done still writes `TASK_COMPLETED`, and
 
 The fetch lives in `DashboardPage` rather than inside `StatsDashboard` for two reasons: the page returns a spinner while tasks load, so a fetch inside the chart component could not start until the task request had finished, and the CSV import needs to refresh the activity trail along with the task list when it is done.
 
-The same is true of the app's two export features: CSV export and import (`lib/csv.js`) and the GDPR data export on the Settings page (`features/settings/dataExport.js`) are both built entirely client-side, because the backend does not expose a CSV endpoint or a personal-data export endpoint either. If asked where a number or a downloaded file comes from, the answer is almost always "computed in the browser from the task list," not "returned by an endpoint."
+The same is true of CSV export and import (`lib/csv.js`): it is built entirely client-side, because the backend does not expose a CSV endpoint. If asked where a number or a downloaded file comes from, the answer is almost always "computed in the browser from the task list," not "returned by an endpoint." The one exception is Download my data on the Settings page. Since 16 October it saves what `GET /users/me/export` returns: the backend builds that file with notifications, activity and invitations included, and emails a confirmation for each download.
 
 ## Who a new task gets assigned to
 
@@ -110,7 +110,7 @@ The description field prefills from the workspace the list endpoint already retu
 
 Nobody is added to a team any more, they are invited. The backend dropped `POST /workspaces/{id}/members` in favour of an invitation with its own lifetime, so the old Colleagues button answered 405 until this changed.
 
-**Colleagues**, for an admin or the owner only, opens `InviteMemberModal`. It searches accounts by email and sends `POST /workspaces/{id}/invitations` with `{email, role}`. The address is lowercased first: the backend stores it as typed and looks it up exactly, so `Foo@Bar.com` would create an invitation the invitee can never see (tracked as issue 38 in `backend-issues.md`). An address with no account can be invited too, which is deliberate: the backend emails it, and the invitation is waiting once that person signs up. Below the roster, the same screen lists who has not answered yet, with a Cancel that sends `DELETE .../invitations/{id}`.
+**Colleagues**, for an admin or the owner only, opens `InviteMemberModal`. It searches accounts by email and sends `POST /workspaces/{id}/invitations` with `{email, role}`. The address is lowercased first. The backend does the same now, but it used to store the address as typed, so `Foo@Bar.com` created an invitation the invitee could never see. An address with no account can be invited too, which is deliberate: the backend emails it, and the invitation is waiting once that person signs up. Below the roster, the same screen lists who has not answered yet, with a Cancel that sends `DELETE .../invitations/{id}`.
 
 The admin list endpoint returns every invitation, including accepted, rejected and expired ones, despite being named for pending ones, so the page filters to `PENDING` with an `expiresAt` in the future. The list addressed to you, `GET /workspaces/users/me/invitations`, is already filtered by the backend. Note the path: it hangs off `/workspaces`, not `/users`.
 
