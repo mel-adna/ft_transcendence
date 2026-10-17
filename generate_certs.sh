@@ -45,6 +45,9 @@ fi
 if [ -f "$KEY_FILE" ] && [ -f "$CRT_FILE" ]; then
     if [ "$FORCE_OVERWRITE" = true ]; then
         echo -e "${YELLOW}⚠️ Overwriting existing certificates (--force flag provided)...${NC}"
+    elif [ ! -t 0 ]; then
+        echo -e "${GREEN}✅ Non-interactive shell detected. Keeping existing SSL certificates.${NC}"
+        exit 0
     else
         echo -e "${YELLOW}⚠️ Existing SSL key certificates found in ${CERT_DIR}.${NC}"
         read -p "Do you want to overwrite them and generate fresh keys? (y/N) " -n 1 -r
