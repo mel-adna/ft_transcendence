@@ -62,11 +62,11 @@ All members used AI assistants as helpers: to explain concepts and error message
 | ouzouini | Developer | The database: the PostgreSQL schema, the JPA entities and repositories, and the activity log. |
 | szemmour | Project Manager / Scrum Master, Developer | Tracks progress, module points and next tasks, reviews and merges pull requests, and sends each bug to its owner. Builds the frontend core. |
 | ayaarab | Developer | The real-time chat service and the live updates it relays. |
-| mel-adna | Product Owner, Developer | Wrote the project plan and keeps the scope and priorities. Set up the first Docker and nginx base, and builds the analytics dashboards and the notification bell. |
+| mel-adna | Product Owner, Developer | Keeps the project scope and priorities, and builds the analytics dashboards and the notification bell. |
 
 ## Project Management
 
-- **Organization:** the June plan split the project into five parts, one per member: backend core, database, frontend core, real-time chat, and analytics with DevOps. Each member works on their own branch, merged into main. Since 12 October, changes also go through GitHub pull requests.
+- **Organization:** the June plan split the project into five parts, one per member: backend core, database, frontend core, real-time chat, and analytics with Export/Import. Each member works on their own branch, merged into main. Since 12 October, changes also go through GitHub pull requests.
 - **Tools:** GitHub for branches and pull requests, and a shared status page with the module points and each member's next tasks.
 - **Communication:** Discord, for questions, planning and bug reports, which go straight to the owner of the code.
 
@@ -118,7 +118,7 @@ The chat service keeps its own tables in the `chat` schema, through Prisma: `Use
 | GDPR | mdbentaleb, szemmour | Download your data with an email confirmation, delete your account, and the Privacy Policy and Terms pages |
 | Public API | mdbentaleb, szemmour | Workspaces and tasks over REST with an `X-API-Key` header, rate limits and Swagger |
 | Monitoring | mdbentaleb, ayaarab | Metrics from every service in Prometheus, shown on Grafana dashboards |
-| Security | mdbentaleb, mel-adna | HTTPS only, through nginx. Docker secrets, rate limits and input validation |
+| Security | mdbentaleb | HTTPS only, through nginx. Docker secrets, rate limits and input validation |
 | Design system | szemmour | One set of colour tokens and shared components for every screen |
 
 ## Modules
@@ -196,8 +196,9 @@ Why we chose each module, and how it works:
 
 ### mel-adna
 
-- The project plan, and the June DevOps base: Docker Compose, the nginx HTTPS proxy and the first dashboard.
-- The analytics API (`/workspaces/{id}/stats`) and dashboard: insights, filters, a custom date range and PDF export.
-- The Team Member Activity table and the real-time notification bell.
-- JSON task export and import, and the checks on import.
+- Product Owner: keeps the project scope and priorities.
+- Advanced analytics dashboard: status and priority charts, per-member activity, filters, a custom date range and PDF export, on top of `/workspaces/{id}/stats`.
+- User activity analytics dashboard: the Team Member Activity table with each member's assigned, done, in progress and to do tasks and completion rate.
+- The notification system frontend, shared with mdbentaleb: the bell, the unread count, real-time notifications, and mark as read and mark all as read.
+- Task import and export as CSV and JSON, shared with szemmour, with the checks on import.
 - Challenges: the dashboard numbers were computed twice, in the browser and in the backend, so the browser copy was removed. The PDF export printed console errors while embedding fonts, so it now skips font embedding.
