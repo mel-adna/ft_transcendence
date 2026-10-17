@@ -255,17 +255,17 @@ export default function StatsDashboard({
     setExporting(true);
     setExportError(false);
     try {
-      // Loaded on click so the PDF libraries stay out of the main bundle.
       const [{ toJpeg }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
-      // JPEG is embedded as-is by jsPDF; a PNG is re-encoded and makes the file ~50x larger.
       const image = await toJpeg(node, {
         backgroundColor: CHART.canvas,
         pixelRatio: 2,
         quality: 0.92,
+        cacheBust: false,
+        imagePlaceholder:
+          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="%2327272a"/></svg>', // صورة افتراضية عند تعذر جلب الصورة الخارجية
         filter: (element) => element.dataset?.pdfIgnore === undefined,
         skipFonts: true,
       });
-      // One page sized to the dashboard keeps charts and tables unsplit.
       const width = node.offsetWidth;
       const height = node.offsetHeight;
       const pdf = new jsPDF({
@@ -275,7 +275,8 @@ export default function StatsDashboard({
       });
       pdf.addImage(image, 'JPEG', 0, 0, width, height);
       pdf.save('team-pulse-analytics.pdf');
-    } catch {
+    } catch (err) {
+      console.error("PDF export error:", err);
       setExportError(true);
     } finally {
       setExporting(false);
