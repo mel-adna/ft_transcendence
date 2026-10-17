@@ -31,4 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
-test.java
+
+# Environment & Local Secrets Protection
+.env
+.env.*
+secrets/
+
+# macOS System Files
+.DS_Store

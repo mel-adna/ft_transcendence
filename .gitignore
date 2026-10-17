@@ -14,8 +14,13 @@ secrets/
 *.key
 *.pub
 
-# Private SSL Certificates
+
+# SSL Certificates
 nginx/certs/
+nginx/certs/*.key
+nginx/certs/*.crt
+nginx/certs/*.pem
+
 
 # Dependencies
 node_modules/

@@ -93,7 +93,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     networks:
       - teampulse_net
     restart: unless-stopped
@@ -149,6 +149,12 @@ services:
     restart: unless-stopped
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   # ======================= Redis =======================
   redis:
