@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useChat } from '../hooks/useChat';
 import { useSocket } from '../hooks/useSocket';
 import { useRoomPresence } from '../hooks/useRoomPresence';
@@ -71,6 +71,9 @@ export function ChatRoom({
   // null | 'delete' | 'leave'
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
+  // shown in the UI instead of the console
+  const [actionError, setActionError] = useState(null);
+  const [searchError, setSearchError] = useState(null);
 
   const canInvite = showMembers && roomType === 'GROUP';
   const hasMenuActions = canDelete || canLeave;
@@ -79,13 +82,13 @@ export function ChatRoom({
     const action = confirm === 'delete' ? onDeleteRoom : onLeaveRoom;
     if (!action) return;
     setBusy(true);
+    setActionError(null);
     try {
       await action();
       // On success the room unmounts — no state reset needed.
     } catch (err) {
-      console.error(`[ChatRoom] ${confirm} failed:`, err.message);
       setBusy(false);
-      setConfirm(null);
+      setActionError(err.message || `Could not ${confirm} the room`);
     }
   };
 
@@ -106,11 +109,12 @@ export function ChatRoom({
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setSearching(true);
+    setSearchError(null);
     try {
       const { messages: results } = await chatApi.searchMessages(roomId, searchQuery.trim());
       setSearchResults(results);
     } catch (err) {
-      console.error('[ChatRoom] search error:', err.message);
+      setSearchError(err.message || 'Search failed');
     } finally {
       setSearching(false);
     }
@@ -229,6 +233,7 @@ export function ChatRoom({
               ) : (
                 <>Leave <strong>{roomName}</strong>? You'll need to be re-invited to rejoin.</>
               )}
+              {actionError && <span className="block mt-1 text-red-400">{actionError}</span>}
             </span>
             <div className="flex items-center gap-2 ml-auto">
               <button
@@ -241,7 +246,7 @@ export function ChatRoom({
                 {busy ? 'Working…' : confirm === 'delete' ? 'Delete' : 'Leave'}
               </button>
               <button
-                onClick={() => setConfirm(null)}
+                onClick={() => { setConfirm(null); setActionError(null); }}
                 disabled={busy}
                 className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#71717A] hover:text-white cursor-pointer"
               >
@@ -261,6 +266,9 @@ export function ChatRoom({
             />
             {searching && (
               <p className="text-[10px] text-[#71717A] mt-1">Searching…</p>
+            )}
+            {searchError && !searching && (
+              <p className="text-[10px] text-red-400 mt-1">{searchError}</p>
             )}
             {searchResults.length > 0 && (
               <p className="text-[10px] text-[#71717A] mt-1">

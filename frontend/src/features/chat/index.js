@@ -22,4 +22,5 @@ export { InviteMembersModal } from './components/InviteMembersModal';
 export { chatApi } from './services/chatApi';
 
 // Context
-export { SocketProvider, useSocketContext } from './context/SocketContext';
+export { SocketProvider } from './context/SocketContext';
+export { useSocketContext } from './context/useSocketContext';

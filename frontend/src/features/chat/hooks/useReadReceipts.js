@@ -39,23 +39,26 @@ export function useReadReceipts(roomId, currentUserId, messages, active = true) 
   // Reset + bootstrap when the room changes. The read:sync ack below replaces
   // state with the fresh server snapshot.
   useEffect(() => {
-    setReceipts({});
-    if (!socket || !connected || !roomId) return;
-    let cancelled = false;
-    socket.emit('read:sync', { roomId }, (res) => {
-      if (cancelled || !res?.ok) return;
-      const next = {};
-      for (const r of res.receipts ?? []) {
-        next[r.userId] = {
-          lastReadMessageId: r.lastReadMessageId,
-          readAt: r.readAt ? new Date(r.readAt).getTime() : 0,
-        };
-      }
-      setReceipts(next);
-    });
-    return () => {
-      cancelled = true;
-    };
+    function sync() {
+      setReceipts({});
+      if (!socket || !connected || !roomId) return undefined;
+      let cancelled = false;
+      socket.emit('read:sync', { roomId }, (res) => {
+        if (cancelled || !res?.ok) return;
+        const next = {};
+        for (const r of res.receipts ?? []) {
+          next[r.userId] = {
+            lastReadMessageId: r.lastReadMessageId,
+            readAt: r.readAt ? new Date(r.readAt).getTime() : 0,
+          };
+        }
+        setReceipts(next);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    return sync();
   }, [socket, connected, roomId]);
 
   // Live updates from other members (and our own echo).

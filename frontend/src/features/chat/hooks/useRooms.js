@@ -38,8 +38,11 @@ export function useRooms(currentUserId) {
   }, []);
 
   useEffect(() => {
-    refresh();
-    refreshPendingRequests();
+    function sync() {
+      refresh();
+      refreshPendingRequests();
+    }
+    sync();
   }, [refresh, refreshPendingRequests]);
 
   // Someone sent us a DM request — surface it in the pending list.

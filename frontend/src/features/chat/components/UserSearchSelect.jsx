@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 
@@ -29,34 +29,37 @@ export function UserSearchSelect({
 
   // Debounced search — cancels the previous timer on each keystroke.
   useEffect(() => {
-    const q = query.trim();
-    if (!q) {
-      setResults([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    let cancelled = false;
-    const handle = setTimeout(async () => {
-      try {
-        const { users } = await chatApi.searchUsers(q, roomId ? { roomId } : {});
-        if (!cancelled) {
-          setResults(users);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err.message);
-      } finally {
-        if (!cancelled) setLoading(false);
+    function search() {
+      const q = query.trim();
+      if (!q) {
+        setResults([]);
+        setError(null);
+        setLoading(false);
+        return undefined;
       }
-    }, 300);
 
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
+      setLoading(true);
+      let cancelled = false;
+      const handle = setTimeout(async () => {
+        try {
+          const { users } = await chatApi.searchUsers(q, roomId ? { roomId } : {});
+          if (!cancelled) {
+            setResults(users);
+            setError(null);
+          }
+        } catch (err) {
+          if (!cancelled) setError(err.message);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      }, 300);
+
+      return () => {
+        cancelled = true;
+        clearTimeout(handle);
+      };
+    }
+    return search();
   }, [query, roomId]);
 
   const selectedIds = new Set(selected.map((u) => u.id));

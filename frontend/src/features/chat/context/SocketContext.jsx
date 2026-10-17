@@ -1,21 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { socketClient } from '../../../infrastructure/socket/SocketClient';
-
-/**
- * @typedef {object} SocketContextValue
- * @property {import('socket.io-client').Socket | null} socket
- * @property {boolean} connected
- * @property {string} status - 'idle' | 'connecting' | 'connected' | 'error'
- * @property {(event: string, payload?: any) => void} emit
- */
-
-const SocketContext = createContext(null);
+import { SocketContext } from './useSocketContext';
 
 /**
  * SocketProvider
  * Wraps app (or protected routes). Manages socket lifecycle tied to auth.
  *
- * @param {{ children: React.ReactNode, getToken: () => string | null }} props
+ * @param {{ children: import('react').ReactNode, getToken: () => string | null }} props
  * getToken — function returning current JWT (from your auth store)
  */
 export function SocketProvider({ children, getToken }) {
@@ -24,25 +15,8 @@ export function SocketProvider({ children, getToken }) {
   const [status, setStatus] = useState('idle');
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      setStatus('error');
-      return;
-    }
-
     let cancelled = false;
-    setStatus('connecting');
-    socketClient.configure(getToken);
-
-    let s;
-    try {
-      s = socketClient.connect();
-      if (!cancelled) setSocket(s);
-    } catch (err) {
-      console.error('[SocketProvider] Failed to connect:', err.message);
-      if (!cancelled) setStatus('error');
-      return;
-    }
+    let s = null;
 
     const onConnect = () => {
       if (cancelled) return;
@@ -62,17 +36,40 @@ export function SocketProvider({ children, getToken }) {
       setStatus('error');
     };
 
-    s.on('connect', onConnect);
-    s.on('disconnect', onDisconnect);
-    s.on('connect_error', onConnectError);
+    // same inner-function shape as hooks/useList: the effect only kicks it off
+    function start() {
+      if (!getToken()) {
+        setStatus('error');
+        return;
+      }
 
-    if (s.connected) onConnect();
+      setStatus('connecting');
+      socketClient.configure(getToken);
+
+      try {
+        s = socketClient.connect();
+      } catch {
+        // no token by the time we got here, the status line shows it
+        setStatus('error');
+        return;
+      }
+      setSocket(s);
+
+      s.on('connect', onConnect);
+      s.on('disconnect', onDisconnect);
+      s.on('connect_error', onConnectError);
+
+      if (s.connected) onConnect();
+    }
+    start();
 
     return () => {
       cancelled = true;
-      s.off('connect', onConnect);
-      s.off('disconnect', onDisconnect);
-      s.off('connect_error', onConnectError);
+      if (s) {
+        s.off('connect', onConnect);
+        s.off('disconnect', onDisconnect);
+        s.off('connect_error', onConnectError);
+      }
       socketClient.disconnect();
       setSocket(null);
       setConnected(false);
@@ -80,12 +77,11 @@ export function SocketProvider({ children, getToken }) {
     };
   }, [getToken]);
 
+  // callers already render a disconnected state, so a dropped emit while
+  // reconnecting is expected, not worth a console warning
   const emit = useCallback(
     (event, payload) => {
-      if (!socket?.connected) {
-        console.warn(`[SocketProvider] Attempted emit '${event}' while disconnected`);
-        return;
-      }
+      if (!socket?.connected) return;
       socket.emit(event, payload);
     },
     [socket],
@@ -96,13 +92,4 @@ export function SocketProvider({ children, getToken }) {
       {children}
     </SocketContext.Provider>
   );
-}
-
-/**
- * @returns {SocketContextValue}
- */
-export function useSocketContext() {
-  const ctx = useContext(SocketContext);
-  if (!ctx) throw new Error('useSocketContext must be used within <SocketProvider>');
-  return ctx;
 }

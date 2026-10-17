@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRooms } from '../hooks/useRooms';
 import { RoomSidebar, CreateRoomModal } from './RoomSidebar';
 import { ChatRoom } from './ChatRoom';

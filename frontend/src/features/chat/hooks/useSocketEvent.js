@@ -17,7 +17,9 @@ export function useSocketEvent(event, handler, enabled = true) {
   const { socket } = useSocket();
   // Keep handler ref stable so we don't re-register on every render
   const handlerRef = useRef(handler);
-  handlerRef.current = handler;
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
 
   useEffect(() => {
     if (!socket || !enabled) return;

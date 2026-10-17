@@ -27,11 +27,17 @@ export function useChat(roomId, currentUserId) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const cursorRef = useRef(null);
+  // refs, not state: the guard has to see the latest value, and a response
+  // for a room we already left has to be dropped
+  const loadingRef = useRef(false);
+  const requestRef = useRef(0);
 
   // ─── FETCH HISTORY (REST) ─────────────────────────────────────────────────
   const fetchHistory = useCallback(
     async (cursor = null, replace = false) => {
-      if (!roomId || isLoading) return;
+      if (!roomId || (loadingRef.current && !replace)) return;
+      const requestId = ++requestRef.current;
+      loadingRef.current = true;
       setIsLoading(true);
       try {
         const params = new URLSearchParams({ limit: '50' });
@@ -49,6 +55,7 @@ export function useChat(roomId, currentUserId) {
         if (!res.ok) throw new Error(`History fetch failed: ${res.status}`);
 
         const { messages: fetched, nextCursor } = await res.json();
+        if (requestId !== requestRef.current) return;
         cursorRef.current = nextCursor;
         setHasMore(!!nextCursor);
 
@@ -58,20 +65,26 @@ export function useChat(roomId, currentUserId) {
       } catch {
         // ignore, isLoading already reflects the failure
       } finally {
-        setIsLoading(false);
+        if (requestId === requestRef.current) {
+          loadingRef.current = false;
+          setIsLoading(false);
+        }
       }
     },
     [roomId],
   );
 
-  // Load history when roomId changes
+  // Load history when roomId changes (same inner-function shape as hooks/useList)
   useEffect(() => {
-    if (!roomId) return;
-    cursorRef.current = null;
-    setMessages([]);
-    setHasMore(true);
-    fetchHistory(null, true);
-  }, [roomId]);
+    function load() {
+      if (!roomId) return;
+      cursorRef.current = null;
+      setMessages([]);
+      setHasMore(true);
+      fetchHistory(null, true);
+    }
+    load();
+  }, [roomId, fetchHistory]);
 
   const loadMore = useCallback(() => {
     if (hasMore && !isLoading && cursorRef.current) {
@@ -140,7 +153,7 @@ export function useChat(roomId, currentUserId) {
       socket.emit(
         'message:send',
         { roomId, content, type, parentId },
-        ({ ok, messageId, error }) => {
+        ({ ok, messageId }) => {
           if (ok) {
             // Replace temp id with the real DB id so edit/delete target it.
             setMessages((prev) =>
@@ -152,7 +165,6 @@ export function useChat(roomId, currentUserId) {
             );
           } else {
             // Keep the message visible and flag it so the user can retry.
-            console.error('[useChat] Send failed:', error);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempId ? { ...m, _optimistic: false, _failed: true } : m,

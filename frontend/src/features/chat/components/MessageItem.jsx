@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * MessageItem
  * Renders a single message with an optimistic "sending" state, a failed-send

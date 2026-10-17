@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Hash, MessageCircle } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 import { UserSearchSelect } from './UserSearchSelect';
@@ -26,12 +26,15 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!open) return;
-    setError(null);
-    chatApi
-      .listUsers()
-      .then(({ users: fetched }) => setUsers(fetched))
-      .catch((err) => setError(err.message));
+    function load() {
+      if (!open) return;
+      setError(null);
+      chatApi
+        .listUsers()
+        .then(({ users: fetched }) => setUsers(fetched))
+        .catch((err) => setError(err.message));
+    }
+    load();
   }, [open]);
 
   if (!open) return null;

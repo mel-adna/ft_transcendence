@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * TypingIndicator
  * Renders "X is typing…" / "X and Y are typing…" / "Several people are typing…"

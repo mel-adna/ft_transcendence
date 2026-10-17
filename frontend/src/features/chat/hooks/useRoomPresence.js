@@ -24,11 +24,14 @@ export function useRoomPresence(roomId) {
   }, [roomId]);
 
   useEffect(() => {
-    if (!roomId) {
-      setMembers([]);
-      return;
+    function sync() {
+      if (!roomId) {
+        setMembers([]);
+        return;
+      }
+      refresh();
     }
-    refresh();
+    sync();
   }, [roomId, refresh]);
 
   useEffect(() => {

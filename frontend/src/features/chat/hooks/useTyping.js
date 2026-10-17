@@ -59,12 +59,15 @@ export function useTyping(roomId) {
 
   // Reset everything when the room changes or socket drops.
   useEffect(() => {
-    isTypingRef.current = false;
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
+    function reset() {
+      isTypingRef.current = false;
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+      setTypers({});
     }
-    setTypers({});
+    reset();
   }, [roomId, connected]);
 
   // Tell peers we stopped if we navigate away mid-type.
