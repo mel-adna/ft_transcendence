@@ -23,7 +23,7 @@ function registerRoomHandlers(io, socket) {
   socket.on('room:join', async (payload, ack) => {
     try {
       const { roomId } = payload ?? {};
-      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+      if (!roomId || typeof roomId !== 'string') throw new Error('ROOM_ID_REQUIRED');
 
       const result = await JoinRoomUseCase.execute({ userId, roomId, socket });
 
@@ -37,7 +37,7 @@ function registerRoomHandlers(io, socket) {
   socket.on('room:leave', async (payload, ack) => {
     try {
       const { roomId } = payload ?? {};
-      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+      if (!roomId || typeof roomId !== 'string') throw new Error('ROOM_ID_REQUIRED');
 
       const result = await LeaveRoomUseCase.execute({ userId, roomId, socket });
 

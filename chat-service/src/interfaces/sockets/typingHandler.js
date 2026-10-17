@@ -3,7 +3,7 @@
  * Relays ephemeral typing state between room members. Typing is transient
  * presence — never persisted — so there is no use case; this is pure transport.
  *
- * Socket Events (inbound):
+ * Socket Events (inbound, ignored unless the socket is in that room):
  *   typing:start  { roomId }
  *   typing:stop   { roomId }
  *
@@ -38,28 +38,43 @@ function registerTypingHandlers(io, socket) {
     }
   };
 
-  const stop = (roomId) => {
-    if (!roomId) return;
-    clearTimer(roomId);
-    emitTyping(roomId, false);
+  // only rooms this socket actually joined (accepted members), so nobody can
+  // send typing into a room they're not in
+  const joinedRoom = (payload) => {
+    const roomId = payload?.roomId;
+    return typeof roomId === 'string' && socket.rooms.has(roomId) ? roomId : null;
   };
 
-  socket.on('typing:start', ({ roomId } = {}) => {
-    if (!roomId) return;
-    emitTyping(roomId, true);
+  socket.on('typing:start', (payload) => {
+    try {
+      const roomId = joinedRoom(payload);
+      if (!roomId) return;
+      emitTyping(roomId, true);
 
-    // Reset the safety timeout on each keystroke-driven start.
-    clearTimer(roomId);
-    timers.set(
-      roomId,
-      setTimeout(() => {
-        timers.delete(roomId);
-        emitTyping(roomId, false);
-      }, TYPING_TIMEOUT_MS),
-    );
+      // Reset the safety timeout on each keystroke-driven start.
+      clearTimer(roomId);
+      timers.set(
+        roomId,
+        setTimeout(() => {
+          timers.delete(roomId);
+          emitTyping(roomId, false);
+        }, TYPING_TIMEOUT_MS),
+      );
+    } catch (err) {
+      console.error(`[typingHandler] typing:start failed userId=${userId}:`, err.message);
+    }
   });
 
-  socket.on('typing:stop', ({ roomId } = {}) => stop(roomId));
+  socket.on('typing:stop', (payload) => {
+    try {
+      const roomId = joinedRoom(payload);
+      if (!roomId) return;
+      clearTimer(roomId);
+      emitTyping(roomId, false);
+    } catch (err) {
+      console.error(`[typingHandler] typing:stop failed userId=${userId}:`, err.message);
+    }
+  });
 
   socket.on('disconnect', () => {
     for (const roomId of timers.keys()) {

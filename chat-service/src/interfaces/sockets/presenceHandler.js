@@ -28,9 +28,11 @@ function registerPresenceHandlers(io, socket) {
 
   _broadcastPresence(io, userId, PresenceStatus.ONLINE);
 
-  socket.on('presence:set', async ({ status } = {}) => {
+  // payload ?? {} everywhere: a null payload used to throw outside the try
+  // and crash the whole service
+  socket.on('presence:set', async (payload) => {
     try {
-      const validated = PresenceService.validateStatusChange(status);
+      const validated = PresenceService.validateStatusChange(payload?.status);
       const payload = await UpdatePresenceUseCase.execute({ userId, status: validated });
       await _broadcastPresence(io, userId, validated, payload.lastSeen);
     } catch (err) {
@@ -50,9 +52,10 @@ function registerPresenceHandlers(io, socket) {
     }
   });
 
-  socket.on('presence:subscribe', async ({ roomId } = {}) => {
+  socket.on('presence:subscribe', async (payload) => {
     try {
-      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+      const roomId = payload?.roomId;
+      if (typeof roomId !== 'string' || !roomId) throw new Error('ROOM_ID_REQUIRED');
 
       const members = await GetRoomPresenceUseCase.execute({ roomId, requesterId: userId });
       socket.data.presenceRooms.add(roomId);
@@ -63,8 +66,9 @@ function registerPresenceHandlers(io, socket) {
     }
   });
 
-  socket.on('presence:unsubscribe', ({ roomId } = {}) => {
-    if (roomId) socket.data.presenceRooms.delete(roomId);
+  socket.on('presence:unsubscribe', (payload) => {
+    const roomId = payload?.roomId;
+    if (typeof roomId === 'string') socket.data.presenceRooms.delete(roomId);
   });
 
   socket.on('disconnect', async () => {

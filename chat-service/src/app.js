@@ -37,8 +37,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(httpMetricsMiddleware);
 
-app.use('/api/chat', chatApiLimiter, chatRoutes);
-app.use('/api/chat', chatApiLimiter, roomRoutes);
+// once for both routers, attaching it to each counted every room request twice
+app.use('/api/chat', chatApiLimiter);
+app.use('/api/chat', chatRoutes);
+app.use('/api/chat', roomRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -86,5 +88,11 @@ const shutdown = () => gracefulShutdown(server, socketServer, presenceCleanupTim
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+// a rejected promise nobody caught would otherwise kill the process, and
+// with it chat for every user
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason);
+});
 
 module.exports = { app, server };
