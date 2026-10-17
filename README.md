@@ -1,200 +1,203 @@
-# Team-Pulse Dashboard - ft_transcendence Project Specification
+*This project has been created as part of the 42 curriculum by mdbentaleb, ouzouini, szemmour, ayaarab, mel-adna.*
 
-This repository contains the core codebase, DevOps environment, and multi-container orchestration for the Team-Pulse Dashboard project. 
+# Team-Pulse
 
----
+## Description
 
-## 1. Project Vision
+Team-Pulse is a web app where a small team organizes its work in one place: a shared task board, a team chat, and dashboards that show the team's progress. A change made by one person appears on everyone else's open page without a reload.
 
-### Project Name
-Team-Pulse Dashboard
+Key features:
 
-### Idea
-A collaborative task-management platform designed for teams to manage tasks, communicate in real-time, and track performance through analytics.
+- Accounts with an email verification code, password reset and Google sign-in.
+- Teams with roles (admin, member, viewer) and invitations by email.
+- A task board (To Do, Doing, Done) with priorities and assignees, and task import and export as CSV and JSON.
+- Real-time chat with group rooms and direct messages, and live updates on every page.
+- Notifications for every change that concerns you.
+- Analytics dashboards with filters, a custom date range and PDF export.
+- GDPR tools: download everything stored about you, or delete your account.
+- A public API with API keys, and monitoring with Prometheus and Grafana.
 
-### The Problem
-Modern teams often utilize multiple disconnected tools, leading to poor organization, fragmented communication, and scattered performance metrics.
+## Instructions
 
-### The Solution
-A unified, high-performance platform combining:
-* Task management and organizational grouping.
-* Real-time team communication.
-* Performance tracking and data analytics.
+Prerequisites:
 
----
+- Docker with Docker Compose v2 (the `docker compose` command), GNU make and OpenSSL.
+- Ports 80 and 443 free.
+- Nothing else on the host: Java 21, Node 22, PostgreSQL 15 and the other services run in containers.
 
-## 2. Core Features (MVP - Mandatory Part)
+Steps:
 
-The development lifecycle enforces a strict rule: **No bonus features until all mandatory MVP features are complete and verified.**
+1. Clone the repository and enter it.
+2. Run `make env secrets`. It creates `.env` from `.env.example`, and `secrets/` with a generated JWT secret and generated passwords for the database, Redis, MinIO and Grafana.
+3. Fill in the two secrets that belong to real Google accounts:
+   - `secrets/mail_password.txt`: the app password of the Gmail account set as `MAIL_USERNAME` in `.env`. Sign-up codes are sent from it.
+   - `secrets/google_client_secret.txt`: the OAuth client secret of `GOOGLE_CLIENT_ID`. If `VITE_GOOGLE_CLIENT_ID` is empty, the Google button is hidden.
+4. Run `make`. It creates the TLS certificate, then builds and starts every container.
+5. Open https://localhost and accept the self-signed certificate.
 
-### A. Authentication and User Management
-* **JWT Authentication**: Secure signup and login flows utilizing JSON Web Tokens.
-* **Profile Management**: Capabilities to update user details (name, email).
-* **Avatar Upload**: Support for custom user profile images.
-* **Online Presence Status**: Live tracking of user online/offline status using WebSocket connectivity or last-seen timestamps.
-* **Legal Compliance**: Accessible Privacy Policy and Terms of Service documents linked in the global footer.
+The API documentation (Swagger) is at https://localhost/api/v1/swagger-ui/index.html, and Grafana at https://localhost/grafana (user `GRAFANA_ADMIN_USER` from `.env`, password in `secrets/grafana_admin_password.txt`).
 
-### B. User Interaction
-* **Colleagues System**: Functionality to add or remove users and view a unified colleagues directory.
-* **Chat System**: Real-time message dispatching and reception, with permanent message archiving in the relational database.
+Other commands: `make ps` shows the containers, `make backend` rebuilds the backend only, `make clean` stops everything and deletes the data, `make fclean` also deletes the images, `secrets/`, the certificates and `.env`, and `make re` runs `fclean` then `make`.
 
-### C. Task and Organization
-* **Organization System**: Structural grouping of users into distinct teams, ensuring strict data isolation per organization.
-* **Task CRUD Operations**: Complete Create, Read, Update, and Delete actions for tasks with structured states: To-Do, Doing, and Done.
+## Resources
 
-### D. Data and Analytics
-* **Dashboard Visualizations**: Interactive data charts monitoring task statuses and completion trends.
-* **Export and Import**: Dynamic CSV spreadsheet loading and extraction.
-* **GDPR Compliance**: Dedicated mechanisms allowing users to download their complete personal data or permanently delete their account.
+References:
 
-### E. Technical and Security Requirements
-* **Enforced HTTPS**: All external traffic is terminated over secure HTTPS connections.
-* **Hardened Public API**: Exposes five secure, rate-limited endpoints requiring API keys:
-  * `/api/tasks`
-  * `/api/users`
-  * `/api/organizations`
-  * `/api/stats`
-  * `/api/chat`
-* **Quality Assurance**: Zero browser console errors and absolute layout integrity.
+- Frontend: [React](https://react.dev), [React Router](https://reactrouter.com), [Vite](https://vite.dev), [Tailwind CSS](https://tailwindcss.com/docs), [axios](https://axios-http.com/docs/intro), [Google Identity Services](https://developers.google.com/identity/gsi/web), [MDN](https://developer.mozilla.org)
+- Backend: [Spring Boot](https://docs.spring.io/spring-boot/), [Spring Security](https://docs.spring.io/spring-security/reference/), [Spring Data JPA](https://docs.spring.io/spring-data/jpa/reference/), [Flyway](https://documentation.red-gate.com/fd), [springdoc-openapi](https://springdoc.org), [JJWT](https://github.com/jwtk/jjwt), [Bucket4j](https://bucket4j.com)
+- Chat: [Node.js](https://nodejs.org/docs/latest/api/), [Express](https://expressjs.com), [Socket.IO](https://socket.io/docs/v4/), [Prisma](https://www.prisma.io/docs)
+- Data and DevOps: [PostgreSQL](https://www.postgresql.org/docs/), [Redis](https://redis.io/docs/), [Docker Compose](https://docs.docker.com/compose/), [nginx](https://nginx.org/en/docs/), [Prometheus](https://prometheus.io/docs/), [Grafana](https://grafana.com/docs/grafana/latest/), [MinIO](https://github.com/minio/minio)
+- Security and privacy: [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org), [GDPR](https://eur-lex.europa.eu/eli/reg/2016/679/oj)
+- Browser testing: [safaridriver](https://developer.apple.com/documentation/webkit/testing-with-webdriver-in-safari), [geckodriver](https://firefox-source-docs.mozilla.org/testing/geckodriver/)
 
----
+How AI was used:
 
-## 3. Technology Stack
+All members used AI assistants as helpers: to explain concepts and error messages, to review code and suggest fixes, and to draft documentation and test scripts. Each member kept only what they understood, tested and can explain.
 
-* **Frontend**: React (Vite), Tailwind CSS, Axios, Socket.io-client
-* **Backend**: Node.js, Express, Socket.io, JWT, Multer, express-rate-limit
-* **Database & ORM**: PostgreSQL, Prisma ORM
-* **DevOps**: Docker, Nginx (acting as the secure HTTPS reverse proxy)
-* **Development Tools**: GitHub, Postman
+## Team Information
 
----
+| Member | Role(s) | Responsibilities |
+|---|---|---|
+| mdbentaleb | Technical Lead / Architect, Developer | The backend architecture and main technical choices. Builds the Spring Boot API, its security, the Docker secrets and the monitoring, and merges the branches into main. |
+| ouzouini | Developer | The database: the PostgreSQL schema, the JPA entities and repositories, and the activity log. |
+| szemmour | Project Manager / Scrum Master, Developer | Tracks progress, module points and next tasks, reviews and merges pull requests, and sends each bug to its owner. Builds the frontend core. |
+| ayaarab | Developer | The real-time chat service and the live updates it relays. |
+| mel-adna | Product Owner, Developer | Wrote the project plan and keeps the scope and priorities. Set up the first Docker and nginx base, and builds the analytics dashboards and the notification bell. |
 
-## 4. Project Architecture
+## Project Management
 
-The application implements a standard three-tier architecture:
+- **Organization:** the June plan split the project into five parts, one per member: backend core, database, frontend core, real-time chat, and analytics with DevOps. Each member works on their own branch, merged into main. Since 12 October, changes also go through GitHub pull requests.
+- **Tools:** GitHub for branches and pull requests, and a shared status page with the module points and each member's next tasks.
+- **Communication:** Discord, for questions, planning and bug reports, which go straight to the owner of the code.
 
-```
-[ Client (React) ] <---> [ API Server (Express + Socket.io) ] <---> [ Database (PostgreSQL) ]
-```
+## Technical Stack
 
----
+- **Frontend:** React 19, React Router 7, Vite 8, Tailwind CSS 4, axios, socket.io-client, recharts and jsPDF. React Router makes a single-page app, and Tailwind 4 reads its colours from CSS variables, which the design system is built on.
+- **Backend:** Spring Boot 3.5 on Java 21, with Spring Security (JWT and Google sign-in), Spring Data JPA, Flyway, springdoc (Swagger) and Bucket4j. Spring brings security, validation, mail and metrics ready to use.
+- **Chat service:** Node.js 22 with Express, Socket.IO 4 and Prisma 6. Node handles many open connections well, and Socket.IO adds rooms and reconnection.
+- **Database:** PostgreSQL 15. The data is relational (users, teams, members, tasks), so foreign keys and transactions matter, and both JPA and Prisma support it. The chat service keeps its tables in its own `chat` schema on the same server.
+- **Other:** Redis 7 carries events from the Java API to the chat service. MinIO stores avatars. nginx is the only published entry point: it serves HTTPS and routes `/api/v1` to the Java API and `/api/chat` and `/socket.io` to the chat service. Prometheus, Grafana, the PostgreSQL and NGINX exporters and cAdvisor do the monitoring. Docker Compose and the `Makefile` run it all.
 
-## 5. File Structure
+## Database Schema
 
-```text
-/project-root
-│── docker-compose.yml
-│── .env
-│── .env.example
-│── README.md
-│── nginx/
-│
-├── backend/
-│   ├── src/
-│   │   ├── controllers/
-│   │   ├── routes/
-│   │   ├── middleware/
-│   │   ├── services/
-│   │   ├── sockets/
-│   │   ├── utils/
-│   │   ├── config/
-│   │   └── app.js
-│   └── prisma/
-│       └── schema.prisma
-│
-└── frontend/
-    ├── src/
-    │   ├── pages/
-    │   ├── components/
-    │   ├── features/
-    │   │   ├── auth/
-    │   │   ├── tasks/
-    │   │   ├── chat/
-    │   │   ├── dashboard/
-    │   │   └── organization/
-    │   ├── hooks/
-    │   ├── services/
-    │   ├── context/
-    │   └── App.jsx
-```
+The Java API owns the main schema, created by Flyway in `backend/src/main/resources/db/migration/V1__init_schema.sql`. Every id is a UUID and every date a TIMESTAMP.
 
----
+| Table | Key fields | Relations |
+|---|---|---|
+| `users` | `email` VARCHAR(100), `password_hash`, `first_name`, `last_name`, `provider` (LOCAL or GOOGLE), `enabled`, `deleted` BOOLEAN, `security_version` BIGINT | |
+| `workspaces` | `name` VARCHAR(100), `description` VARCHAR(500), `type` (PERSONAL or ORGANIZATION), `deleted` BOOLEAN | `owner_id` → users |
+| `workspace_members` | primary key (`workspace_id`, `user_id`), `role` (ADMIN, MEMBER or VIEWER) | → workspaces, → users |
+| `tasks` | `title` VARCHAR(150), `description`, `status` (TODO, DOING, DONE), `priority` (LOW, MEDIUM, HIGH), `deleted` BOOLEAN | → workspaces, `assignee_id` and `creator_id` → users |
+| `workspace_invitation` | `invitee_email`, `role`, `invitation_status` (PENDING, ACCEPTED, REJECTED, EXPIRED), `expires_at` | → workspaces, `inviter_id` → users |
+| `notifications` | `type`, `message` VARCHAR(500), `entity_type`, `entity_id`, `is_read` BOOLEAN | `recipient_id` → users |
+| `activity_logs` | `action_type`, `description`, `entity_id` | → users, → workspaces |
+| `api_keys` | `hash_key` VARCHAR(64) (SHA-256, unique), `key_prefix`, `active` BOOLEAN, `last_used_at` | → users |
+| `refresh_tokens` | `token_hash` VARCHAR(64) (unique), `expiry_date`, `revoked`, `consumed` BOOLEAN | → users |
+| `verification_codes`, `password_reset_tokens` | `code` or `token`, `expiry_date` | → users |
 
-## 6. Team Division (Layer-Based)
+The chat service keeps its own tables in the `chat` schema, through Prisma: `User` (the same id as in the Java API, `username`, `email`), `Room` (GROUP or DIRECT), `RoomMember` (role, PENDING or ACCEPTED), `Message` (`content` VARCHAR(4000), `type`) and `ReadReceipt`.
 
-The project enforces strict feature ownership to prevent development conflicts:
+## Features List
 
-### Member 1 — Backend Core (Auth & Security)
-* **Responsibilities**: JWT Authentication, profile and password management, API security (API key authorization and rate limiting), and GDPR compliance endpoints.
-* **Files Owned**:
-  * `backend/src/controllers/authController.js`
-  * `backend/src/routes/authRoutes.js`
-  * `backend/src/middleware/auth.js`
-  * `backend/src/middleware/rateLimit.js`
-  * `backend/src/controllers/userController.js`
+| Feature | Who | What it does |
+|---|---|---|
+| Sign up | szemmour, mdbentaleb | Sign up, then type the 6-digit code sent by email |
+| Sign in | szemmour, mdbentaleb | Email and password, or the Google button |
+| Password reset | szemmour, mdbentaleb | A reset link by email, then a new password |
+| Sessions | szemmour, mdbentaleb | Tokens renew before they expire, also with several tabs open. A password change signs out everywhere |
+| Teams | szemmour, mdbentaleb | Create, edit, delete and switch teams. Newcomers land on a first-team screen |
+| Invitations and roles | szemmour, mdbentaleb | Invite by email, even someone with no account yet. Accept or decline, change roles, remove members |
+| Task board | szemmour, mdbentaleb | To Do, Doing and Done columns with drag and drop, priorities and assignees |
+| Task import and export | szemmour, mel-adna | CSV and JSON files, with checks on import |
+| Live updates | szemmour, ayaarab | A teammate's change to a task, member or team appears on every open page |
+| Chat | ayaarab | Group rooms, direct messages that the other person accepts first, typing, read receipts, presence, and editing, deleting and searching messages |
+| Notifications | mdbentaleb, mel-adna | A bell that fills live for every create, update and delete that concerns you |
+| Analytics dashboard | mel-adna | Status and priority charts, per-member activity, filters, a custom date range and PDF export |
+| Recent activity | szemmour, ouzouini | The dashboard's activity panel, read from the activity log |
+| Settings | szemmour, mdbentaleb | Profile and avatar, password, API key, Download my data and account deletion |
+| GDPR | mdbentaleb, szemmour | Download your data with an email confirmation, delete your account, and the Privacy Policy and Terms pages |
+| Public API | mdbentaleb, szemmour | Workspaces and tasks over REST with an `X-API-Key` header, rate limits and Swagger |
+| Monitoring | mdbentaleb, ayaarab | Metrics from every service in Prometheus, shown on Grafana dashboards |
+| Security | mdbentaleb, mel-adna | HTTPS only, through nginx. Docker secrets, rate limits and input validation |
+| Design system | szemmour | One set of colour tokens and shared components for every screen |
 
-### Member 2 — Database & ORM
-* **Responsibilities**: Database schema design, relational mappings (users, organizations, tasks, messages), and SQL query optimizations.
-* **Files Owned**:
-  * `backend/prisma/schema.prisma`
-  * `backend/src/services/databaseService.js`
+## Modules
 
-### Member 3 — Frontend Core (UI/UX)
-* **Responsibilities**: Core application pages (Authentication, Dashboard, Task boards), reusable UI elements, and styling.
-* **Files Owned**:
-  * `frontend/src/pages/`
-  * `frontend/src/components/`
-  * `frontend/src/features/auth/`
-  * `frontend/src/features/tasks/`
+| Module | Category, type | Points | Who |
+|---|---|---|---|
+| Frameworks for frontend and backend | Web, Major | 2 | szemmour, mdbentaleb |
+| Real-time features with WebSockets | Web, Major | 2 | ayaarab |
+| Organization system | User management, Major | 2 | mdbentaleb, szemmour, ouzouini |
+| Public API | Web, Major | 2 | mdbentaleb, szemmour |
+| Monitoring with Prometheus and Grafana | DevOps, Major | 2 | mdbentaleb |
+| Advanced analytics dashboard | Data and analytics, Major | 2 | mel-adna |
+| ORM for the database | Web, Minor | 1 | ouzouini, ayaarab |
+| Notification system | Web, Minor | 1 | mdbentaleb, mel-adna |
+| Remote authentication with OAuth 2.0 | User management, Minor | 1 | mdbentaleb, szemmour |
+| Custom-made design system | Web, Minor | 1 | szemmour |
+| Support for additional browsers | Accessibility, Minor | 1 | szemmour |
+| Data export and import | Data and analytics, Minor | 1 | szemmour, mel-adna |
+| User activity analytics dashboard | User management, Minor | 1 | mel-adna |
+| GDPR compliance | Data and analytics, Minor | 1 | mdbentaleb, szemmour |
 
-### Member 4 — Real-Time System (Chat & Presence)
-* **Responsibilities**: WebSocket server configurations, real-time message tunnels, and online status monitors.
-* **Files Owned**:
-  * `backend/src/sockets/chatSocket.js`
-  * `backend/src/controllers/chatController.js`
-  * `frontend/src/features/chat/`
+Point calculation: 6 Major modules make 12 points and 8 Minor modules make 8, so 20 in total. The subject requires 14 and counts at most 5 more as bonus, so 19 count.
 
-### Member 5 — Analytics & Data
-* **Responsibilities**: Analytical dashboard charts, stats endpoints, and CSV export/import mechanics.
-* **Files Owned**:
-  * `backend/src/controllers/statsController.js`
-  * `backend/src/routes/statsRoutes.js`
-  * `frontend/src/features/dashboard/`
+Also built, and counted if the evaluator agrees they meet the module: **Backend as microservices** (DevOps, Major, 2 points, ayaarab and mdbentaleb) and **Real-time collaborative features** (Web, Minor, 1 point, ayaarab and szemmour).
 
----
+Why we chose each module, and how it works:
 
-## 7. Workflow Rules
+- **Frameworks:** a clear structure on both sides: React 19 with React Router 7 (one file per screen in `frontend/src/pages`), and Spring Boot with controllers, services and repositories.
+- **Real-time features:** chat needs the server to push. Socket.IO behind nginx delivers messages, typing, presence and read receipts live. Sockets sign in with the Java token and reconnect by themselves.
+- **Organization system:** the app is built around teams. The backend enforces the roles (admin, member, viewer) and the invitations, and the Teams and Colleagues screens show each control only to those allowed to use it.
+- **Public API:** other tools can work with the tasks. `/public/workspaces`, and GET, POST, PUT and DELETE on `/public/tasks`, take an `X-API-Key` header, are rate limited and are listed in Swagger. The key is stored as a SHA-256 hash, and Settings creates, replaces and revokes it.
+- **Monitoring:** to see that every service is up. Prometheus scrapes the Java API, the chat service, the PostgreSQL and NGINX exporters and cAdvisor, and Grafana (`/grafana`) has five dashboards.
+- **Advanced analytics dashboard:** a team sees its progress at a glance. `/workspaces/{id}/stats` counts with SQL queries, and the dashboard adds filters, a custom date range, PDF export and live reloads.
+- **ORM:** objects instead of raw SQL. JPA entities and Spring Data repositories over the Flyway schema in the Java API, and Prisma in the chat service.
+- **Notification system:** people learn what concerns them. The backend saves a notification for every create, update and delete and publishes it on Redis, and the chat service pushes it to the bell.
+- **OAuth 2.0:** sign in without a new password. The frontend gets an ID token from Google, and the backend checks it and answers with the app's own tokens.
+- **Custom-made design system:** one look, and one place to change a colour: 12 tokens in `frontend/src/index.css`, and shared components (Button, Badge, Field, Modal, PageHeader and others) on every screen.
+- **Support for additional browsers:** evaluators do not all use Chrome. The main flows pass in Chrome, Safari 26.6 and Firefox 156, driven by `safaridriver` and `geckodriver`, with a clean console. Only the date formats differ.
+- **Data export and import:** tasks move in and out as CSV or JSON. An import is limited to 2 MB and 500 rows, every field is validated, and spreadsheet formulas are neutralised.
+- **User activity analytics dashboard:** what each person does: the assigned, done, in progress and to do tasks and the completion rate of each member.
+- **GDPR compliance:** people own their data. Download my data saves everything stored about you (`GET /users/me/export`), deleting an account anonymizes it, and both send an email. The Privacy Policy says what is stored.
+- **Backend as microservices:** chat has different needs from the API, so the Java API and the Node chat service run as separate containers that talk over REST and Redis events.
+- **Real-time collaborative features:** a team works on the same board at the same time. After a change, the chat service pushes `data:changed` to the people affected, and their pages refetch quietly, without closing an open form.
 
-### Git and Code Contributions
-* **Branching**: Develop each feature on an isolated feature branch based on main.
-* **Commit Guidelines**: Provide clear, semantic commit messages.
-* **Code Review**: A Pull Request and peer review are mandatory prior to merging code into the main branch.
+## Individual Contributions
 
-### Environment Management
-* Keep all secret credentials, private tokens, and configuration values inside the `.env` file (never commit this file to git).
-* Document empty parameter structures inside `.env.example` for teammate alignment.
+### mdbentaleb
 
-### Deployment & Local Development
-Launch the complete containerized stack using the following orchestration command:
-```bash
-docker-compose up --build
-```
+- The Spring Boot backend: accounts (email codes, Google sign-in, password reset, rotating refresh tokens), teams, roles and invitations, tasks, notifications, the public API and GDPR.
+- Security: fixes for stored XSS and a timing attack, upload checks, rate limits, a CSP, Docker secrets, only nginx published, and secrets generated by `make`.
+- Monitoring with Prometheus and Grafana, and the merge of every branch into main on 8 October.
+- Challenges: the 8 October merge had to reconcile branches written in parallel, including two versions of the entities and the schema. The dashboard counts loaded whole task lists into memory, so they became SQL group-by queries.
 
----
+### ouzouini
 
-## 8. Quality Control Standards
+- The SQL schema: users, teams, members, tasks, invitations, notifications, activity logs, API keys and tokens.
+- The JPA entities, Spring Data repositories, DTOs, mappers, enums and exceptions.
+- The activity log service and controller behind Recent Activity, and the API key controller.
+- Removed the unused `task_comments` and `chat_messages` tables, and fixed the `Makefile` so a fresh clone builds.
+- Challenge: this branch re-created the entities and the schema alongside the backend's, so it could not be merged as it was. The two versions were reconciled for the 8 October merge.
 
-* Zero browser console errors.
-* Consistent, clean user interface implementation.
-* Complete validation on both the frontend input layer and the backend API controller layer.
+### szemmour
 
----
+- The frontend core, every screen except the chat, the bell and the dashboard charts: sign up, sign in, password reset, teams, colleagues and invitations, the task board, settings and the legal pages.
+- `lib/api.js` (the token on every request, renewed before it expires), the live updates (`lib/realtimeNotify.js`, `useDataChanged`), and the CSV task import and export.
+- Modules: the design system and the browser support, and the frontend half of Frameworks, Organization system, OAuth, Public API, GDPR and collaboration.
+- Team work: reviewed and merged pull requests, kept the status page, and sent bugs to their owners.
 
-## 9. Bonus Strategy
+### ayaarab
 
-The following features will only be explored after the core MVP mandatory requirements are completed and verified:
-* Multi-language support (i18n).
-* Right-to-Left (RTL) layout rendering.
-* Advanced system-wide search functionality.
-* Real-time browser notifications.
-* Custom, cohesive design system tokens.
+- The chat service in Node.js, Express, Socket.IO and Prisma: group rooms, direct messages with requests, invitations, typing, read receipts, presence, and editing, deleting and searching messages.
+- The chat screens (`features/chat`), and a socket that reconnects by itself after an outage or a refused token.
+- The `data:changed` relay for live updates, the chat service's place in Docker Compose and nginx, and Prometheus metrics at `/metrics`.
+- Challenges: chat rejected every Java token until the JWT secret was decoded as base64, the way Java does. Users keyed on the email prefix collided, so they are keyed on the Java id. The reconnect loop dropped every live update listener until it was fixed.
+
+### mel-adna
+
+- The project plan, and the June DevOps base: Docker Compose, the nginx HTTPS proxy and the first dashboard.
+- The analytics API (`/workspaces/{id}/stats`) and dashboard: insights, filters, a custom date range and PDF export.
+- The Team Member Activity table and the real-time notification bell.
+- JSON task export and import, and the checks on import.
+- Challenges: the dashboard numbers were computed twice, in the browser and in the backend, so the browser copy was removed. The PDF export printed console errors while embedding fonts, so it now skips font embedding.
