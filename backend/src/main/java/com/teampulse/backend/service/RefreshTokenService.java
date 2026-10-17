@@ -60,7 +60,7 @@ public class RefreshTokenService {
 		return new RefreshTokenResult(rawToken, savedToken);
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(noRollbackFor = UnauthorizedAccessException.class)
 	public RefreshToken verifyAndRotateToken(String rawTokenStr, String currentClientIp, String currentUserAgent) {
 		if (rawTokenStr == null || rawTokenStr.isBlank()) {
 			throw new UnauthorizedAccessException("Refresh token is required.");
