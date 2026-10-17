@@ -46,6 +46,13 @@ const dmRequestsCounter = new client.Counter({
   registers: [register],
 });
 
+const socketRateLimitedCounter = new client.Counter({
+  name: 'chat_socket_rate_limited_total',
+  help: 'Socket events dropped by the per-user rate limit, by event',
+  labelNames: ['event'],
+  registers: [register],
+});
+
 const redisConnectedGauge = new client.Gauge({
   name: 'chat_redis_connected',
   help: '1 if the Socket.io Redis adapter is attached (multi-instance mode), 0 if running single-instance',
@@ -78,5 +85,6 @@ module.exports = {
   messagesSentCounter,
   socketAuthFailuresCounter,
   dmRequestsCounter,
+  socketRateLimitedCounter,
   redisConnectedGauge,
 };

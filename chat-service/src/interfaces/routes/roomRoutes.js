@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const roomController = require('../controllers/roomController');
 const presenceController = require('../controllers/presenceController');
 const userController = require('../controllers/userController');
@@ -9,7 +10,18 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-router.post('/notify', notifyController.notify);
+// per user, on top of the per-ip limit in app.js: /notify fans out to other
+// people's sockets, so one account shouldn't be able to flood them
+const notifyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: (req) => req.user.id,
+  message: { error: 'NOTIFY_RATE_LIMITED' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/notify', notifyLimiter, notifyController.notify);
 
 router.get('/users', userController.listUsers);
 router.get('/users/search', userController.searchUsers);

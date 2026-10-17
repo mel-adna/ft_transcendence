@@ -7,6 +7,9 @@ const ALLOWED_RESOURCES = new Set(['workspaces', 'members', 'tasks']);
 /** Hard cap so one call can't fan out to an unbounded audience. */
 const MAX_TARGETS = 200;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
+
 /**
  * notifyController (Interface Layer)
  *
@@ -37,11 +40,19 @@ const notifyController = {
       if (!ALLOWED_RESOURCES.has(resource)) {
         return res.status(400).json({ error: 'NOTIFY_INVALID_RESOURCE' });
       }
-      if (userIds !== undefined && !Array.isArray(userIds)) {
+      if (userIds !== undefined && (!Array.isArray(userIds) || !userIds.every(isUuid))) {
         return res.status(400).json({ error: 'NOTIFY_INVALID_TARGETS' });
       }
-      if (userIds === undefined && !workspaceId) {
+      if (Array.isArray(userIds) && userIds.length > MAX_TARGETS) {
+        return res.status(400).json({ error: 'NOTIFY_TOO_MANY_TARGETS' });
+      }
+      // every caller in the app names the workspace, and it goes into a url
+      // on the java side, so it has to be a real uuid
+      if (!workspaceId) {
         return res.status(400).json({ error: 'NOTIFY_NO_AUDIENCE' });
+      }
+      if (!isUuid(workspaceId)) {
+        return res.status(400).json({ error: 'NOTIFY_INVALID_WORKSPACE' });
       }
 
       // Callers that know exactly who to reach (e.g. the person just added to

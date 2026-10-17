@@ -23,8 +23,7 @@ class JoinRoomUseCase {
     const room = await RoomRepository.findById(roomId);
     if (!room) throw new Error('ROOM_NOT_FOUND');
 
-    const isMember = room.members?.some((m) => m.userId === userId);
-    if (!isMember) throw new Error('ROOM_NOT_MEMBER');
+    if (!RoomService.isAcceptedMember(userId, room)) throw new Error('ROOM_NOT_MEMBER');
 
     if (socket) {
       await socket.join(roomId);

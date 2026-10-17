@@ -77,14 +77,18 @@ class RoomService {
     };
   }
 
+  // a PENDING DM target has a member row but isn't in the room yet
+  isAcceptedMember(userId, room) {
+    return !!room.members?.some((m) => m.userId === userId && (m.status ?? 'ACCEPTED') === 'ACCEPTED');
+  }
+
   /**
    * Assert requester is a member before returning room data
    * @param {string} requesterId
    * @param {object} room
    */
   assertMember(requesterId, room) {
-    const isMember = room.members?.some((m) => m.userId === requesterId);
-    if (!isMember) {
+    if (!this.isAcceptedMember(requesterId, room)) {
       throw new Error('ROOM_ACCESS_DENIED');
     }
   }

@@ -209,10 +209,13 @@ const RoomRepository = {
    * @returns {Promise<boolean>}
    */
   async isMember(roomId, userId) {
+    if (typeof roomId !== 'string' || typeof userId !== 'string') return false;
     const member = await prisma.roomMember.findUnique({
       where: { roomId_userId: { roomId, userId } },
+      select: { status: true },
     });
-    return !!member;
+    // the PENDING side of a DM request has a row but can't read anything yet
+    return member?.status === 'ACCEPTED';
   },
 
   /**

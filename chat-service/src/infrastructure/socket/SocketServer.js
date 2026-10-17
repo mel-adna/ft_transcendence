@@ -9,6 +9,7 @@ const registerMessageHandlers = require('../../interfaces/sockets/messageHandler
 const registerPresenceHandlers = require('../../interfaces/sockets/presenceHandler');
 const registerRoomHandlers = require('../../interfaces/sockets/roomHandler');
 const registerTypingHandlers = require('../../interfaces/sockets/typingHandler');
+const applySocketRateLimit = require('../../interfaces/sockets/socketRateLimit');
 const {
   socketConnectionsGauge,
   onlineUsersGauge,
@@ -93,6 +94,7 @@ class SocketServer {
         `[SocketServer] Connected: userId=${userId} socketId=${socket.id} | online=${stats.totalSockets}`,
       );
 
+      applySocketRateLimit(socket);
       registerChatHandlers(this.io, socket);
       registerMessageHandlers(this.io, socket);
       registerPresenceHandlers(this.io, socket);

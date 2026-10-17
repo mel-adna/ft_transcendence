@@ -1,3 +1,4 @@
+const Message = require('../../domain/messaging/Message');
 const MessageService = require('../../domain/messaging/MessageService');
 const MessageRepository = require('../../infrastructure/repositories/MessageRepository');
 
@@ -13,9 +14,8 @@ class EditMessageUseCase {
    * @returns {Promise<object>} broadcast-ready payload
    */
   async execute({ actorId, messageId, newContent }) {
-    if (!newContent || newContent.trim().length === 0) {
-      throw new Error('MESSAGE_EMPTY_CONTENT');
-    }
+    Message.validateContent(newContent);
+    if (!messageId || typeof messageId !== 'string') throw new Error('MESSAGE_NOT_FOUND');
 
     const message = await MessageRepository.findById(messageId);
     if (!message) throw new Error('MESSAGE_NOT_FOUND');

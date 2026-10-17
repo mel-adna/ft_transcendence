@@ -26,6 +26,13 @@ class SendMessageUseCase {
     if (!room) throw new Error('ROOM_NOT_FOUND');
     MessageService.assertSenderIsMember(senderId, room);
 
+    // a reply can only point at a message in the same room, otherwise it
+    // could pull a message from a room the sender isn't in into this thread
+    if (message.parentId) {
+      const parent = await MessageRepository.findById(message.parentId);
+      if (!parent || parent.roomId !== roomId) throw new Error('MESSAGE_PARENT_INVALID');
+    }
+
     // Persist
     const persisted = await MessageRepository.create(message.toCreateInput());
 

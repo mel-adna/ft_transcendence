@@ -1,0 +1,62 @@
+const { socketRateLimitedCounter } = require('../../infrastructure/metrics/metrics');
+
+/**
+ * Per-user limits on incoming socket events, counted across all of a user's
+ * tabs (so opening more sockets doesn't buy more). Fixed 10s windows.
+ * Numbers leave room for normal use with a few tabs open; they only bite on
+ * scripted floods.
+ */
+const WINDOW_MS = 10_000;
+const LIMITS = {
+  'message:send': 15,
+  'message:edit': 10,
+  'message:delete': 10,
+  'message:read': 60,
+  'read:sync': 20,
+  'typing:start': 20,
+  'typing:stop': 20,
+  'presence:set': 10,
+  'presence:subscribe': 20,
+  'presence:unsubscribe': 20,
+  'presence:heartbeat': 10,
+  'room:join': 20,
+  'room:leave': 10,
+};
+const DEFAULT_LIMIT = 30;
+
+// `${userId}:${event}` -> { count, resetAt }
+const windows = new Map();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, w] of windows) if (w.resetAt <= now) windows.delete(key);
+}, 60_000).unref();
+
+function isAllowed(userId, event) {
+  const now = Date.now();
+  const key = `${userId}:${event}`;
+  let w = windows.get(key);
+  if (!w || w.resetAt <= now) {
+    w = { count: 0, resetAt: now + WINDOW_MS };
+    windows.set(key, w);
+  }
+  w.count += 1;
+  return w.count <= (LIMITS[event] ?? DEFAULT_LIMIT);
+}
+
+function applySocketRateLimit(socket) {
+  const userId = socket.user.id;
+
+  socket.use((packet, next) => {
+    const [event] = packet;
+    if (isAllowed(userId, event)) return next();
+
+    socketRateLimitedCounter.inc({ event: event in LIMITS ? event : 'other' });
+    // answer events that expect an ack so the client isn't left waiting,
+    // drop the rest
+    const ack = packet[packet.length - 1];
+    if (typeof ack === 'function') ack({ ok: false, error: 'RATE_LIMITED' });
+  });
+}
+
+module.exports = applySocketRateLimit;
