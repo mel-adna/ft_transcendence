@@ -91,7 +91,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // 1. File Size Limit (2 MB) - reject before reading into memory
     if (file.size > MAX_IMPORT_FILE_SIZE) {
       const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
       setImportSummary({
@@ -102,7 +101,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // 2. Strict Extension & MIME Validation
     const filename = file.name.toLowerCase();
     const hasJsonExt = filename.endsWith('.json');
     const hasCsvExt = filename.endsWith('.csv');

@@ -57,7 +57,6 @@ export function useNotifications() {
     sync();
   }, [reload]);
 
-  // Real-time socket event subscription
   useSocketEvent('notification:new', (event) => {
     if (!event) return;
 
