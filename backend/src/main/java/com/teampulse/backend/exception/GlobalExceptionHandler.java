@@ -5,11 +5,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mail.MailException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.FieldError;
@@ -72,7 +74,19 @@ public class GlobalExceptionHandler {
 		return buildResponseEntity(HttpStatus.BAD_REQUEST, "Validation failed", request, validationError);
 	}
 
-	@ExceptionHandler(io.jsonwebtoken.ExpiredJwtException.class)
+	@ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
+	public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(Exception ex, HttpServletRequest request) {
+		log.warn("Optimistic locking conflict detected on path: {} | Message: {}", request.getRequestURI(), sanitizeForLog(ex.getMessage()));
+
+		return buildResponseEntity(
+				HttpStatus.CONFLICT,
+				"This resource was modified by another user. Please refresh and try again.",
+				request,
+				null
+		);
+	}
+
+	@ExceptionHandler(ExpiredJwtException.class)
 	public ResponseEntity<ErrorResponse> handleExpiredJwtException(ExpiredJwtException ex,
 	                                                               HttpServletRequest request) {
 		log.warn("JWT Token status: Expired | Path: {}", request.getRequestURI());
