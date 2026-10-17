@@ -1,11 +1,3 @@
-/**
- * TypingIndicator
- * Renders "X is typing…" / "X and Y are typing…" / "Several people are typing…"
- * with an animated dot. Reserves a fixed height so the message list doesn't
- * jump when it appears/disappears.
- *
- * @param {{ users: { userId: string, username: string }[] }} props
- */
 export function TypingIndicator({ users }) {
   const label = buildLabel(users);
 

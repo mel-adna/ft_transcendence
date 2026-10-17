@@ -4,18 +4,6 @@ import { chatApi } from '../services/chatApi';
 import { UserSearchSelect } from './UserSearchSelect';
 import { DMRequestsPanel } from './DMRequestsPanel';
 
-/**
- * CreateRoomModal
- * Create a GROUP channel or DIRECT message.
- *
- * @param {{
- *   open: boolean,
- *   onClose: () => void,
- *   onCreated: (room: object) => void,
- *   createGroup: (name: string) => Promise<object>,
- *   createDM: (targetUserId: string) => Promise<object>,
- * }} props
- */
 export function CreateRoomModal({ open, onClose, onCreated, createGroup, createDM }) {
   const [tab, setTab] = useState('group');
   const [name, setName] = useState('');
@@ -143,10 +131,6 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
   );
 }
 
-/**
- * RoomSidebar
- * Room list with create button.
- */
 export function RoomSidebar({
   rooms,
   selectedRoomId,

@@ -2,9 +2,6 @@ const ListUsersUseCase = require('../../application/users/ListUsersUseCase');
 const SearchUsersUseCase = require('../../application/users/SearchUsersUseCase');
 
 const userController = {
-  /**
-   * GET /api/chat/users
-   */
   async listUsers(req, res) {
     try {
       const users = await ListUsersUseCase.execute(req.user.id, req.user.token);
@@ -14,10 +11,6 @@ const userController = {
     }
   },
 
-  /**
-   * GET /api/chat/users/search?q=&roomId=
-   * Search by username/email for the invite picker.
-   */
   async searchUsers(req, res) {
     try {
       const { q, roomId } = req.query;

@@ -1,29 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { MessageItem } from './MessageItem';
 
-/**
- * MessageList
- * Renders the chat message list with smart scrolling:
- *   - Appends (new messages at bottom): auto-scroll only if the user is already
- *     near the bottom; otherwise surface a "New messages" pill.
- *   - Prepends (history loaded at top): preserve the user's scroll position so
- *     the viewport doesn't jump.
- *
- * All scroll/identity bookkeeping happens in a useLayoutEffect (post-DOM,
- * pre-paint) — never during render — so refs stay React-safe and the user
- * never sees an intermediate scroll position.
- *
- * @param {{
- *   messages: object[],
- *   currentUserId: string,
- *   isLoading: boolean,
- *   hasMore: boolean,
- *   onLoadMore: () => void,
- *   onRetry?: (tempId: string) => void,
- *   onDiscard?: (tempId: string) => void,
- *   emptyLabel?: string,
- * }} props
- */
 const NEAR_BOTTOM_PX = 120;
 
 export function MessageList({
@@ -42,8 +19,6 @@ export function MessageList({
   const bottomRef = useRef(null);
   const topRef = useRef(null);
 
-  // Snapshot of the previous render's list identity + scroll metrics, read and
-  // written only inside the layout effect below.
   const prevRef = useRef({ firstId: null, lastId: null, len: 0, scrollHeight: 0 });
 
   const [showNewPill, setShowNewPill] = useState(false);
@@ -66,7 +41,6 @@ export function MessageList({
     const lastId = messages[messages.length - 1]?.id ?? null;
     const len = messages.length;
 
-    // Classify the change by comparing identity against the prior snapshot.
     const grew = len > prev.len;
     const isPrepend =
       grew && prev.firstId !== null && firstId !== prev.firstId && lastId === prev.lastId;
@@ -74,7 +48,6 @@ export function MessageList({
 
     if (el) {
       if (isPrepend) {
-        // Keep the previously-top message visually anchored.
         const delta = el.scrollHeight - prev.scrollHeight;
         el.scrollTop = el.scrollTop + delta;
       } else if (isAppend) {
@@ -101,12 +74,10 @@ export function MessageList({
     };
   }, [messages, currentUserId, scrollToBottom]);
 
-  // Hide the pill once the user scrolls back down on their own.
   const handleScroll = useCallback(() => {
     if (showNewPill && isNearBottom()) setShowNewPill(false);
   }, [showNewPill, isNearBottom]);
 
-  // Infinite-scroll trigger at the top.
   useEffect(() => {
     if (!hasMore || isLoading) return;
     const observer = new IntersectionObserver(
@@ -128,7 +99,6 @@ export function MessageList({
         onScroll={handleScroll}
         style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}
       >
-        {/* Load-more sentinel */}
         <div ref={topRef} style={{ minHeight: 1 }} />
         {isLoading && (
           <div style={{ textAlign: 'center', padding: '8px', fontSize: '12px', opacity: 0.5 }}>

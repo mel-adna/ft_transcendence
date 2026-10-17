@@ -1,16 +1,6 @@
 import { useState } from 'react';
 import { MessageCircle, Check, X } from 'lucide-react';
 
-/**
- * DMRequestsPanel
- * Incoming "someone wants to DM you" requests, sitting above the room list.
- * Collapsed to a single badge/toggle when there's nothing to review.
- *
- * @param {{
- *   requests: Array<{ id: string, requester: { id: string, username: string, avatarUrl?: string|null } }>,
- *   onRespond: (roomId: string, action: 'ACCEPT'|'REJECT') => Promise<void>,
- * }} props
- */
 export function DMRequestsPanel({ requests, onRespond }) {
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);

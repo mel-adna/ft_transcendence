@@ -10,8 +10,6 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
-// per user, on top of the per-ip limit in app.js: /notify fans out to other
-// people's sockets, so one account shouldn't be able to flood them
 const notifyLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,

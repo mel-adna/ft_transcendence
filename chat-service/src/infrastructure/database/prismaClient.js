@@ -1,9 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
 
-/**
- * Shared Prisma singleton — one client per process.
- * Reused across all repositories to avoid connection pool exhaustion.
- */
 const globalForPrisma = global;
 
 const prisma =

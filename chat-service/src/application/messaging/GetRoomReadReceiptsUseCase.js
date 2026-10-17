@@ -1,18 +1,7 @@
 const ReadReceiptRepository = require('../../infrastructure/repositories/ReadReceiptRepository');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 
-/**
- * GetRoomReadReceiptsUseCase
- * Returns every member's last-read position in a room so a freshly-opened
- * client can render read indicators for history it loaded over REST.
- */
 class GetRoomReadReceiptsUseCase {
-  /**
-   * @param {object} params
-   * @param {string} params.roomId
-   * @param {string} params.requesterId
-   * @returns {Promise<{ userId: string, lastReadMessageId: string|null, readAt: string|null }[]>}
-   */
   async execute({ roomId, requesterId }) {
     if (!roomId) throw new Error('ROOM_ID_REQUIRED');
 

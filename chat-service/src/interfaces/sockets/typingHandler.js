@@ -1,29 +1,9 @@
-/**
- * typingHandler (Interface Layer)
- * Relays ephemeral typing state between room members. Typing is transient
- * presence — never persisted — so there is no use case; this is pure transport.
- *
- * Socket Events (inbound, ignored unless the socket is in that room):
- *   typing:start  { roomId }
- *   typing:stop   { roomId }
- *
- * Socket Events (outbound, to room EXCEPT sender):
- *   typing:update { roomId, userId, username, isTyping }
- *
- * A server-side safety timeout auto-clears a user's "typing" state if no stop
- * arrives (e.g. the sender disconnects mid-type), so peers never get stuck
- * showing a phantom typist.
- *
- * @param {import('socket.io').Server} io
- * @param {import('socket.io').Socket} socket
- */
 const TYPING_TIMEOUT_MS = 6000;
 
 function registerTypingHandlers(io, socket) {
   const userId = socket.user.id;
   const username = socket.user.username ?? 'Someone';
 
-  // roomId -> timeout handle for auto-clear
   const timers = new Map();
 
   const emitTyping = (roomId, isTyping) => {
@@ -38,8 +18,6 @@ function registerTypingHandlers(io, socket) {
     }
   };
 
-  // only rooms this socket actually joined (accepted members), so nobody can
-  // send typing into a room they're not in
   const joinedRoom = (payload) => {
     const roomId = payload?.roomId;
     return typeof roomId === 'string' && socket.rooms.has(roomId) ? roomId : null;
@@ -51,7 +29,6 @@ function registerTypingHandlers(io, socket) {
       if (!roomId) return;
       emitTyping(roomId, true);
 
-      // Reset the safety timeout on each keystroke-driven start.
       clearTimer(roomId);
       timers.set(
         roomId,

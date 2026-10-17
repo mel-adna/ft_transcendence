@@ -1,19 +1,3 @@
-/**
- * MessageItem
- * Renders a single message with an optimistic "sending" state, a failed-send
- * retry affordance, and (on your most recent message) a read indicator:
- *   ✓   delivered / not yet read
- *   ✓✓  read by another member (blue)
- *
- * @param {{
- *   message: object,
- *   isOwn: boolean,
- *   onRetry?: (tempId: string) => void,
- *   onDiscard?: (tempId: string) => void,
- *   showReadStatus?: boolean,  // render the ✓ indicator on this (last own) message
- *   isRead?: boolean,          // another member has read it
- * }} props
- */
 export function MessageItem({
   message,
   isOwn,
@@ -38,7 +22,6 @@ export function MessageItem({
         opacity: sending ? 0.6 : 1,
       }}
     >
-      {/* Sender name (only for others) */}
       {!isOwn && (
         <span className="text-[11px] mb-0.5 font-semibold text-slate-300">
           {message.sender?.username ?? 'Unknown'}
@@ -57,7 +40,6 @@ export function MessageItem({
         <span style={{ whiteSpace: 'pre-wrap' }}>{message.content}</span>
       </div>
 
-      {/* Failed state: error line + retry / discard */}
       {failed && (
         <div className="flex gap-2 items-center mt-0.5">
           <span className="text-[10px] text-red-400">Not sent</span>
@@ -74,7 +56,6 @@ export function MessageItem({
         </div>
       )}
 
-      {/* Meta: time + edited badge + read indicator */}
       {!failed && (
         <div className="flex gap-1.5 items-center mt-0.5">
           <span className="text-[10px] opacity-50">

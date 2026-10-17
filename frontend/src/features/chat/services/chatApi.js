@@ -26,11 +26,6 @@ export const chatApi = {
     return request('/chat/users', { headers: authHeaders() });
   },
 
-  /**
-   * Search users by username/email for the invite picker.
-   * @param {string} query
-   * @param {{ roomId?: string }} [opts] - exclude existing members of this room
-   */
   searchUsers(query, { roomId } = {}) {
     const params = new URLSearchParams({ q: query });
     if (roomId) params.set('roomId', roomId);

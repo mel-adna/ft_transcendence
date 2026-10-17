@@ -2,10 +2,6 @@ import { useState, useCallback } from 'react';
 import { useSocket } from './useSocket';
 import { useSocketEvent } from './useSocketEvent';
 
-/**
- * usePresence
- * Tracks realtime presence + manual status changes.
- */
 export function usePresence(initialPresence = {}) {
   const { socket, connected } = useSocket();
   const [presence, setPresence] = useState(initialPresence);

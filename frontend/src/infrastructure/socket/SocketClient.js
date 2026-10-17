@@ -1,33 +1,16 @@
 import { io } from 'socket.io-client';
 
-/**
- * SocketClient (Infrastructure)
- * Singleton socket connection with auth token injection and auto-reconnect.
- * Never import socket.io-client directly — always use this module.
- */
 class SocketClient {
   constructor() {
-    /** @type {import('socket.io-client').Socket | null} */
     this._socket = null;
     this._tokenGetter = null;
-    /** Consumers outside the chat UI keeping the connection alive. */
     this._holders = 0;
   }
 
-  /**
-   * Initialize with a function that returns the current JWT token.
-   * Call once at app bootstrap, before connect().
-   * @param {() => string | null} tokenGetter
-   */
   configure(tokenGetter) {
     this._tokenGetter = tokenGetter;
   }
 
-  /**
-   * Connect to the WebSocket server.
-   * Safe to call multiple times — no-op if already connected.
-   * @returns {import('socket.io-client').Socket}
-   */
   connect() {
     // Reuse a socket that is connected OR still completing its handshake.
     // Checking only `.connected` meant a second caller during the async
@@ -42,7 +25,6 @@ class SocketClient {
     if (!token) throw new Error('SOCKET_NO_AUTH_TOKEN');
 
     if (this._socket) {
-      // revive instead of replace, so old listeners don't end up orphaned
       this._socket.connect();
       return this._socket;
     }
@@ -61,20 +43,11 @@ class SocketClient {
     return this._socket;
   }
 
-  /**
-   * Disconnect and destroy the socket.
-   */
   disconnect() {
     if (this._holders > 0) return;
     this._forceDisconnect();
   }
 
-  /**
-   * Keep the connection alive independently of the chat UI's lifecycle.
-   * Returns a release function; the socket is torn down once the last
-   * holder releases and the chat provider is also gone.
-   * @returns {() => void}
-   */
   retain() {
     this._holders += 1;
     let released = false;
@@ -85,11 +58,6 @@ class SocketClient {
     };
   }
 
-  /**
-   * Tear the connection down regardless of holders, and drop them.
-   * For logout: the socket is authenticated as the outgoing user, so it must
-   * not survive into the next session.
-   */
   forceClose() {
     this._holders = 0;
     this._forceDisconnect();
@@ -104,25 +72,15 @@ class SocketClient {
     }
   }
 
-  /**
-   * Access the raw socket — throws if not connected.
-   * Prefer hooks (useSocket, useSocketEvent) over calling this directly.
-   * @returns {import('socket.io-client').Socket}
-   */
   getSocket() {
     if (!this._socket) throw new Error('SOCKET_NOT_CONNECTED');
     return this._socket;
   }
 
-  /**
-   * @returns {boolean}
-   */
   isConnected() {
     return this._socket?.connected ?? false;
   }
 
-  // auth reads the token itself, but a refused socket needs a kick to
-  // reconnect, and right after a refresh is the best time to try
   updateToken() {
     if (this._socket && !this._socket.active) this._socket.connect();
   }
@@ -139,9 +97,6 @@ class SocketClient {
     });
   }
 
-  // Retries again after socket.io-client gives up for good, otherwise an
-  // outage past the retry budget needs a manual reload. Listens on the
-  // Manager (socket.io), not the Socket — reconnect_failed never fires there.
   _bindGiveUpRecovery() {
     const s = this._socket;
     this._giveUpManager = s.io;
@@ -168,7 +123,6 @@ class SocketClient {
     }
   }
 
-  // Heartbeat every 30s to signal ONLINE presence.
   _startHeartbeat() {
     this._stopHeartbeat();
     this._heartbeatInterval = setInterval(() => {

@@ -1,11 +1,5 @@
 const { socketRateLimitedCounter } = require('../../infrastructure/metrics/metrics');
 
-/**
- * Per-user limits on incoming socket events, counted across all of a user's
- * tabs (so opening more sockets doesn't buy more). Fixed 10s windows.
- * Numbers leave room for normal use with a few tabs open; they only bite on
- * scripted floods.
- */
 const WINDOW_MS = 10_000;
 const LIMITS = {
   'message:send': 15,
@@ -24,7 +18,6 @@ const LIMITS = {
 };
 const DEFAULT_LIMIT = 30;
 
-// `${userId}:${event}` -> { count, resetAt }
 const windows = new Map();
 
 setInterval(() => {
@@ -52,8 +45,6 @@ function applySocketRateLimit(socket) {
     if (isAllowed(userId, event)) return next();
 
     socketRateLimitedCounter.inc({ event: event in LIMITS ? event : 'other' });
-    // answer events that expect an ack so the client isn't left waiting,
-    // drop the rest
     const ack = packet[packet.length - 1];
     if (typeof ack === 'function') ack({ ok: false, error: 'RATE_LIMITED' });
   });

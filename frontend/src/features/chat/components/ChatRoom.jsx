@@ -12,10 +12,6 @@ import { InviteMembersModal } from './InviteMembersModal';
 import { Search, Trash2, LogOut, MoreVertical, ArrowLeft, Users } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 
-/**
- * ChatRoom
- * Full-feature room view with optional members panel and search.
- */
 export function ChatRoom({
   roomId,
   currentUserId,
@@ -46,8 +42,6 @@ export function ChatRoom({
   const { typingUsers, notifyTyping, stopTyping } = useTyping(roomId);
   const { isReadByOthers } = useReadReceipts(roomId, currentUserId, messages, connected);
 
-  // Show a read/sent indicator only on the most recent message *I* sent, like
-  // iMessage/WhatsApp — avoids cluttering every bubble.
   const lastOwnMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].sender?.id === currentUserId) return messages[i].id;
@@ -67,11 +61,9 @@ export function ChatRoom({
   const [searching, setSearching] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [membersOpen, setMembersOpen] = useState(false); // mobile drawer
-  // null | 'delete' | 'leave'
+  const [membersOpen, setMembersOpen] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
-  // shown in the UI instead of the console
   const [actionError, setActionError] = useState(null);
   const [searchError, setSearchError] = useState(null);
 
@@ -85,7 +77,6 @@ export function ChatRoom({
     setActionError(null);
     try {
       await action();
-      // On success the room unmounts — no state reset needed.
     } catch (err) {
       setBusy(false);
       setActionError(err.message || `Could not ${confirm} the room`);
@@ -127,7 +118,6 @@ export function ChatRoom({
     <div className="flex h-full min-h-0">
       <div className="flex flex-col flex-1 min-w-0 bg-[#0c0c14] text-slate-100">
         <div className="px-3 sm:px-4 py-3 border-b border-[#71717A]/25 flex items-center gap-1.5 shrink-0">
-          {/* Mobile back button */}
           {onBack && (
             <button
               onClick={onBack}
@@ -140,7 +130,6 @@ export function ChatRoom({
 
           <span className="font-bold text-sm flex-1 truncate">{roomName ?? roomId}</span>
 
-          {/* Connection dot — compact on mobile, labelled pill on sm+ */}
           <span
             className={`shrink-0 w-2 h-2 rounded-full sm:hidden ${
               connected ? 'bg-emerald-400' : 'bg-red-400'
@@ -160,7 +149,6 @@ export function ChatRoom({
             <Search size={14} />
           </button>
 
-          {/* Mobile members toggle */}
           {showMembers && (
             <button
               onClick={() => setMembersOpen(true)}
@@ -171,7 +159,6 @@ export function ChatRoom({
             </button>
           )}
 
-          {/* Overflow menu: delete / leave */}
           {hasMenuActions && (
             <div className="relative">
               <button
@@ -183,7 +170,6 @@ export function ChatRoom({
               </button>
               {menuOpen && (
                 <>
-                  {/* click-away backdrop */}
                   <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                   <div className="absolute right-0 mt-1 z-20 w-40 rounded-lg border border-[#71717A]/25 bg-[#181824] shadow-xl py-1">
                     {canLeave && (
@@ -309,7 +295,6 @@ export function ChatRoom({
         )}
       </div>
 
-      {/* Desktop members panel */}
       {showMembers && (
         <aside className="w-48 shrink-0 border-l border-[#71717A]/25 bg-[#0e0e17] hidden md:flex flex-col">
           <MemberList
@@ -321,7 +306,6 @@ export function ChatRoom({
         </aside>
       )}
 
-      {/* Mobile members drawer */}
       {showMembers && membersOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex">
           <div className="flex-1 bg-black/50" onClick={() => setMembersOpen(false)} />

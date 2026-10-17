@@ -1,36 +1,15 @@
-/**
- * RoomService (Domain)
- * Business rules for rooms — no I/O.
- */
 class RoomService {
   static VALID_TYPES = ['GROUP', 'DIRECT'];
 
-  /**
-   * @param {string} type
-   * @returns {boolean}
-   */
   isValidType(type) {
     return RoomService.VALID_TYPES.includes(type);
   }
 
-  /**
-   * Canonical internal name for a DM room (deterministic regardless of order)
-   * @param {string} uid1
-   * @param {string} uid2
-   * @returns {string}
-   */
   getDMRoomName(uid1, uid2) {
     const [a, b] = [uid1, uid2].sort();
     return `dm:${a}:${b}`;
   }
 
-  /**
-   * @param {object} room - Prisma room with optional members
-   * @param {string|null} [requesterId] - when given, includes the requester's
-   *   own role in the room as `myRole` so clients can gate owner-only actions
-   *   without scanning the members array.
-   * @returns {object}
-   */
   buildRoomResponse(room, requesterId = null) {
     if (!room) return null;
 
@@ -54,10 +33,6 @@ class RoomService {
     };
   }
 
-  /**
-   * @param {object} member
-   * @returns {object}
-   */
   buildMemberResponse(member) {
     return {
       userId: member.userId,
@@ -77,28 +52,16 @@ class RoomService {
     };
   }
 
-  // a PENDING DM target has a member row but isn't in the room yet
   isAcceptedMember(userId, room) {
     return !!room.members?.some((m) => m.userId === userId && (m.status ?? 'ACCEPTED') === 'ACCEPTED');
   }
 
-  /**
-   * Assert requester is a member before returning room data
-   * @param {string} requesterId
-   * @param {object} room
-   */
   assertMember(requesterId, room) {
     if (!this.isAcceptedMember(requesterId, room)) {
       throw new Error('ROOM_ACCESS_DENIED');
     }
   }
 
-  /**
-   * Only the OWNER of a GROUP room may delete it. DIRECT rooms have no owner
-   * and cannot be deleted this way.
-   * @param {string} requesterRole - the requester's role in the room, or null
-   * @param {string} roomType
-   */
   assertCanDeleteRoom(requesterRole, roomType) {
     if (roomType !== 'GROUP') {
       throw new Error('ROOM_NOT_DELETABLE');

@@ -2,21 +2,7 @@ const Room = require('../../domain/rooms/Room');
 const RoomService = require('../../domain/rooms/RoomService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 
-/**
- * RespondToDMRequestUseCase
- * The invited side of a DM request accepts or rejects it.
- * ACCEPT flips their membership to ACCEPTED (room becomes usable for both).
- * REJECT deletes the room outright — a DM has exactly two members, so once
- * one declines there is nothing left worth keeping.
- */
 class RespondToDMRequestUseCase {
-  /**
-   * @param {object} params
-   * @param {string} params.roomId
-   * @param {string} params.userId - the invited user responding
-   * @param {'ACCEPT'|'REJECT'} params.action
-   * @returns {Promise<{ action: 'ACCEPT'|'REJECT', room: object|null, requesterId: string|null }>}
-   */
   async execute({ roomId, userId, action }) {
     if (action !== 'ACCEPT' && action !== 'REJECT') {
       throw new Error('DM_REQUEST_INVALID_ACTION');

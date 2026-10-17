@@ -1,17 +1,6 @@
 import { UserPlus } from 'lucide-react';
 import { PresenceIndicator } from './PresenceIndicator';
 
-/**
- * MemberList
- * Shows room members with live presence status.
- *
- * @param {{
- *   members: object[],
- *   currentUserId: string,
- *   onlineCount?: number,
- *   onInvite?: () => void,   // when provided, renders an invite button
- * }} props
- */
 export function MemberList({ members, currentUserId, onlineCount, onInvite }) {
   const sorted = [...members].sort((a, b) => {
     const order = { ONLINE: 0, AWAY: 1, OFFLINE: 2 };

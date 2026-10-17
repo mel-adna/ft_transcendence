@@ -5,20 +5,6 @@ const PresenceService = require('../../domain/presence/PresenceService');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 const registry = require('../../infrastructure/socket/SocketRegistry');
 
-/**
- * presenceHandler (Interface Layer)
- *
- * Socket Events (inbound):
- *   presence:set         { status: 'ONLINE' | 'AWAY' }
- *   presence:heartbeat   (no payload)
- *   presence:subscribe   { roomId }
- *   presence:unsubscribe { roomId }
- *
- * Socket Events (outbound):
- *   presence:update    → room-mates: { userId, status, lastSeen }
- *   presence:snapshot  → subscriber: { roomId, members }
- *   presence:error     → sender only
- */
 function registerPresenceHandlers(io, socket) {
   const userId = socket.user.id;
 
@@ -28,8 +14,6 @@ function registerPresenceHandlers(io, socket) {
 
   _broadcastPresence(io, userId, PresenceStatus.ONLINE);
 
-  // payload ?? {} everywhere: a null payload used to throw outside the try
-  // and crash the whole service
   socket.on('presence:set', async (payload) => {
     try {
       const validated = PresenceService.validateStatusChange(payload?.status);

@@ -9,58 +9,17 @@ const USER_PUBLIC_SELECT = {
   lastSeenAt: true,
 };
 
-// deleted accounts keep their row (old messages point at it) but shouldn't
-// show up in pickers or search
 const DELETED_ACCOUNT = { email: { startsWith: 'deleted_' } };
 
-/**
- * UserRepository
- * Isolates all Prisma user operations needed by realtime module.
- */
 const UserRepository = {
-  /**
-   * Find-or-create by the identity carried in a Java-issued JWT. This service
-   * never authenticates users itself — the Java backend owns signup/login —
-   * but it does own its own `User` row per Postgres FK constraints (Message,
-   * RoomMember, ReadReceipt all reference chat-service's User.id). Without
-   * this, any account that isn't one of the seeded dev users fails on first
-   * real use: room creation/invite/message-send all reference a User row
-   * that never got created.
-   * `passwordHash` is unused here (auth is verified, never performed, by
-   * this service) and is set to a fixed placeholder.
-   *
-   * `username` is a display name, not an identity key — `id` (the Java
-   * account's UUID) is what `upsert` keys on and what every other table's FK
-   * points at. It is NOT @unique: two different real accounts can share one
-   * (bob@gmail.com vs bob@yahoo.com both deriving "bob", or two people
-   * actually named "Said"), and it must never fail a chat request just
-   * because someone else already has the same display name.
-   *
-   * Callers resolve `username` tolerantly (a `name`/`username` JWT claim, or
-   * the account's own email as a last resort when the token carries
-   * neither — see SocketAuthUseCase). That means a caller with no real name
-   * to offer still passes a truthy value: the email. Never let that
-   * overwrite a real name already on file — e.g. one this row picked up
-   * earlier via the Java /users/search fallback (JavaBackendClient), which
-   * DOES have firstName+lastName. Otherwise the display name randomly
-   * degrades back to a raw email the next time its own owner logs into
-   * chat with a nameless token, purely depending on request ordering.
-   * @param {{ id: string, username: string|null, email: string|null }} identity
-   * @returns {Promise<object>}
-   */
   async ensureFromIdentity({ id, username, email }) {
     const fallbackEmail = email ?? `${id}@unknown.local`;
     const resolvedUsername = username ?? fallbackEmail;
-    // A name equal to the email carries no real information — it's the
-    // "nothing better to show" fallback, not an actual display name update.
     const isRealName = username && username !== email;
 
     const existing = await prisma.user.findUnique({ where: { id }, select: { username: true } });
     const shouldUpdateUsername = isRealName || !existing;
 
-    // a deleted account keeps its row here, so free the email for whoever
-    // signs up with it next. the USER_DELETED event normally does this
-    // already, this catches the ones that event missed
     if (email) {
       const holder = await prisma.user.findUnique({ where: { email }, select: { id: true } });
       if (holder && holder.id !== id) await UserRepository.releaseEmail(holder.id);
@@ -69,8 +28,6 @@ const UserRepository = {
     return prisma.user.upsert({
       where: { id },
       update: {
-        // Keep the local record in sync if the Java side's claims change,
-        // but never touch presence fields here.
         ...(email ? { email } : {}),
         ...(shouldUpdateUsername ? { username: resolvedUsername } : {}),
       },
@@ -84,9 +41,6 @@ const UserRepository = {
     });
   },
 
-  // same deleted_<id> email and "Deleted User" name the java side uses, so
-  // the real name doesn't stick around (gdpr). updateMany so a user who
-  // never opened chat (no row here) is just a no-op
   async releaseEmail(id) {
     await prisma.user.updateMany({
       where: { id },
@@ -94,10 +48,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * @param {string} id
-   * @returns {Promise<object|null>}
-   */
   async findById(id) {
     return prisma.user.findUnique({
       where: { id },
@@ -105,11 +55,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * List users except requester (for DM picker)
-   * @param {string} excludeUserId
-   * @param {{ limit?: number }} [options]
-   */
   async findAllExcept(excludeUserId, { limit = 100 } = {}) {
     return prisma.user.findMany({
       where: { id: { not: excludeUserId }, NOT: DELETED_ACCOUNT },
@@ -119,12 +64,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * Search users by username or email (case-insensitive), for the invite picker.
-   * Optionally excludes the requester and anyone already in a given room.
-   * @param {string} query
-   * @param {{ excludeUserId?: string, excludeRoomId?: string, limit?: number }} [options]
-   */
   async searchByUsernameOrEmail(query, { excludeUserId, excludeRoomId, limit = 10 } = {}) {
     const trimmed = query.trim();
     if (!trimmed) return [];
@@ -147,10 +86,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * Bulk fetch by ids
-   * @param {string[]} ids
-   */
   async findManyByIds(ids) {
     if (!ids.length) return [];
     return prisma.user.findMany({
@@ -159,11 +94,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * Update presence fields
-   * @param {string} id
-   * @param {{ presenceStatus?: string, lastSeenAt?: Date }} data
-   */
   async updatePresence(id, data) {
     return prisma.user.update({
       where: { id },
@@ -172,11 +102,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * Get all roomIds a user belongs to (for presence broadcast scoping)
-   * @param {string} userId
-   * @returns {Promise<string[]>}
-   */
   async getRoomIds(userId) {
     const memberships = await prisma.roomMember.findMany({
       where: { userId },
@@ -185,10 +110,6 @@ const UserRepository = {
     return memberships.map((m) => m.roomId);
   },
 
-  /**
-   * Presence snapshot for all members of a room
-   * @param {string} roomId
-   */
   async getPresenceByRoom(roomId) {
     return prisma.roomMember.findMany({
       where: { roomId },
@@ -201,10 +122,6 @@ const UserRepository = {
     });
   },
 
-  /**
-   * Mark stale AWAY users as OFFLINE after timeout
-   * @param {Date} cutoff
-   */
   async markStaleOffline(cutoff) {
     const result = await prisma.user.updateMany({
       where: {

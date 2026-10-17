@@ -2,19 +2,6 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 
-/**
- * UserSearchSelect
- * Debounced (~300ms) username/email search with selectable chips.
- * Used in the create-channel flow and the invite-to-existing-channel flow.
- *
- * @param {{
- *   roomId?: string | null,            // exclude users already in this room
- *   selected: Array<{id:string, username:string, avatarUrl?:string|null}>,
- *   onChange: (next: Array<object>) => void,
- *   autoFocus?: boolean,
- *   placeholder?: string,
- * }} props
- */
 export function UserSearchSelect({
   roomId = null,
   selected,
@@ -27,7 +14,6 @@ export function UserSearchSelect({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Debounced search — cancels the previous timer on each keystroke.
   useEffect(() => {
     function search() {
       const q = query.trim();
@@ -74,7 +60,6 @@ export function UserSearchSelect({
 
   const removeUser = (id) => onChange(selected.filter((u) => u.id !== id));
 
-  // Prevent Enter from submitting a parent <form>; add the top result instead.
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();

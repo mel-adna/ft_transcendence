@@ -56,10 +56,6 @@ const roomController = {
     }
   },
 
-  /**
-   * POST /api/chat/rooms/:roomId/invite  { userIds: [] }
-   * OWNER/ADMIN adds members; invited online users are joined + notified live.
-   */
   async invite(req, res) {
     try {
       const { roomId } = req.params;
@@ -82,11 +78,6 @@ const roomController = {
     }
   },
 
-  /**
-   * DELETE /api/chat/rooms/:roomId
-   * Owner-only deletion of a GROUP room. Notifies every member live so their
-   * UI drops the room immediately.
-   */
   async deleteRoom(req, res) {
     try {
       const { roomId } = req.params;
@@ -106,11 +97,6 @@ const roomController = {
     }
   },
 
-  /**
-   * POST /api/chat/rooms/:roomId/leave
-   * The requester leaves a GROUP room. Their sockets leave the room and remaining
-   * members are notified so their member lists update.
-   */
   async leaveRoom(req, res) {
     try {
       const { roomId } = req.params;
@@ -118,11 +104,9 @@ const roomController = {
 
       await LeaveRoomUseCase.execute({ userId, roomId });
 
-      // Detach the leaver's sockets and tell their other tabs to drop the room.
       socketServer.leaveUserFromRoom(userId, roomId);
       socketServer.emitToUser(userId, 'room:left', { roomId });
 
-      // Notify everyone still in the room so presence/member panels refresh.
       socketServer.getIO().to(roomId).emit('room:member_left', { roomId, userId });
 
       return res.json({ ok: true, roomId });
@@ -131,12 +115,6 @@ const roomController = {
     }
   },
 
-  /**
-   * POST /api/chat/rooms/dm  { targetUserId }
-   * Starts a DM as a pending request — the target must accept before either
-   * side can message (see respondToDM). Does NOT join the target's socket to
-   * the room; they only get a lightweight "someone wants to chat" push.
-   */
   async createDM(req, res) {
     try {
       const { targetUserId } = req.body ?? {};
@@ -160,10 +138,6 @@ const roomController = {
     }
   },
 
-  /**
-   * GET /api/chat/dm-requests
-   * Pending DM requests sent TO the caller, awaiting their accept/reject.
-   */
   async listPendingDMRequests(req, res) {
     try {
       const requests = await ListPendingDMRequestsUseCase.execute(req.user.id);
@@ -173,13 +147,6 @@ const roomController = {
     }
   },
 
-  /**
-   * POST /api/chat/rooms/:roomId/respond  { action: 'ACCEPT' | 'REJECT' }
-   * Only the invited (PENDING) side may call this.
-   * ACCEPT joins both sockets to the room live and unlocks messaging.
-   * REJECT deletes the room; only the requester is told, since the target
-   * already knows what they just did.
-   */
   async respondToDM(req, res) {
     try {
       const { roomId } = req.params;

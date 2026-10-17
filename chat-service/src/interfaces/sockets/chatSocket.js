@@ -1,14 +1,6 @@
 const JoinRoomUseCase = require('../../application/rooms/JoinRoomUseCase');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 
-/**
- * chatSocket (Interface Layer)
- * Handles: room auto-join on connect, room-level error events.
- * NO business logic here — delegates to use cases only.
- *
- * @param {import('socket.io').Server} io
- * @param {import('socket.io').Socket} socket
- */
 function registerChatHandlers(io, socket) {
   const userId = socket.user.id;
   _autoJoinRooms(socket, userId);

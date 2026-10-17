@@ -1,22 +1,6 @@
 const JoinRoomUseCase = require('../../application/rooms/JoinRoomUseCase');
 const LeaveRoomUseCase = require('../../application/rooms/LeaveRoomUseCase');
 
-/**
- * roomHandler (Interface Layer)
- * Binds socket events to room use cases.
- *
- * Socket Events (inbound):
- *   room:join   { roomId }
- *   room:leave  { roomId }
- *
- * Socket Events (outbound):
- *   room:joined  → sender only (via JoinRoomUseCase)
- *   room:left    → sender only (via LeaveRoomUseCase)
- *   room:error   → sender only
- *
- * @param {import('socket.io').Server} io
- * @param {import('socket.io').Socket} socket
- */
 function registerRoomHandlers(io, socket) {
   const userId = socket.user.id;
 

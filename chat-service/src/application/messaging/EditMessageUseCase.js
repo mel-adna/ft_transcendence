@@ -2,17 +2,7 @@ const Message = require('../../domain/messaging/Message');
 const MessageService = require('../../domain/messaging/MessageService');
 const MessageRepository = require('../../infrastructure/repositories/MessageRepository');
 
-/**
- * EditMessageUseCase
- */
 class EditMessageUseCase {
-  /**
-   * @param {object} params
-   * @param {string} params.actorId
-   * @param {string} params.messageId
-   * @param {string} params.newContent
-   * @returns {Promise<object>} broadcast-ready payload
-   */
   async execute({ actorId, messageId, newContent }) {
     Message.validateContent(newContent);
     if (!messageId || typeof messageId !== 'string') throw new Error('MESSAGE_NOT_FOUND');

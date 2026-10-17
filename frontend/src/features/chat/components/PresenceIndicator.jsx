@@ -1,9 +1,3 @@
-/**
- * PresenceIndicator
- * Colored dot showing user online status.
- *
- * @param {{ status: string, size?: number, showLabel?: boolean }} props
- */
 export function PresenceIndicator({ status, size = 8, showLabel = false }) {
   const colors = {
     ONLINE: 'bg-emerald-400',
