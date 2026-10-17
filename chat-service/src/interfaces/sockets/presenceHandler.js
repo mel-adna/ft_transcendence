@@ -33,8 +33,8 @@ function registerPresenceHandlers(io, socket) {
   socket.on('presence:set', async (payload) => {
     try {
       const validated = PresenceService.validateStatusChange(payload?.status);
-      const payload = await UpdatePresenceUseCase.execute({ userId, status: validated });
-      await _broadcastPresence(io, userId, validated, payload.lastSeen);
+      const result = await UpdatePresenceUseCase.execute({ userId, status: validated });
+      await _broadcastPresence(io, userId, validated, result.lastSeen);
     } catch (err) {
       socket.emit('presence:error', { code: err.message });
     }
