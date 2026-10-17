@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import api from '../../lib/api';
 import { useList } from '../../hooks/useList';
+import { useDataChanged } from '../../lib/useDataChanged';
 
 export function useActivityLogs(workspaceId, size = 20) {
   const load = useCallback(async () => {
@@ -12,6 +13,8 @@ export function useActivityLogs(workspaceId, size = 20) {
   }, [workspaceId, size]);
 
   const { items: logs, loading, error, reload } = useList(load);
+
+  useDataChanged('tasks', () => reload({ quiet: true }));
 
   return { logs, loading, error, reload };
 }

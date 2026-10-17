@@ -93,8 +93,7 @@ export function useNotifications() {
 
       try {
         await api.patch(`/notifications/${id}/read`);
-      } catch (requestError) {
-        console.error('Failed to mark notification as read:', getErrorMessage(requestError));
+      } catch {
         reload();
       }
     },
@@ -107,8 +106,7 @@ export function useNotifications() {
 
     try {
       await api.put('/notifications/read-all');
-    } catch (requestError) {
-      console.error('Failed to mark all notifications as read:', getErrorMessage(requestError));
+    } catch {
       reload();
     }
   }, [reload]);

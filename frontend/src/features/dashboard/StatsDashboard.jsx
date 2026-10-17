@@ -270,8 +270,7 @@ export default function StatsDashboard({
       });
       pdf.addImage(image, 'JPEG', 0, 0, width, height);
       pdf.save('team-pulse-analytics.pdf');
-    } catch (err) {
-      console.error("PDF export error:", err);
+    } catch {
       setExportError(true);
     } finally {
       setExporting(false);
