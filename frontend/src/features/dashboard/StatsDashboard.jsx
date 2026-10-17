@@ -85,7 +85,6 @@ const NO_FILTERS = { status: '', priority: '', assigneeId: '' };
 const controlClass =
   'rounded-lg border border-muted/20 bg-canvas/60 px-2 py-1 text-xs font-semibold text-white focus:border-primary focus:outline-none';
 
-// <input type="date"> needs YYYY-MM-DD in local time; the en-CA locale uses that format.
 function toDateInput(date) {
   return date.toLocaleDateString('en-CA');
 }
@@ -152,7 +151,6 @@ function StatCard({ icon: Icon, label, value, badge, subtitle }) {
   );
 }
 
-// One filter <select>: an "All" option followed by the given { value, label } options.
 function FilterSelect({ label, allLabel, value, options, onChange, className = '' }) {
   return (
     <select
@@ -169,7 +167,6 @@ function FilterSelect({ label, allLabel, value, options, onChange, className = '
   );
 }
 
-// Legend under a chart: color dot, name, count and share of all tasks.
 function ChartLegend({ items, total }) {
   return (
     <div className="mt-4 grid grid-cols-3 gap-2 border-t border-card/60 pt-3 text-center">
@@ -198,7 +195,7 @@ export default function StatsDashboard({
   activityError,
   onRetryActivity,
 }) {
-  const [range, setRange] = useState(7); // preset days (0 = All Time) or 'custom'
+  const [range, setRange] = useState(7);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [filters, setFilters] = useState(NO_FILTERS);
@@ -207,13 +204,11 @@ export default function StatsDashboard({
   const [exportError, setExportError] = useState(false);
   const dashboardRef = useRef(null);
 
-  // A member from the previous workspace is not valid in the new one.
   if (filtersWorkspaceId !== workspaceId) {
     setFiltersWorkspaceId(workspaceId);
     setFilters(NO_FILTERS);
   }
 
-  // Everything is sent to the backend; empty filters are left out of the query.
   const params = useMemo(
     () => ({
       ...(range === 'custom' ? { from, to } : { days: range }),
@@ -262,7 +257,7 @@ export default function StatsDashboard({
         quality: 0.92,
         cacheBust: false,
         imagePlaceholder:
-          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="%2327272a"/></svg>', // صورة افتراضية عند تعذر جلب الصورة الخارجية
+          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="%2327272a"/></svg>',
         filter: (element) => element.dataset?.pdfIgnore === undefined,
         skipFonts: true,
       });
@@ -275,8 +270,7 @@ export default function StatsDashboard({
       });
       pdf.addImage(image, 'JPEG', 0, 0, width, height);
       pdf.save('team-pulse-analytics.pdf');
-    } catch (err) {
-      console.error("PDF export error:", err);
+    } catch {
       setExportError(true);
     } finally {
       setExporting(false);
@@ -328,7 +322,6 @@ export default function StatsDashboard({
 
   return (
     <div ref={dashboardRef} className="space-y-5 text-left">
-      {/* Date Range & Filters Header */}
       <div className="flex flex-col gap-3 rounded-2xl border border-card bg-panel px-4 py-3 sm:px-5 sm:py-3.5 shadow-lg">
         <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -437,7 +430,6 @@ export default function StatsDashboard({
         </div>
       )}
 
-      {/* Top Derived Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         <StatCard
           icon={List}
@@ -477,9 +469,7 @@ export default function StatsDashboard({
         />
       </div>
 
-      {/* Charts Grid: Completion Trend (2 cols) & Status Distribution (1 col) */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
-        {/* Trend Area Chart */}
         <div
           className={`flex flex-col justify-between rounded-2xl border border-card bg-panel p-5 sm:p-6 shadow-lg lg:col-span-2 ${
             totalTasks === 0 ? 'min-h-[220px] lg:h-[240px]' : ''
@@ -539,7 +529,6 @@ export default function StatsDashboard({
           )}
         </div>
 
-        {/* Status Distribution Donut Chart */}
         <div
           className={`flex flex-col justify-between rounded-2xl border border-card bg-panel p-5 sm:p-6 shadow-lg ${
             totalTasks === 0 ? 'min-h-[220px] lg:h-[240px]' : ''
@@ -591,9 +580,7 @@ export default function StatsDashboard({
         </div>
       </div>
 
-      {/* Row 2: Priority Distribution (1 col) & Recent Activity (2 cols) */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        {/* Priority Distribution Bar Chart */}
         <div
           className={`flex flex-col justify-between rounded-2xl border border-card bg-panel p-5 sm:p-6 shadow-lg ${
             totalTasks === 0 && activity.length === 0
@@ -650,7 +637,6 @@ export default function StatsDashboard({
           {totalTasks > 0 && <ChartLegend items={priorityData} total={totalTasks} />}
         </div>
 
-        {/* Recent Activity Feed */}
         <div
           className={`flex flex-col rounded-2xl border border-card bg-panel p-5 sm:p-6 shadow-lg lg:col-span-2 ${
             totalTasks === 0 && activity.length === 0
@@ -717,7 +703,6 @@ export default function StatsDashboard({
         </div>
       </div>
 
-      {/* Row 3: Per-Member Activity Breakdown */}
       <div className="rounded-2xl border border-card bg-panel p-5 sm:p-6 shadow-lg">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">

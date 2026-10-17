@@ -15,8 +15,6 @@ function formatRelativeTime(value) {
   return `${days}d ago`;
 }
 
-// Presentational only: AppLayout owns the single useNotifications() instance
-// and passes its state to both the desktop and mobile bells.
 export default function NotificationBell({
   notifications = [],
   unreadCount = 0,
@@ -83,7 +81,6 @@ export default function NotificationBell({
           aria-label="Notifications panel"
           className="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] sm:w-96 max-w-sm rounded-2xl border border-card bg-panel p-1 shadow-2xl backdrop-blur-md"
         >
-          {/* Header */}
           <div className="flex items-center justify-between border-b border-card/80 px-4 py-3">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-white">Notifications</h3>
@@ -106,7 +103,6 @@ export default function NotificationBell({
             )}
           </div>
 
-          {/* Notification List */}
           {loading && notifications.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={18} className="animate-spin text-primary" />
