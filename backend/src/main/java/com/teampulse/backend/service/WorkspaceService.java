@@ -95,7 +95,13 @@ public class WorkspaceService {
 	@Transactional(readOnly = true)
 	public List<WorkspaceResponse> getAllWorkSpaceForUser(String email) {
 		String cleanEmail = EmailUtils.normalize(email);
-		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail);
+
+//		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail);
+		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail)
+				.stream()
+				.filter(ws -> !ws.isDeleted())
+				.toList();
+
 
 		Map<String, Long> nameCounts = workspaces.stream()
 				.collect(Collectors.groupingBy(Workspace::getName, Collectors.counting()));
@@ -123,17 +129,21 @@ public class WorkspaceService {
 
 	@Transactional(readOnly = true)
 	public WorkspaceResponse getWorkspaceById(UUID workspaceId, String email) {
-
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
+
+		Workspace workspace = workspaceRepository.findById(workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
+
+		if (workspace.isDeleted()) {
+			throw new ResourceNotFoundException("Workspace not found with ID: " + workspaceId);
+		}
 
 		String cleanEmail = EmailUtils.normalize(email);
 		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, cleanEmail);
 
 		if (!isMember)
 			throw new UnauthorizedAccessException("Access denied. You are not a member of this workspace.");
-
-		Workspace workspace = workspaceRepository.findById(workspaceId).orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
 
 		return workspaceMapper.toResponse(workspace);
 	}
@@ -161,10 +171,14 @@ public class WorkspaceService {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
 
-		verifyUserIsAdmin(workspaceId, email);
-
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
+		if (workspace.isDeleted()) {
+			throw new ResourceNotFoundException("Workspace not found");
+		}
+
+		verifyUserIsAdmin(workspaceId, email);
 
 		User admin = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -204,6 +218,10 @@ public class WorkspaceService {
 
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
+		if (workspace.isDeleted()) {
+			throw new ResourceNotFoundException("Workspace not found");
+		}
 
 		verifyUserIsAdmin(workspaceId, email);
 
@@ -327,3 +345,4 @@ public class WorkspaceService {
 			throw new UnauthorizedAccessException("Only workspace ADMINs can perform this action!");
 	}
 }
+
