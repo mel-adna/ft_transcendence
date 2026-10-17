@@ -310,8 +310,8 @@ public class UserService {
 		}
 
 		User user = userOptional.get();
-
 		passwordResetTokenRepository.deleteByUser(user);
+		passwordResetTokenRepository.flush();
 
 		String token = UUID.randomUUID().toString();
 		Instant expiryDate = Instant.now().plusSeconds(15 * 60);
