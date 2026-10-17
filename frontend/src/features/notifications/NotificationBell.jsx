@@ -15,8 +15,6 @@ function formatRelativeTime(value) {
   return `${days}d ago`;
 }
 
-// Presentational only: AppLayout owns the single useNotifications() instance
-// and passes its state to both the desktop and mobile bells.
 export default function NotificationBell({
   notifications = [],
   unreadCount = 0,

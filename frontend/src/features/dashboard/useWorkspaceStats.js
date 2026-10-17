@@ -18,8 +18,6 @@ export const DEFAULT_STATS = {
   completionTrend: [],
 };
 
-// params: { days } for presets, or { from, to } for a custom range, plus optional
-// status / priority / assigneeId filters. Must be memoized by the caller.
 export function useWorkspaceStats(workspaceId, params) {
   const [stats, setStats] = useState(DEFAULT_STATS);
   const [loading, setLoading] = useState(Boolean(workspaceId));

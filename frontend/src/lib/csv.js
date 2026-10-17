@@ -23,11 +23,6 @@ const SENSITIVE_TASK_KEYS = new Set([
   'assigneeid',
 ]);
 
-/**
- * Sanitizes cell values against CSV Formula Injection (CWE-1236).
- * If the first non-whitespace character is =, +, -, or @,
- * prepends a single quote to instruct spreadsheet applications to treat the cell as plain text.
- */
 export function sanitizeFormulaInjection(value) {
   if (value == null) return '';
   const text = String(value);

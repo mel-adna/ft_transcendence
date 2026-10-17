@@ -14,7 +14,7 @@ import { ACTIVITY_FEED_LIMIT } from '../features/dashboard/activityLog';
 
 const CSV_FILENAME = 'team-pulse-tasks.csv';
 const JSON_FILENAME = 'team-pulse-tasks.json';
-export const MAX_IMPORT_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+export const MAX_IMPORT_FILE_SIZE = 2 * 1024 * 1024;
 
 const outlineButtonClass =
   'inline-flex items-center gap-2 rounded-lg border border-muted/30 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white transition-colors hover:bg-white/5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer';
@@ -180,7 +180,6 @@ export default function DashboardPage() {
         const status = createError?.response?.status ?? createError?.status;
         rowErrors.push(`"${row.title}" was not imported: ${getErrorMessage(createError)}`);
 
-        // Stop processing if rate limited by backend to avoid endless failed requests
         if (status === 429) {
           rowErrors.push(
             'Import stopped: Server rate limit reached. Please wait a minute and re-import remaining tasks.',

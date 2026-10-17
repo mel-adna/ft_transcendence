@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { getErrorMessage, getToken } from '../../lib/api';
 import { useSocketEvent } from '../../lib/useDataChanged';
 
-// Socket events carry a random eventId, not the database notification id, so a
-// live item and its stored copy are matched by message + entity instead.
 function isSameNotification(liveItem, storedItem) {
   return (
     liveItem.message === storedItem.message &&
@@ -11,8 +9,6 @@ function isSameNotification(liveItem, storedItem) {
   );
 }
 
-// Merges a fresh backend list with the current one. Live items the backend
-// does not return (yet, or ever — some events are never stored) stay visible.
 function mergeWithLive(previous, storedItems) {
   const unmatchedLive = previous.filter(
     (item) => item.live && !storedItems.some((stored) => isSameNotification(item, stored)),
@@ -77,13 +73,10 @@ export function useNotifications() {
     };
 
     setNotifications((previous) => {
-      // Ignore the same socket event delivered twice
       if (previous.some((item) => item.id === eventId)) return previous;
       return [incoming, ...previous];
     });
 
-    // Fetch stored notifications so persisted events get their real ids;
-    // mergeWithLive keeps this event if the backend does not return it.
     reload();
   });
 
@@ -94,7 +87,6 @@ export function useNotifications() {
       const target = notifications.find((item) => item.id === id);
       setNotifications((previous) => previous.filter((item) => item.id !== id));
 
-      // Live-only items have no database row, so there is nothing to PATCH.
       if (target?.live) return;
 
       setStoredUnreadCount((previous) => Math.max(0, previous - 1));
@@ -110,7 +102,6 @@ export function useNotifications() {
   );
 
   const markAllAsRead = useCallback(async () => {
-    // Optimistic update
     setNotifications([]);
     setStoredUnreadCount(0);
 
@@ -122,7 +113,6 @@ export function useNotifications() {
     }
   }, [reload]);
 
-  // Badge = unread rows in the database + live events not stored (yet).
   const liveCount = notifications.filter((item) => item.live).length;
   const unreadCount = storedUnreadCount + liveCount;
 

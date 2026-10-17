@@ -85,7 +85,6 @@ const NO_FILTERS = { status: '', priority: '', assigneeId: '' };
 const controlClass =
   'rounded-lg border border-muted/20 bg-canvas/60 px-2 py-1 text-xs font-semibold text-white focus:border-primary focus:outline-none';
 
-// <input type="date"> needs YYYY-MM-DD in local time; the en-CA locale uses that format.
 function toDateInput(date) {
   return date.toLocaleDateString('en-CA');
 }
@@ -152,7 +151,6 @@ function StatCard({ icon: Icon, label, value, badge, subtitle }) {
   );
 }
 
-// One filter <select>: an "All" option followed by the given { value, label } options.
 function FilterSelect({ label, allLabel, value, options, onChange, className = '' }) {
   return (
     <select
@@ -169,7 +167,6 @@ function FilterSelect({ label, allLabel, value, options, onChange, className = '
   );
 }
 
-// Legend under a chart: color dot, name, count and share of all tasks.
 function ChartLegend({ items, total }) {
   return (
     <div className="mt-4 grid grid-cols-3 gap-2 border-t border-card/60 pt-3 text-center">
@@ -198,7 +195,7 @@ export default function StatsDashboard({
   activityError,
   onRetryActivity,
 }) {
-  const [range, setRange] = useState(7); // preset days (0 = All Time) or 'custom'
+  const [range, setRange] = useState(7);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [filters, setFilters] = useState(NO_FILTERS);
@@ -207,13 +204,11 @@ export default function StatsDashboard({
   const [exportError, setExportError] = useState(false);
   const dashboardRef = useRef(null);
 
-  // A member from the previous workspace is not valid in the new one.
   if (filtersWorkspaceId !== workspaceId) {
     setFiltersWorkspaceId(workspaceId);
     setFilters(NO_FILTERS);
   }
 
-  // Everything is sent to the backend; empty filters are left out of the query.
   const params = useMemo(
     () => ({
       ...(range === 'custom' ? { from, to } : { days: range }),
