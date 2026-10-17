@@ -9,6 +9,10 @@ const USER_PUBLIC_SELECT = {
   lastSeenAt: true,
 };
 
+// deleted accounts keep their row (old messages point at it) but shouldn't
+// show up in pickers or search
+const DELETED_ACCOUNT = { email: { startsWith: 'deleted_' } };
+
 /**
  * UserRepository
  * Isolates all Prisma user operations needed by realtime module.
@@ -54,6 +58,14 @@ const UserRepository = {
     const existing = await prisma.user.findUnique({ where: { id }, select: { username: true } });
     const shouldUpdateUsername = isRealName || !existing;
 
+    // a deleted account keeps its row here, so free the email for whoever
+    // signs up with it next. the USER_DELETED event normally does this
+    // already, this catches the ones that event missed
+    if (email) {
+      const holder = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (holder && holder.id !== id) await UserRepository.releaseEmail(holder.id);
+    }
+
     return prisma.user.upsert({
       where: { id },
       update: {
@@ -69,6 +81,16 @@ const UserRepository = {
         passwordHash: 'external-auth',
       },
       select: USER_PUBLIC_SELECT,
+    });
+  },
+
+  // same deleted_<id> email and "Deleted User" name the java side uses, so
+  // the real name doesn't stick around (gdpr). updateMany so a user who
+  // never opened chat (no row here) is just a no-op
+  async releaseEmail(id) {
+    await prisma.user.updateMany({
+      where: { id },
+      data: { email: `deleted_${id}@teampulse.local`, username: 'Deleted User' },
     });
   },
 
@@ -90,7 +112,7 @@ const UserRepository = {
    */
   async findAllExcept(excludeUserId, { limit = 100 } = {}) {
     return prisma.user.findMany({
-      where: { id: { not: excludeUserId } },
+      where: { id: { not: excludeUserId }, NOT: DELETED_ACCOUNT },
       select: USER_PUBLIC_SELECT,
       orderBy: { username: 'asc' },
       take: Math.min(limit, 200),
@@ -112,6 +134,7 @@ const UserRepository = {
         { username: { contains: trimmed, mode: 'insensitive' } },
         { email: { contains: trimmed, mode: 'insensitive' } },
       ],
+      NOT: DELETED_ACCOUNT,
     };
     if (excludeUserId) where.id = { not: excludeUserId };
     if (excludeRoomId) where.roomMemberships = { none: { roomId: excludeRoomId } };
