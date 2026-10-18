@@ -58,7 +58,4 @@ fclean:
 	rm -rf ./nginx/certs
 	rm -f .env
 
-backend:
-	docker compose --env-file $(ENV_FILE) up -d --build backend
-
 re: fclean all

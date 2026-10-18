@@ -17,27 +17,80 @@ Key features:
 - GDPR tools: download everything stored about you, or delete your account.
 - A public API with API keys, and monitoring with Prometheus and Grafana.
 
-## Instructions
+## 🛠️ Prerequisites
 
-Prerequisites:
+Ensure your host system meets the following software requirements:
 
-- Docker with Docker Compose v2 (the `docker compose` command), GNU make and OpenSSL.
-- Ports 80 and 443 free.
-- Nothing else on the host: Java 21, Node 22, PostgreSQL 15 and the other services run in containers.
+| Tool | Recommended Version | Note |
+| :--- | :--- | :--- |
+| **Docker Engine** | `24.0.0+` | Containerization runtime |
+| **Docker Compose** | `v2.20.0+` | Multi-container orchestration |
+| **Java JDK** | `21` | Required for local backend development |
+| **Node.js** | `v20.0.0+` | Required for frontend & chat service development |
+| **GNU Make** | `4.0+` | Build automation utility |
+| **OpenSSL** | `3.0+` | Automatic SSL certificate generation |
 
-Steps:
+---
 
-1. Clone the repository and enter it.
-2. Run `make env secrets`. It creates `.env` from `.env.example`, and `secrets/` with a generated JWT secret and generated passwords for the database, Redis, MinIO and Grafana.
-3. Fill in the two secrets that belong to real Google accounts:
-   - `secrets/mail_password.txt`: the app password of the Gmail account set as `MAIL_USERNAME` in `.env`. Sign-up codes are sent from it.
-   - `secrets/google_client_secret.txt`: the OAuth client secret of `GOOGLE_CLIENT_ID`. If `VITE_GOOGLE_CLIENT_ID` is empty, the Google button is hidden.
-4. Run `make`. It creates the TLS certificate, then builds and starts every container.
-5. Open https://localhost and accept the self-signed certificate.
+## 🔑 Environment Setup & Secrets Configuration
 
-The API documentation (Swagger) is at https://localhost/api/v1/swagger-ui/index.html, and Grafana at https://localhost/grafana (user `GRAFANA_ADMIN_USER` from `.env`, password in `secrets/grafana_admin_password.txt`).
+Before starting the application, set up your secrets and external authentication provider keys.
 
-Other commands: `make ps` shows the containers, `make backend` rebuilds the backend only, `make clean` stops everything and deletes the data, `make fclean` also deletes the images, `secrets/`, the certificates and `.env`, and `make re` runs `fclean` then `make`.
+### 1. Generating a Gmail App Password
+Sign-up codes and system notifications are dispatched via SMTP:
+1. Go to your **[Google Account Security Settings](https://myaccount.google.com/security)**.
+2. Enable **2-Step Verification** if not already active.
+3. Search for **App Passwords** in the security search bar.
+4. Create a new App Password (e.g., named `TeamPulse-Backend`).
+5. Copy the generated **16-character passcode** (without spaces).
+
+### 2. Configuring Secrets
+Populate the required credential files inside `secrets_example/`.
+The Makefile will automatically generate the `secrets/` directory from secrets_example/.
+
+* `secrets_example/mail_password.txt`: Store the 16-character Gmail App Password for `MAIL_USERNAME` specified in `.env.example`.
+* `secrets_example/google_client_secret.txt`: Store the OAuth 2.0 client secret corresponding to `GOOGLE_CLIENT_ID`. *(Note: If `VITE_GOOGLE_CLIENT_ID` is left empty in `.env.example`, the Google Single Sign-On button will automatically be hidden).*
+
+---
+
+## ⚡ Quick Start
+
+Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, MinIO, Nginx, Prometheus, Grafana) with a single command:
+
+```bash
+# 1. Clone the repository
+git clone [https://github.com/mel-adna/ft_transcendence](https://github.com/mel-adna/ft_transcendence)
+
+# 2. Enter the project directory
+cd ft_transcendence
+
+# 3. Build and launch all services
+make
+```
+
+> **Note:** Executing `make` automatically runs `scripts/generate_certs.sh` to generate self-signed TLS certificates, creates required environment configurations from `.env.example`, generates secure random credentials (JWT secret, DB, Grafana admin, MinIO, and Redis passwords), and executes `docker compose up --build -d`.
+
+### 🌐 Accessing Endpoints
+
+Once the stack is initialized:
+
+* **Web Application:** Access [https://localhost](https://localhost) *(accept the self-signed SSL certificate in your browser)*.
+* **Grafana Monitoring:** Access [https://localhost/grafana](https://localhost/grafana)
+* **Username:** Value of `GRAFANA_ADMIN_USER` in `.env`.
+* **Password:** Stored in `secrets/grafana_admin_password.txt`.
+
+---
+
+## 🛠️ Makefile Commands
+
+| Command | Description |
+| --- | --- |
+| `make` | Generates TLS certificates, creates configuration files, and starts all containers in detached mode. |
+| `make ps` | Displays the current running status of all containers in the stack. |
+| `make clean` | Stops all containers and removes active networks and volume data. |
+| `make fclean` | Complete wipe: Stops containers, deletes Docker images, `secrets/` directory, certificates, and `.env`. |
+| `make re` | Executes `make fclean` followed by `make` for a clean rebuild from scratch. |
+
 
 ## Resources
 
