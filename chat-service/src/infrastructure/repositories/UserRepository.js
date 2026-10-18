@@ -113,7 +113,7 @@ const UserRepository = {
 
   async getRoomIds(userId) {
     const memberships = await prisma.roomMember.findMany({
-      where: { userId },
+      where: { userId, status: 'ACCEPTED' },
       select: { roomId: true },
     });
     return memberships.map((m) => m.roomId);
@@ -121,7 +121,7 @@ const UserRepository = {
 
   async getPresenceByRoom(roomId) {
     return prisma.roomMember.findMany({
-      where: { roomId },
+      where: { roomId, status: 'ACCEPTED' },
       select: {
         userId: true,
         user: {
