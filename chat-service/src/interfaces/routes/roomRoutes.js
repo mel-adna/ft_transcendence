@@ -20,6 +20,7 @@ const notifyLimiter = rateLimit({
 });
 
 router.post('/notify', notifyLimiter, notifyController.notify);
+router.post('/notify/release', notifyLimiter, notifyController.release);
 
 router.get('/users', userController.listUsers);
 router.get('/users/search', userController.searchUsers);

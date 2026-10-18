@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MailPlus, UserMinus, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
-import { notifyDataChanged } from '../lib/realtimeNotify';
+import { notifyDataChanged, holdDataChanged, releaseDataChanged } from '../lib/realtimeNotify';
 import { useSocketEvent } from '../lib/useDataChanged';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
@@ -213,12 +213,13 @@ export default function ColleaguesPage() {
     try {
       const removedId = pendingRemove.user.id;
       const remainingIds = roster.map((member) => member.user.id).filter((id) => id !== removedId);
+      const ticket = await holdDataChanged('workspaces', [removedId], { workspaceId });
 
       await api.delete(
         `/workspaces/${workspaceId}/members/${encodeURIComponent(pendingRemove.user.email)}`,
       );
 
-      notifyDataChanged('workspaces', [removedId], { workspaceId });
+      releaseDataChanged(ticket);
       notifyDataChanged('members', remainingIds, { workspaceId });
 
       setPendingRemove(null);
