@@ -1,3 +1,4 @@
+const { toClientCode } = require('../clientError');
 const SendMessageUseCase = require('../../application/messaging/SendMessageUseCase');
 const EditMessageUseCase = require('../../application/messaging/EditMessageUseCase');
 const DeleteMessageUseCase = require('../../application/messaging/DeleteMessageUseCase');
@@ -26,7 +27,7 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true, messageId: result.id });
     } catch (err) {
       _emitError(socket, 'message:send', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 
@@ -45,7 +46,7 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true });
     } catch (err) {
       _emitError(socket, 'message:edit', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 
@@ -66,7 +67,7 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true });
     } catch (err) {
       _emitError(socket, 'message:delete', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 
@@ -85,7 +86,7 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true });
     } catch (err) {
       _emitError(socket, 'message:read', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 
@@ -101,14 +102,14 @@ function registerMessageHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true, receipts });
     } catch (err) {
       _emitError(socket, 'read:sync', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 }
 
 function _emitError(socket, event, err) {
   console.error(`[messageHandler] ${event} failed for userId=${socket.user.id}:`, err.message);
-  socket.emit('message:error', { event, code: err.message });
+  socket.emit('message:error', { event, code: toClientCode(err) });
 }
 
 module.exports = registerMessageHandlers;

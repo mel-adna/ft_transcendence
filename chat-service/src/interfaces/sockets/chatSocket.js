@@ -24,7 +24,7 @@ async function _autoJoinRooms(socket, userId) {
     socket.emit('chat:rooms_joined', { roomIds });
   } catch (err) {
     console.error(`[chatSocket] Auto-join failed for userId=${userId}:`, err.message);
-    socket.emit('chat:error', { code: 'AUTO_JOIN_FAILED', message: err.message });
+    socket.emit('chat:error', { code: 'AUTO_JOIN_FAILED' });
   }
 }
 

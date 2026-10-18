@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const GetHistoryUseCase = require('../../application/messaging/GetHistoryUseCase');
 const SearchMessagesUseCase = require('../../application/messaging/SearchMessagesUseCase');
 const GetThreadRepliesUseCase = require('../../application/messaging/GetThreadRepliesUseCase');
@@ -69,8 +70,7 @@ const chatController = {
 };
 
 function _handleError(res, err) {
-  const status = STATUS_MAP[err.message] ?? 500;
-  return res.status(status).json({ error: err.message });
+  return sendHttpError(res, err, STATUS_MAP);
 }
 
 module.exports = chatController;

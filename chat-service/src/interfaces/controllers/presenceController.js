@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const GetRoomPresenceUseCase = require('../../application/presence/GetRoomPresenceUseCase');
 
 const STATUS_MAP = {
@@ -15,8 +16,7 @@ const presenceController = {
       });
       return res.json({ roomId, members });
     } catch (err) {
-      const status = STATUS_MAP[err.message] ?? 500;
-      return res.status(status).json({ error: err.message });
+      return sendHttpError(res, err, STATUS_MAP);
     }
   },
 };

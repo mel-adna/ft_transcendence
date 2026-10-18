@@ -10,7 +10,7 @@ module.exports = {
   maxHttpBufferSize: parseInt(process.env.SOCKET_MAX_BUFFER ?? '102400', 10),
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true,
+    skipMiddlewares: false,
   },
   maxConnections: parseInt(process.env.SOCKET_MAX_CONNECTIONS ?? '1000', 10),
 };

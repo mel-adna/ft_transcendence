@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const ListRoomsUseCase = require('../../application/rooms/ListRoomsUseCase');
 const CreateRoomUseCase = require('../../application/rooms/CreateRoomUseCase');
 const InviteToRoomUseCase = require('../../application/rooms/InviteToRoomUseCase');
@@ -219,8 +220,7 @@ const roomController = {
 };
 
 function _handleError(res, err) {
-  const status = STATUS_MAP[err.message] ?? 500;
-  return res.status(status).json({ error: err.message });
+  return sendHttpError(res, err, STATUS_MAP);
 }
 
 module.exports = roomController;

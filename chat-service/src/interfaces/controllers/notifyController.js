@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const socketServer = require('../../infrastructure/socket/SocketServer');
 const { listWorkspaceMemberIds } = require('../../infrastructure/http/JavaBackendClient');
 
@@ -44,7 +45,7 @@ const notifyController = {
 
       return res.json({ ok: true, notified: targets.length });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return sendHttpError(res, err);
     }
   },
 };
