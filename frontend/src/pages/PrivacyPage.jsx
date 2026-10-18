@@ -2,7 +2,7 @@ import LegalPage, { LegalSection } from '../components/LegalPage';
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="October 16, 2026">
+    <LegalPage title="Privacy Policy" updated="October 18, 2026">
       <p className="text-sm leading-relaxed text-muted">
         Team Pulse is a student software project built to manage tasks and communication inside
         small teams. This page explains, in plain terms, what information the application stores
@@ -39,6 +39,27 @@ export default function PrivacyPage() {
         Everything described above is stored in this project's own PostgreSQL database, run as
         part of the application's backend. There is no external analytics service and no
         third-party data broker involved in running Team Pulse.
+      </LegalSection>
+
+      <LegalSection title="Third-Party Services">
+        <p>
+          Our application integrates with the following third-party services to ensure
+          authentication, communication, and file storage:
+        </p>
+        <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li>
+            <strong className="font-semibold text-white">Google OAuth 2.0:</strong> Facilitates
+            secure Single Sign-On (SSO) authentication.
+          </li>
+          <li>
+            <strong className="font-semibold text-white">Gmail SMTP:</strong> Delivers security
+            emails, password resets, and email verification tokens.
+          </li>
+          <li>
+            <strong className="font-semibold text-white">MinIO S3 Storage:</strong> Holds user
+            avatar assets.
+          </li>
+        </ul>
       </LegalSection>
 
       <LegalSection title="Your choices">
