@@ -1,6 +1,6 @@
 import { CHAT_API_BASE, getToken } from './api';
 
-function postNotify(path, body, signal) {
+function postNotify(path, body) {
   const token = getToken();
   if (!token) return null;
   return fetch(`${CHAT_API_BASE}/chat/${path}`, {
@@ -10,7 +10,6 @@ function postNotify(path, body, signal) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
-    signal,
   });
 }
 
@@ -25,22 +24,4 @@ export function notifyDataChanged(resource, userIds, { workspaceId } = {}) {
   const body = buildBody(resource, userIds, workspaceId);
   if (!body) return;
   postNotify('notify', body)?.catch(() => {});
-}
-
-export async function holdDataChanged(resource, userIds, { workspaceId } = {}) {
-  const body = buildBody(resource, userIds, workspaceId);
-  if (!body) return null;
-  try {
-    const res = await postNotify('notify', { ...body, hold: true }, AbortSignal.timeout(2000));
-    if (!res?.ok) return null;
-    const { ticket } = await res.json();
-    return ticket ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function releaseDataChanged(ticket) {
-  if (!ticket) return;
-  postNotify('notify/release', { ticket })?.catch(() => {});
 }

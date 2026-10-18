@@ -20,7 +20,7 @@ function registerTypingHandlers(io, socket) {
 
   const joinedRoom = (payload) => {
     const roomId = payload?.roomId;
-    return typeof roomId === 'string' && socket.rooms.has(roomId) ? roomId : null;
+    return typeof roomId === 'string' && !roomId.startsWith('user:') && socket.rooms.has(roomId) ? roomId : null;
   };
 
   socket.on('typing:start', (payload) => {
