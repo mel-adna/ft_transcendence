@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const GetHistoryUseCase = require('../../application/messaging/GetHistoryUseCase');
 const SearchMessagesUseCase = require('../../application/messaging/SearchMessagesUseCase');
 const GetThreadRepliesUseCase = require('../../application/messaging/GetThreadRepliesUseCase');
@@ -7,6 +8,8 @@ const STATUS_MAP = {
   SEARCH_ACCESS_DENIED: 403,
   SEARCH_QUERY_REQUIRED: 400,
   SEARCH_QUERY_TOO_SHORT: 400,
+  SEARCH_QUERY_TOO_LONG: 400,
+  HISTORY_INVALID_CURSOR: 400,
   THREAD_ACCESS_DENIED: 403,
   MESSAGE_NOT_FOUND: 404,
   ROOM_NOT_FOUND: 404,
@@ -67,8 +70,7 @@ const chatController = {
 };
 
 function _handleError(res, err) {
-  const status = STATUS_MAP[err.message] ?? 500;
-  return res.status(status).json({ error: err.message });
+  return sendHttpError(res, err, STATUS_MAP);
 }
 
 module.exports = chatController;

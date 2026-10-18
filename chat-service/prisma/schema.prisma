@@ -16,6 +16,7 @@ model User {
   avatarUrl       String?
   presenceStatus  String       @default("OFFLINE")
   lastSeenAt      DateTime?
+  securityVersion Int          @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 

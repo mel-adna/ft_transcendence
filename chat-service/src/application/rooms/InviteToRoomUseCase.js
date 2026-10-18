@@ -5,11 +5,14 @@ const UserRepository = require('../../infrastructure/repositories/UserRepository
 
 const PRIVILEGED_ROLES = ['OWNER', 'ADMIN'];
 
+const MAX_MEMBERS_PER_REQUEST = 100;
+
 class InviteToRoomUseCase {
   async execute({ roomId, inviterId, userIds }) {
     if (!Array.isArray(userIds) || userIds.length === 0) {
       throw new Error('ROOM_INVITE_NO_USERS');
     }
+    if (userIds.length > MAX_MEMBERS_PER_REQUEST) throw new Error('ROOM_TOO_MANY_MEMBERS');
 
     const room = await RoomRepository.findById(roomId);
     if (!room) throw new Error('ROOM_NOT_FOUND');
@@ -21,7 +24,7 @@ class InviteToRoomUseCase {
 
     const existingIds = new Set(room.members.map((m) => m.userId));
     const candidateIds = [...new Set(userIds)].filter(
-      (id) => id && id !== inviterId && !existingIds.has(id),
+      (id) => typeof id === 'string' && id && id !== inviterId && !existingIds.has(id),
     );
 
     const users = await UserRepository.findManyByIds(candidateIds);

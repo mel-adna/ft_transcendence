@@ -1,3 +1,4 @@
+const { toClientCode } = require('../clientError');
 const GetRoomPresenceUseCase = require('../../application/presence/GetRoomPresenceUseCase');
 const UpdatePresenceUseCase = require('../../application/presence/UpdatePresenceUseCase');
 const PresenceStatus = require('../../domain/presence/PresenceStatus');
@@ -20,7 +21,7 @@ function registerPresenceHandlers(io, socket) {
       const result = await UpdatePresenceUseCase.execute({ userId, status: validated });
       await _broadcastPresence(io, userId, validated, result.lastSeen);
     } catch (err) {
-      socket.emit('presence:error', { code: err.message });
+      socket.emit('presence:error', { code: toClientCode(err) });
     }
   });
 
@@ -46,7 +47,7 @@ function registerPresenceHandlers(io, socket) {
 
       socket.emit('presence:snapshot', { roomId, members });
     } catch (err) {
-      socket.emit('presence:error', { code: err.message, event: 'presence:subscribe' });
+      socket.emit('presence:error', { code: toClientCode(err), event: 'presence:subscribe' });
     }
   });
 

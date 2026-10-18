@@ -11,7 +11,7 @@ class PresenceService {
 
   validateStatusChange(requestedStatus) {
     if (!PresenceStatus.isValid(requestedStatus)) {
-      throw new Error(`INVALID_STATUS: ${requestedStatus}`);
+      throw new Error('INVALID_STATUS');
     }
     if (requestedStatus === PresenceStatus.OFFLINE) {
       throw new Error('CANNOT_MANUALLY_SET_OFFLINE');

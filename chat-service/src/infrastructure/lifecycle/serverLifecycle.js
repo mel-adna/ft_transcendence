@@ -4,10 +4,7 @@ const SyncStalePresenceUseCase = require('../../application/presence/SyncStalePr
 function startPresenceCleanup(intervalMs = 5 * 60 * 1000) {
   const run = async () => {
     try {
-      const count = await SyncStalePresenceUseCase.execute(5);
-      if (count > 0) {
-        console.log(`[PresenceCleanup] Marked ${count} stale user(s) OFFLINE`);
-      }
+      await SyncStalePresenceUseCase.execute(5);
     } catch (err) {
       console.error('[PresenceCleanup] Failed:', err.message);
     }
@@ -18,8 +15,6 @@ function startPresenceCleanup(intervalMs = 5 * 60 * 1000) {
 }
 
 async function gracefulShutdown(server, socketServer, cleanupTimer = null, notificationSubscriber = null) {
-  console.log('[Server] Graceful shutdown initiated…');
-
   if (cleanupTimer) clearInterval(cleanupTimer);
 
   await new Promise((resolve) => {
@@ -29,8 +24,6 @@ async function gracefulShutdown(server, socketServer, cleanupTimer = null, notif
   if (notificationSubscriber) await notificationSubscriber.stop();
   await socketServer.shutdown();
   await prisma.$disconnect();
-
-  console.log('[Server] Shutdown complete');
   process.exit(0);
 }
 

@@ -2,17 +2,21 @@ const jwt = require('jsonwebtoken');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 
 const SIGNING_KEY = Buffer.from(process.env.JWT_SECRET ?? '', 'base64');
+if (SIGNING_KEY.length < 32) {
+  throw new Error('JWT_SECRET is missing or shorter than 256 bits');
+}
+const VERIFY_OPTIONS = { algorithms: ['HS256', 'HS384', 'HS512'] };
 
 class SocketAuthUseCase {
   async execute(handshakeAuth) {
     const token = handshakeAuth?.token;
-    if (!token) {
+    if (!token || typeof token !== 'string') {
       throw new Error('AUTH_MISSING_TOKEN');
     }
 
     let payload;
     try {
-      payload = jwt.verify(token, SIGNING_KEY);
+      payload = jwt.verify(token, SIGNING_KEY, VERIFY_OPTIONS);
     } catch (err) {
       if (err.name === 'TokenExpiredError') throw new Error('AUTH_TOKEN_EXPIRED');
       throw new Error('AUTH_TOKEN_INVALID');
@@ -28,11 +32,11 @@ class SocketAuthUseCase {
 
     await UserRepository.ensureFromIdentity({ id: String(id), username, email });
 
-    return {
-      id: String(id),
-      username,
-      email,
-    };
+    const sv = Number.isInteger(payload.sv) && payload.sv >= 0 ? payload.sv : 0;
+    const { current, raised } = await UserRepository.syncSecurityVersion(String(id), sv);
+    if (sv < current) throw new Error('AUTH_TOKEN_REVOKED');
+
+    return { id: String(id), username, email, sv, svRaised: raised };
   }
 }
 

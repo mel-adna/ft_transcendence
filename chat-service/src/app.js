@@ -51,10 +51,12 @@ app.get('/metrics', async (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
-  });
+  const status = err.status || 500;
+  if (status >= 500) console.error('Server error:', err.stack);
+  const code = err.type === 'entity.parse.failed' ? 'INVALID_JSON'
+    : err.type === 'entity.too.large' ? 'PAYLOAD_TOO_LARGE'
+      : status < 500 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
+  res.status(status).json({ error: code });
 });
 
 const PORT = process.env.PORT || 5005;
@@ -66,9 +68,7 @@ async function bootstrap() {
 
   presenceCleanupTimer = startPresenceCleanup();
 
-  server.listen(PORT, () => {
-    console.log(`Backend server running on port ${PORT}`);
-  });
+  server.listen(PORT);
 }
 
 bootstrap().catch((err) => {

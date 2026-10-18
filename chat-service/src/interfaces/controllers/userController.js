@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const ListUsersUseCase = require('../../application/users/ListUsersUseCase');
 const SearchUsersUseCase = require('../../application/users/SearchUsersUseCase');
 
@@ -7,7 +8,7 @@ const userController = {
       const users = await ListUsersUseCase.execute(req.user.id, req.user.token);
       return res.json({ users });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return sendHttpError(res, err);
     }
   },
 
@@ -22,7 +23,7 @@ const userController = {
       });
       return res.json({ users });
     } catch (err) {
-      return res.status(500).json({ error: err.message });
+      return sendHttpError(res, err, { USERS_QUERY_TOO_LONG: 400 });
     }
   },
 };

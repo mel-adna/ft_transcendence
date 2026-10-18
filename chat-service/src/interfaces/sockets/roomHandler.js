@@ -1,3 +1,4 @@
+const { toClientCode } = require('../clientError');
 const JoinRoomUseCase = require('../../application/rooms/JoinRoomUseCase');
 const LeaveRoomUseCase = require('../../application/rooms/LeaveRoomUseCase');
 
@@ -14,7 +15,7 @@ function registerRoomHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true, ...result });
     } catch (err) {
       _emitError(socket, 'room:join', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 
@@ -28,14 +29,14 @@ function registerRoomHandlers(io, socket) {
       if (typeof ack === 'function') ack({ ok: true, ...result });
     } catch (err) {
       _emitError(socket, 'room:leave', err);
-      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+      if (typeof ack === 'function') ack({ ok: false, error: toClientCode(err) });
     }
   });
 }
 
 function _emitError(socket, event, err) {
   console.error(`[roomHandler] ${event} failed for userId=${socket.user.id}:`, err.message);
-  socket.emit('room:error', { event, code: err.message });
+  socket.emit('room:error', { event, code: toClientCode(err) });
 }
 
 module.exports = registerRoomHandlers;

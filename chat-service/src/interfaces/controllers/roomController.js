@@ -1,3 +1,4 @@
+const { sendHttpError } = require('../clientError');
 const ListRoomsUseCase = require('../../application/rooms/ListRoomsUseCase');
 const CreateRoomUseCase = require('../../application/rooms/CreateRoomUseCase');
 const InviteToRoomUseCase = require('../../application/rooms/InviteToRoomUseCase');
@@ -17,6 +18,7 @@ const STATUS_MAP = {
   ROOM_NAME_EMPTY: 400,
   ROOM_NAME_TOO_LONG: 400,
   ROOM_DM_TARGET_REQUIRED: 400,
+  ROOM_TOO_MANY_MEMBERS: 400,
   ROOM_DM_SELF: 400,
   ROOM_DM_USER_NOT_FOUND: 404,
   ROOM_NOT_FOUND: 404,
@@ -45,6 +47,7 @@ const roomController = {
         memberIds: Array.isArray(memberIds) ? memberIds : [],
       });
 
+      socketServer.joinUserToRoom(req.user.id, room.id);
       for (const userId of notifyUserIds) {
         socketServer.joinUserToRoom(userId, room.id);
         socketServer.emitToUser(userId, 'room:joined', { roomId: room.id, room });
@@ -217,8 +220,7 @@ const roomController = {
 };
 
 function _handleError(res, err) {
-  const status = STATUS_MAP[err.message] ?? 500;
-  return res.status(status).json({ error: err.message });
+  return sendHttpError(res, err, STATUS_MAP);
 }
 
 module.exports = roomController;

@@ -2,9 +2,13 @@ const UserRepository = require('../../infrastructure/repositories/UserRepository
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const { searchUsersByEmail } = require('../../infrastructure/http/JavaBackendClient');
 
+const MAX_QUERY_LENGTH = 100;
+
 class SearchUsersUseCase {
   async execute({ requesterId, query, excludeRoomId = null, limit = 10, callerToken = null }) {
-    if (!query || !query.trim()) return [];
+    if (typeof query !== 'string' || !query.trim()) return [];
+    if (query.length > MAX_QUERY_LENGTH) throw new Error('USERS_QUERY_TOO_LONG');
+    if (typeof excludeRoomId !== 'string') excludeRoomId = null;
 
     const localUsers = await UserRepository.searchByUsernameOrEmail(query, {
       excludeUserId: requesterId,

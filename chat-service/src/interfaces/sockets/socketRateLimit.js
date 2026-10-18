@@ -25,26 +25,30 @@ setInterval(() => {
   for (const [key, w] of windows) if (w.resetAt <= now) windows.delete(key);
 }, 60_000).unref();
 
-function isAllowed(userId, event) {
+function bucketFor(event) {
+  return typeof event === 'string' && Object.hasOwn(LIMITS, event) ? event : 'other';
+}
+
+function isAllowed(userId, bucket) {
   const now = Date.now();
-  const key = `${userId}:${event}`;
+  const key = `${userId}:${bucket}`;
   let w = windows.get(key);
   if (!w || w.resetAt <= now) {
     w = { count: 0, resetAt: now + WINDOW_MS };
     windows.set(key, w);
   }
   w.count += 1;
-  return w.count <= (LIMITS[event] ?? DEFAULT_LIMIT);
+  return w.count <= (LIMITS[bucket] ?? DEFAULT_LIMIT);
 }
 
 function applySocketRateLimit(socket) {
   const userId = socket.user.id;
 
   socket.use((packet, next) => {
-    const [event] = packet;
-    if (isAllowed(userId, event)) return next();
+    const bucket = bucketFor(packet[0]);
+    if (isAllowed(userId, bucket)) return next();
 
-    socketRateLimitedCounter.inc({ event: event in LIMITS ? event : 'other' });
+    socketRateLimitedCounter.inc({ event: bucket });
     const ack = packet[packet.length - 1];
     if (typeof ack === 'function') ack({ ok: false, error: 'RATE_LIMITED' });
   });

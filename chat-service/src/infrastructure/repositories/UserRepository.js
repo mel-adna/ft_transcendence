@@ -41,6 +41,15 @@ const UserRepository = {
     });
   },
 
+  async syncSecurityVersion(id, securityVersion) {
+    const raised = await prisma.user.updateMany({
+      where: { id, securityVersion: { lt: securityVersion } },
+      data: { securityVersion },
+    });
+    const row = await prisma.user.findUnique({ where: { id }, select: { securityVersion: true } });
+    return { current: row?.securityVersion ?? securityVersion, raised: raised.count > 0 };
+  },
+
   async releaseEmail(id) {
     await prisma.user.updateMany({
       where: { id },
@@ -104,7 +113,7 @@ const UserRepository = {
 
   async getRoomIds(userId) {
     const memberships = await prisma.roomMember.findMany({
-      where: { userId },
+      where: { userId, status: 'ACCEPTED' },
       select: { roomId: true },
     });
     return memberships.map((m) => m.roomId);
@@ -112,7 +121,7 @@ const UserRepository = {
 
   async getPresenceByRoom(roomId) {
     return prisma.roomMember.findMany({
-      where: { roomId },
+      where: { roomId, status: 'ACCEPTED' },
       select: {
         userId: true,
         user: {

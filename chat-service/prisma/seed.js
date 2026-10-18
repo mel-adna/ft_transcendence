@@ -1,5 +1,4 @@
 const path = require('path');
-const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
@@ -15,21 +14,7 @@ const USERS = [
   { id: BOB_ID, username: 'bob', email: 'bob@test.com' },
 ];
 
-function signToken(user) {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('JWT_SECRET is not set in .env');
-  }
-  return jwt.sign(
-    { id: user.id, username: user.username, email: user.email },
-    Buffer.from(secret, 'base64'),
-    { expiresIn: '30d' },
-  );
-}
-
 async function main() {
-  console.log('[seed] Creating dev users and General chat room…');
-
   for (const user of USERS) {
     await prisma.user.upsert({
       where: { id: user.id },
@@ -85,16 +70,6 @@ async function main() {
       },
     });
   }
-
-  const aliceToken = signToken(USERS[0]);
-  const bobToken = signToken(USERS[1]);
-
-  console.log('\n[seed] Done. Add these to your root .env for frontend dev:\n');
-  console.log(`VITE_DEV_USER_ID="${ALICE_ID}"`);
-  console.log(`VITE_DEV_ROOM_ID="${GENERAL_ROOM_ID}"`);
-  console.log(`VITE_DEV_TOKEN="${aliceToken}"`);
-  console.log(`VITE_DEV_TOKEN_BOB="${bobToken}"`);
-  console.log('\n[seed] Test with two browser profiles: swap token via Chat tab user switcher.\n');
 }
 
 main()

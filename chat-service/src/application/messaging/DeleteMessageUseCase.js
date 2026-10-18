@@ -3,6 +3,7 @@ const MessageRepository = require('../../infrastructure/repositories/MessageRepo
 
 class DeleteMessageUseCase {
   async execute({ actorId, messageId }) {
+    if (!messageId || typeof messageId !== 'string') throw new Error('MESSAGE_NOT_FOUND');
     const message = await MessageRepository.findById(messageId);
     if (!message) throw new Error('MESSAGE_NOT_FOUND');
     if (message.deletedAt) throw new Error('MESSAGE_ALREADY_DELETED');

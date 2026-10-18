@@ -1,5 +1,6 @@
 class Message {
   static MAX_CONTENT_LENGTH = 4000;
+  static CLIENT_TYPES = ['TEXT', 'IMAGE', 'FILE'];
 
   constructor({ senderId, roomId, content, type = 'TEXT', parentId = null }) {
     this._validate({ senderId, roomId, content, type, parentId });

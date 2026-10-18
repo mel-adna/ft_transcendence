@@ -1,5 +1,8 @@
 const prisma = require('../database/prismaClient');
 
+const clampTake = (value, fallback, max) =>
+  Number.isInteger(value) && value > 0 ? Math.min(value, max) : fallback;
+
 const MESSAGE_SELECT = {
   id: true,
   roomId: true,
@@ -35,7 +38,7 @@ const MessageRepository = {
   },
 
   async findByRoom(roomId, { cursor, limit = 50 } = {}) {
-    const take = Math.min(limit, 100);
+    const take = clampTake(limit, 50, 100);
 
     const messages = await prisma.message.findMany({
       where: {
@@ -59,7 +62,7 @@ const MessageRepository = {
   },
 
   async findByThread(parentId, { limit = 50 } = {}) {
-    const take = Math.min(limit, 100);
+    const take = clampTake(limit, 50, 100);
     return prisma.message.findMany({
       where: {
         parentId,
@@ -72,7 +75,7 @@ const MessageRepository = {
   },
 
   async search(roomId, query, limit = 20) {
-    const take = Math.min(limit, 50);
+    const take = clampTake(limit, 20, 50);
     const trimmed = query.trim();
     if (!trimmed) return [];
 
