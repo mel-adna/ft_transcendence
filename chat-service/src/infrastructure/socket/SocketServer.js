@@ -102,9 +102,12 @@ class SocketServer {
     });
   }
 
-  emitToUser(userId, event, payload, { local = false } = {}) {
+  emitToUser(userId, event, payload, { local = false, exceptSocketId = null } = {}) {
     if (!this.io) return;
-    (local ? this.io.local : this.io).to(userRoom(userId)).emit(event, payload);
+    let target = (local ? this.io.local : this.io).to(userRoom(userId));
+    // only skips the socket if it sits in this user's room, so a foreign id is a no-op
+    if (exceptSocketId) target = target.except(exceptSocketId);
+    target.emit(event, payload);
   }
 
   disconnectUser(userId) {

@@ -1,4 +1,5 @@
 import { CHAT_API_BASE, getToken } from './api';
+import { socketClient } from '../infrastructure/socket/SocketClient';
 
 function postNotify(path, body) {
   const token = getToken();
@@ -23,5 +24,7 @@ function buildBody(resource, userIds, workspaceId) {
 export function notifyDataChanged(resource, userIds, { workspaceId } = {}) {
   const body = buildBody(resource, userIds, workspaceId);
   if (!body) return;
-  postNotify('notify', body)?.catch(() => {});
+  // lets the server skip this tab, it already shows the change
+  const socketId = socketClient.isConnected() ? socketClient.getSocket().id : undefined;
+  postNotify('notify', { ...body, socketId })?.catch(() => {});
 }

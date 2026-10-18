@@ -9,10 +9,14 @@ const MAX_TARGETS = 200;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
 
-function deliver(resource, workspaceId, targets) {
+const SOCKET_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+// the caller's other tabs need it too, just not the tab that made the change
+function deliver(resource, workspaceId, targets, callerId, callerSocketId) {
   const payload = { resource, workspaceId };
   for (const userId of targets) {
-    socketServer.emitToUser(userId, 'data:changed', payload);
+    const exceptSocketId = userId === callerId ? callerSocketId : null;
+    socketServer.emitToUser(userId, 'data:changed', payload, { exceptSocketId });
   }
 }
 
@@ -30,7 +34,7 @@ async function resolveTargets(req) {
   const roster = new Set(await listWorkspaceMemberIds(workspaceId, req.user.token));
   const wanted = Array.isArray(userIds) ? userIds : [...roster];
   const targets = [...new Set(wanted)]
-    .filter((id) => roster.has(id) && id !== req.user.id)
+    .filter((id) => roster.has(id))
     .slice(0, MAX_TARGETS);
 
   return { resource, workspaceId, targets };
@@ -43,7 +47,9 @@ const notifyController = {
       if (resolved.error) return res.status(400).json({ error: resolved.error });
       const { resource, workspaceId, targets } = resolved;
 
-      deliver(resource, workspaceId, targets);
+      const { socketId } = req.body ?? {};
+      const callerSocketId = typeof socketId === 'string' && SOCKET_ID_RE.test(socketId) ? socketId : null;
+      deliver(resource, workspaceId, targets, req.user.id, callerSocketId);
       return res.json({ ok: true, notified: targets.length });
     } catch (err) {
       return sendHttpError(res, err);
