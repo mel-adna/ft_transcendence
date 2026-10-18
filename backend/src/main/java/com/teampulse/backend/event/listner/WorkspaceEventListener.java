@@ -6,6 +6,7 @@ import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.event.WorkspaceDeletedEvent;
 import com.teampulse.backend.event.WorkspaceMemberRemovedEvent;
 import com.teampulse.backend.event.WorkspaceUpdatedEvent;
+import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.WorkspaceMember;
 import com.teampulse.backend.repository.UserRepository;
@@ -33,7 +34,6 @@ public class WorkspaceEventListener {
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final UserRepository userRepository;
 
-
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -50,7 +50,7 @@ public class WorkspaceEventListener {
 		members.forEach(member -> {
 			if (adminId != null && adminId.equals(member.getUser().getId())) return;
 
-			notificationService.createNotification(
+			Notification notification = notificationService.createNotification(
 					member.getUser(),
 					NotificationType.WORKSPACE_UPDATED,
 					EntityType.WORKSPACE,
@@ -67,6 +67,7 @@ public class WorkspaceEventListener {
 					.entityType(EntityType.WORKSPACE.name())
 					.entityId(workspaceId.toString())
 					.payload(Map.of(
+							"notificationId", notification.getId().toString(),
 							"workspaceName", event.getWorkspace().getName(),
 							"adminName", adminName,
 							"message", msg
@@ -77,7 +78,6 @@ public class WorkspaceEventListener {
 			redisEventPublisherService.publish(realTimeEvent);
 		});
 	}
-
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -93,35 +93,35 @@ public class WorkspaceEventListener {
 			if (adminId != null && adminId.equals(memberId)) return;
 
 			userRepository.findById(memberId).ifPresent(user -> {
-				notificationService.createNotification(
+				Notification notification = notificationService.createNotification(
 						user,
 						NotificationType.WORKSPACE_DELETED,
 						EntityType.WORKSPACE,
 						event.getWorkspaceId(),
 						msg
 				);
+
+				UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+						.eventId(UUID.randomUUID())
+						.type("WORKSPACE")
+						.action("DELETED")
+						.recipientId(memberId)
+						.senderId(adminId)
+						.entityType(EntityType.WORKSPACE.name())
+						.entityId(event.getWorkspaceId().toString())
+						.payload(Map.of(
+								"notificationId", notification.getId().toString(),
+								"workspaceName", event.getWorkspaceName(),
+								"adminName", adminName,
+								"message", msg
+						))
+						.timestamp(Instant.now())
+						.build();
+
+				redisEventPublisherService.publish(realTimeEvent);
 			});
-
-			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
-					.eventId(UUID.randomUUID())
-					.type("WORKSPACE")
-					.action("DELETED")
-					.recipientId(memberId)
-					.senderId(adminId)
-					.entityType(EntityType.WORKSPACE.name())
-					.entityId(event.getWorkspaceId().toString())
-					.payload(Map.of(
-							"workspaceName", event.getWorkspaceName(),
-							"adminName", adminName,
-							"message", msg
-					))
-					.timestamp(Instant.now())
-					.build();
-
-			redisEventPublisherService.publish(realTimeEvent);
 		});
 	}
-
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -134,7 +134,7 @@ public class WorkspaceEventListener {
 				event.getWorkspace().getName(), adminName);
 
 		if (event.getRemovedUser() != null) {
-			notificationService.createNotification(
+			Notification notification = notificationService.createNotification(
 					event.getRemovedUser(),
 					NotificationType.WORKSPACE_MEMBER_REMOVED,
 					EntityType.WORKSPACE,
@@ -150,6 +150,7 @@ public class WorkspaceEventListener {
 					.entityType(EntityType.WORKSPACE.name())
 					.entityId(event.getWorkspace().getId().toString())
 					.payload(Map.of(
+							"notificationId", notification.getId().toString(),
 							"workspaceName", event.getWorkspace().getName(),
 							"adminName", adminName,
 							"message", msg

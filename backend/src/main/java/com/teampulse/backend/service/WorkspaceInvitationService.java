@@ -10,6 +10,7 @@ import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.mapper.WorkspaceInvitationMapper;
+import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.Workspace;
 import com.teampulse.backend.model.WorkspaceInvitation;
@@ -26,6 +27,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -33,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
 
 @Service
 @Slf4j
@@ -47,10 +49,10 @@ public class WorkspaceInvitationService {
 	private final WorkspaceInvitationMapper invitationMapper;
 	private final ApplicationEventPublisher eventPublisher;
 	private final RedisEventPublisherService redisEventPublisherService;
+	private final NotificationService notificationService;
+	private final ActivityLogService activityLogService;
 
 	private static final int INVITATION_EXPIRY_DAYS = 7;
-	private final NotificationService notificationService;
-
 
 	public WorkspaceInvitationResponse sendInvitation(UUID workspaceId, SendInvitationRequest request, String inviterEmail) {
 		if (workspaceId == null) {
@@ -85,8 +87,7 @@ public class WorkspaceInvitationService {
 			}
 		}
 
-		boolean hasPendingInvite = invitationRepository.existsByWorkspaceIdAndInviteeEmailAndStatus(
-				workspaceId, targetEmail, InvitationStatus.PENDING);
+		boolean hasPendingInvite = invitationRepository.existsByWorkspaceIdAndInviteeEmailAndStatus(workspaceId, targetEmail, InvitationStatus.PENDING);
 		if (hasPendingInvite) {
 			throw new BadRequestException("A pending invitation already exists for this email.");
 		}
@@ -109,11 +110,8 @@ public class WorkspaceInvitationService {
 
 		eventPublisher.publishEvent(new WorkspaceInvitationSentEvent(this, workspace, savedInvitation, inviter, inviteeUser));
 
-		log.info("Invitation sent successfully to {} for workspace {}", EmailUtils.maskEmail(targetEmail), workspace.getName());
-
 		return invitationMapper.toResponse(savedInvitation);
 	}
-
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceInvitationResponse> getMyPendingInvitations(String userEmail) {
@@ -125,7 +123,6 @@ public class WorkspaceInvitationService {
 				.map(invitationMapper::toResponse)
 				.collect(Collectors.toList());
 	}
-
 
 	@Transactional(readOnly = true)
 	public List<WorkspaceInvitationResponse> getWorkspacePendingInvitations(UUID workspaceId, String adminEmail) {
@@ -140,7 +137,6 @@ public class WorkspaceInvitationService {
 				.collect(Collectors.toList());
 	}
 
-
 	public void acceptInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
 
@@ -148,7 +144,6 @@ public class WorkspaceInvitationService {
 
 		Workspace workspace = workspaceRepository.findById(invitation.getWorkspace().getId())
 				.orElseThrow(() -> new BadRequestException("The workspace associated with this invitation no longer exists or has been deleted."));
-
 
 		User invitee = userRepository.findByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User account not found"));
@@ -165,11 +160,16 @@ public class WorkspaceInvitationService {
 
 		workspaceMemberRepository.save(newMember);
 
+		activityLogService.logActivity(
+				workspace.getId(),
+				invitee.getId(),
+				invitation.getInviter() != null ? invitation.getInviter().getId() : invitee.getId(),
+				"WORKSPACE_MEMBER_ADDED",
+				String.format("Added %s to workspace via invitation", getSafeFullName(invitee))
+		);
+
 		eventPublisher.publishEvent(new WorkspaceInvitationAcceptedEvent(this, workspace, invitation, invitee));
-
-		log.info("User {} accepted invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), workspace.getName());
 	}
-
 
 	public void rejectInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
@@ -185,10 +185,7 @@ public class WorkspaceInvitationService {
 			String msg = String.format("%s declined your invitation to join workspace '%s'.", inviteeName, invitation.getWorkspace().getName());
 			notifyUserAndPublish(invitation.getInviter(), invitee, invitation.getWorkspace(), msg, NotificationType.WORKSPACE_INVITATION_REJECTED, "INVITATION_REJECTED");
 		}
-
-		log.info("User {} rejected invitation to workspace {}", EmailUtils.maskEmail(cleanEmail), invitation.getWorkspace().getName());
 	}
-
 
 	public void cancelInvitation(UUID workspaceId, UUID invitationId, String adminEmail) {
 		String cleanAdminEmail = EmailUtils.normalize(adminEmail);
@@ -215,9 +212,7 @@ public class WorkspaceInvitationService {
 		}
 
 		invitationRepository.delete(invitation);
-		log.info("Admin {} cancelled invitation {} for workspace {}", EmailUtils.maskEmail(cleanAdminEmail), invitationId, workspaceId);
 	}
-
 
 	private WorkspaceInvitation getValidPendingInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
@@ -242,11 +237,10 @@ public class WorkspaceInvitationService {
 		return invitation;
 	}
 
-	private void notifyUserAndPublish(User recipient, User actor, Workspace workspace, String message,
-	                                  NotificationType notifyType, String redisAction) {
+	private void notifyUserAndPublish(User recipient, User actor, Workspace workspace, String message, NotificationType notifyType, String redisAction) {
 		if (recipient == null) return;
 
-		notificationService.createNotification(recipient, notifyType, EntityType.WORKSPACE, workspace.getId(), message);
+		Notification notification = notificationService.createNotification(recipient, notifyType, EntityType.WORKSPACE, workspace.getId(), message);
 
 		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 				.eventId(UUID.randomUUID())
@@ -257,6 +251,7 @@ public class WorkspaceInvitationService {
 				.entityType(EntityType.WORKSPACE.name())
 				.entityId(workspace.getId().toString())
 				.payload(Map.of(
+						"notificationId", notification.getId().toString(),
 						"workspaceName", workspace.getName(),
 						"actorName", getSafeFullName(actor),
 						"message", message
@@ -264,7 +259,20 @@ public class WorkspaceInvitationService {
 				.timestamp(Instant.now())
 				.build();
 
-		redisEventPublisherService.publish(realTimeEvent);
+		publishAfterCommit(realTimeEvent);
+	}
+
+	private void publishAfterCommit(UnifiedEvent event) {
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					redisEventPublisherService.publish(event);
+				}
+			});
+		} else {
+			redisEventPublisherService.publish(event);
+		}
 	}
 
 	private String getSafeFullName(User user) {
@@ -272,10 +280,8 @@ public class WorkspaceInvitationService {
 		String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
 		String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
 		String fullName = (firstName + " " + lastName).trim();
-		if (!fullName.isEmpty()) return fullName;
-		return user.getEmail() != null ? user.getEmail() : "System";
+		return !fullName.isEmpty() ? fullName : (user.getEmail() != null ? user.getEmail() : "System");
 	}
-
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {
 		String cleanEmail = EmailUtils.normalize(email);

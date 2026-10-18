@@ -30,4 +30,6 @@ public class TaskUpdateRequest {
     private TaskPriority priority;
 
     private UUID assigneeId;
+
+    private Long version;
 }

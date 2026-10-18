@@ -4,11 +4,11 @@ import com.teampulse.backend.dto.messaging.UnifiedEvent;
 import com.teampulse.backend.enums.EntityType;
 import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.event.UserWelcomeEvent;
+import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.repository.UserRepository;
 import com.teampulse.backend.service.EmailService;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
-import com.teampulse.backend.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -35,30 +35,31 @@ public class UserWelcomeEventListener {
 		String welcomeMsg = String.format("Welcome to TeamPulse, %s! We are glad to have you.", event.getFirstName());
 
 		userRepository.findById(event.getUserId()).ifPresent(user -> {
-			notificationService.createNotification(
+			Notification notification = notificationService.createNotification(
 					user,
 					NotificationType.USER_WELCOME,
 					EntityType.WORKSPACE,
 					event.getUserId(),
 					welcomeMsg
 			);
+
+			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
+					.eventId(UUID.randomUUID())
+					.type("SYSTEM")
+					.action("WELCOME")
+					.recipientId(event.getUserId())
+					.senderId(null)
+					.entityType("USER")
+					.entityId(event.getUserId().toString())
+					.payload(Map.of(
+							"notificationId", notification.getId().toString(),
+							"firstName", event.getFirstName(),
+							"message", welcomeMsg
+					))
+					.timestamp(Instant.now())
+					.build();
+
+			redisEventPublisherService.publish(realTimeEvent);
 		});
-
-		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
-				.eventId(UUID.randomUUID())
-				.type("SYSTEM")
-				.action("WELCOME")
-				.recipientId(event.getUserId())
-				.senderId(null)
-				.entityType("USER")
-				.entityId(event.getUserId().toString())
-				.payload(Map.of(
-						"firstName", event.getFirstName(),
-						"message", welcomeMsg
-				))
-				.timestamp(Instant.now())
-				.build();
-
-		redisEventPublisherService.publish(realTimeEvent);
 	}
 }

@@ -5,8 +5,8 @@ import com.teampulse.backend.enums.EntityType;
 import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.event.WorkspaceInvitationAcceptedEvent;
 import com.teampulse.backend.event.WorkspaceInvitationSentEvent;
+import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.User;
-import com.teampulse.backend.service.ActivityLogService;
 import com.teampulse.backend.service.EmailService;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
@@ -32,7 +32,6 @@ import java.util.UUID;
 public class WorkspaceInvitationEventListener {
 
 	private final NotificationService notificationService;
-	private final ActivityLogService activityLogService;
 	private final EmailService emailService;
 	private final RedisEventPublisherService redisEventPublisherService;
 
@@ -83,7 +82,7 @@ public class WorkspaceInvitationEventListener {
 		if (isRegisteredUser) {
 			String notificationMsg = String.format("You have been invited to join workspace '%s' by %s.", workspaceName, inviterName);
 
-			notificationService.createNotification(
+			Notification notification = notificationService.createNotification(
 					event.getInvitee(),
 					NotificationType.WORKSPACE_INVITATION_SENT,
 					EntityType.WORKSPACE,
@@ -100,6 +99,7 @@ public class WorkspaceInvitationEventListener {
 					.entityType(EntityType.WORKSPACE.name())
 					.entityId(event.getWorkspace().getId().toString())
 					.payload(Map.of(
+							"notificationId", notification.getId().toString(),
 							"workspaceName", workspaceName,
 							"inviterName", inviterName,
 							"message", notificationMsg
@@ -123,24 +123,14 @@ public class WorkspaceInvitationEventListener {
 		String msg = String.format("%s accepted your invitation and joined workspace '%s'.", inviteeName, workspaceName);
 
 		if (inviter != null) {
-			notificationService.createNotification(
+			Notification notification = notificationService.createNotification(
 					inviter,
 					NotificationType.WORKSPACE_MEMBER_ADDED,
 					EntityType.WORKSPACE,
 					event.getWorkspace().getId(),
 					msg
 			);
-		}
 
-		activityLogService.logActivity(
-				event.getWorkspace().getId(),
-				event.getInvitee().getId(),
-				inviterId != null ? inviterId : event.getInvitee().getId(),
-				"WORKSPACE_MEMBER_ADDED",
-				String.format("Added %s to workspace via invitation", inviteeName)
-		);
-
-		if (inviterId != null) {
 			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 					.eventId(UUID.randomUUID())
 					.type("WORKSPACE")
@@ -150,6 +140,7 @@ public class WorkspaceInvitationEventListener {
 					.entityType(EntityType.WORKSPACE.name())
 					.entityId(event.getWorkspace().getId().toString())
 					.payload(Map.of(
+							"notificationId", notification.getId().toString(),
 							"workspaceName", workspaceName,
 							"inviteeName", inviteeName,
 							"message", msg
