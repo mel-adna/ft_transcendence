@@ -45,6 +45,7 @@ const roomController = {
         memberIds: Array.isArray(memberIds) ? memberIds : [],
       });
 
+      socketServer.joinUserToRoom(req.user.id, room.id);
       for (const userId of notifyUserIds) {
         socketServer.joinUserToRoom(userId, room.id);
         socketServer.emitToUser(userId, 'room:joined', { roomId: room.id, room });
