@@ -57,15 +57,19 @@ The Makefile will automatically generate the `secrets/` directory from secrets_e
 
 Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, MinIO, Nginx, Prometheus, Grafana) with a single command:
 
+- 1. Clone the repository
 ```bash
-# 1. Clone the repository
-git clone https://github.com/mel-adna/ft_transcendence.git
+  git clone https://github.com/mel-adna/ft_transcendence.git
+```
 
-# 2. Enter the project directory
-cd ft_transcendence
+- 2. Enter the project directory
+```bash
+  cd ft_transcendence
+```
 
-# 3. Build and launch all services
-make
+- 3. Build and launch all services
+```bash
+  make
 ```
 
 > **Note:** Executing `make` automatically runs `scripts/generate_certs.sh` to generate self-signed TLS certificates, creates required environment configurations from `.env.example`, generates secure random credentials (JWT secret, DB, Grafana admin, MinIO, and Redis passwords), and executes `docker compose up --build -d`.
