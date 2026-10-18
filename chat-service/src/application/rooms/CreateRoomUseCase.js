@@ -3,6 +3,8 @@ const RoomService = require('../../domain/rooms/RoomService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 
+const MAX_MEMBERS_PER_REQUEST = 100;
+
 class CreateRoomUseCase {
   async execute({ creatorId, type, name, targetUserId, memberIds = [] }) {
     if (type === Room.TYPES.DIRECT) {
@@ -17,11 +19,12 @@ class CreateRoomUseCase {
   }
 
   async _createGroupRoom(creatorId, name, memberIds = []) {
+    if (memberIds.length > MAX_MEMBERS_PER_REQUEST) throw new Error('ROOM_TOO_MANY_MEMBERS');
     const roomEntity = Room.create(name, Room.TYPES.GROUP);
     const created = await RoomRepository.create(roomEntity.toCreateInput());
     await RoomRepository.addMember(created.id, creatorId, 'OWNER');
 
-    const candidateIds = [...new Set(memberIds)].filter((id) => id && id !== creatorId);
+    const candidateIds = [...new Set(memberIds)].filter((id) => typeof id === 'string' && id && id !== creatorId);
     let notifyUserIds = [];
     if (candidateIds.length) {
       const users = await UserRepository.findManyByIds(candidateIds);
@@ -36,7 +39,7 @@ class CreateRoomUseCase {
   }
 
   async _createDirectRoom(creatorId, targetUserId) {
-    if (!targetUserId) throw new Error('ROOM_DM_TARGET_REQUIRED');
+    if (!targetUserId || typeof targetUserId !== 'string') throw new Error('ROOM_DM_TARGET_REQUIRED');
     if (targetUserId === creatorId) throw new Error('ROOM_DM_SELF');
 
     const targetUser = await UserRepository.findById(targetUserId);

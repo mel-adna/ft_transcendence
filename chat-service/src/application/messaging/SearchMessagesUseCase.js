@@ -2,6 +2,8 @@ const MessageRepository = require('../../infrastructure/repositories/MessageRepo
 const MessageService = require('../../domain/messaging/MessageService');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 
+const MAX_QUERY_LENGTH = 100;
+
 class SearchMessagesUseCase {
   async execute({ requesterId, roomId, query, limit = 20 }) {
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -9,6 +11,9 @@ class SearchMessagesUseCase {
     }
     if (query.trim().length < 2) {
       throw new Error('SEARCH_QUERY_TOO_SHORT');
+    }
+    if (query.length > MAX_QUERY_LENGTH) {
+      throw new Error('SEARCH_QUERY_TOO_LONG');
     }
 
     const isMember = await RoomRepository.isMember(roomId, requesterId);

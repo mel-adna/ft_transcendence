@@ -7,7 +7,7 @@ module.exports = {
   transports: ['websocket', 'polling'],
   pingTimeout: parseInt(process.env.SOCKET_PING_TIMEOUT ?? '60000', 10),
   pingInterval: parseInt(process.env.SOCKET_PING_INTERVAL ?? '25000', 10),
-  maxHttpBufferSize: parseInt(process.env.SOCKET_MAX_BUFFER ?? '1048576', 10),
+  maxHttpBufferSize: parseInt(process.env.SOCKET_MAX_BUFFER ?? '102400', 10),
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,

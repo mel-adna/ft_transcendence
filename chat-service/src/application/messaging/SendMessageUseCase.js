@@ -5,6 +5,7 @@ const RoomRepository = require('../../infrastructure/repositories/RoomRepository
 
 class SendMessageUseCase {
   async execute({ senderId, roomId, content, type = 'TEXT', parentId = null }) {
+    if (!Message.CLIENT_TYPES.includes(type)) throw new Error('MESSAGE_INVALID_TYPE');
     const message = new Message({ senderId, roomId, content, type, parentId });
 
     const room = await RoomRepository.findById(roomId);

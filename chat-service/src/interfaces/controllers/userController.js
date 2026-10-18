@@ -22,6 +22,7 @@ const userController = {
       });
       return res.json({ users });
     } catch (err) {
+      if (err.message === 'USERS_QUERY_TOO_LONG') return res.status(400).json({ error: err.message });
       return res.status(500).json({ error: err.message });
     }
   },

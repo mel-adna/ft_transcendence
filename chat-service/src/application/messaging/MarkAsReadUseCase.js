@@ -10,6 +10,7 @@ class MarkAsReadUseCase {
     if (!isMember) throw new Error('READ_ACCESS_DENIED');
 
     if (lastReadMessageId) {
+      if (typeof lastReadMessageId !== 'string') throw new Error('READ_MESSAGE_INVALID');
       const message = await MessageRepository.findById(lastReadMessageId);
       if (!message || message.roomId !== roomId) {
         throw new Error('READ_MESSAGE_INVALID');
