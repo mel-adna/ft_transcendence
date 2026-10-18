@@ -59,7 +59,7 @@ Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, Mi
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/mel-adna/ft_transcendence](https://github.com/mel-adna/ft_transcendence)
+git clone https://github.com/mel-adna/ft_transcendence
 
 # 2. Enter the project directory
 cd ft_transcendence
