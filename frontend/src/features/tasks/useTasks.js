@@ -70,7 +70,7 @@ export function useTasks(workspaceId) {
     [setTasks, announceChange],
   );
 
-  useDataChanged('tasks', () => reload({ quiet: true }));
+  useDataChanged('tasks', () => reload({ quiet: true }), workspaceId);
 
   return { tasks, loading, error, reload, createTask, updateTask, moveTask, removeTask };
 }

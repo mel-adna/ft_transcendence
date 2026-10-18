@@ -5,22 +5,32 @@ export function useList(load) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const currentRequestRef = useRef(null);
+  const loadingRef = useRef(true);
 
-  const reload = useCallback(async ({ quiet = false } = {}) => {
+  const reload = useCallback(async ({ quiet = false, keepOnError = quiet } = {}) => {
+    const background = quiet && !loadingRef.current;
     const requestToken = {};
     currentRequestRef.current = requestToken;
-    if (!quiet) setLoading(true);
-    setError(null);
+    if (!background) {
+      loadingRef.current = true;
+      setLoading(true);
+      setError(null);
+    }
     try {
       const result = await load();
       if (currentRequestRef.current !== requestToken) return;
       setItems(result);
+      setError(null);
     } catch (requestError) {
       if (currentRequestRef.current !== requestToken) return;
+      if (background && keepOnError) return;
       setError(requestError);
       setItems([]);
     } finally {
-      if (currentRequestRef.current === requestToken) setLoading(false);
+      if (currentRequestRef.current === requestToken) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
     }
   }, [load]);
 
