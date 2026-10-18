@@ -15,7 +15,6 @@ async function createRedisClients() {
   });
 
   await Promise.all([pubClient.connect(), subClient.connect()]);
-  console.log('[Redis] Connected for Socket.io adapter');
 
   return { pubClient, subClient };
 }

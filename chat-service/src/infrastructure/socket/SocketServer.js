@@ -32,9 +32,6 @@ class SocketServer {
     this._redis = await createRedisClients();
     if (this._redis) {
       this.io.adapter(createAdapter(this._redis.pubClient, this._redis.subClient));
-      console.log('[SocketServer] Redis adapter attached');
-    } else {
-      console.log('[SocketServer] Running in single-instance mode (no REDIS_URL)');
     }
     redisConnectedGauge.set(this._redis ? 1 : 0);
 
@@ -42,7 +39,6 @@ class SocketServer {
     this._applyAuthMiddleware();
     this._registerConnectionHandler();
 
-    console.log('[SocketServer] Initialized');
     return this.io;
   }
 
@@ -79,9 +75,6 @@ class SocketServer {
       const stats = registry.stats();
       socketConnectionsGauge.set(stats.totalSockets);
       onlineUsersGauge.set(stats.onlineUsers);
-      console.log(
-        `[SocketServer] Connected: userId=${userId} socketId=${socket.id} | online=${stats.totalSockets}`,
-      );
 
       applySocketRateLimit(socket);
       registerChatHandlers(this.io, socket);
@@ -90,15 +83,12 @@ class SocketServer {
       registerRoomHandlers(this.io, socket);
       registerTypingHandlers(this.io, socket);
 
-      socket.on('disconnect', (reason) => {
+      socket.on('disconnect', () => {
         this._connectionCount = Math.max(0, this._connectionCount - 1);
-        const result = registry.unregister(socket.id);
+        registry.unregister(socket.id);
         const afterStats = registry.stats();
         socketConnectionsGauge.set(afterStats.totalSockets);
         onlineUsersGauge.set(afterStats.onlineUsers);
-        console.log(
-          `[SocketServer] Disconnected: userId=${userId} reason=${reason} lastSocket=${result?.isLastSocket}`,
-        );
       });
 
       socket.on('error', (err) => {
@@ -163,7 +153,6 @@ class SocketServer {
       ]);
       this._redis = null;
     }
-    console.log('[SocketServer] Shutdown complete');
   }
 }
 

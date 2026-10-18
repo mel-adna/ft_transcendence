@@ -66,9 +66,7 @@ async function bootstrap() {
 
   presenceCleanupTimer = startPresenceCleanup();
 
-  server.listen(PORT, () => {
-    console.log(`Backend server running on port ${PORT}`);
-  });
+  server.listen(PORT);
 }
 
 bootstrap().catch((err) => {

@@ -9,10 +9,7 @@ class NotificationSubscriber {
 
   async start() {
     const url = process.env.REDIS_URL;
-    if (!url) {
-      console.log('[NotificationSubscriber] REDIS_URL not set — notifications disabled');
-      return;
-    }
+    if (!url) return;
 
     const channel = process.env.REDIS_CHANNEL || 'teampulse-realtime-events';
 
@@ -23,8 +20,6 @@ class NotificationSubscriber {
 
     await this._client.connect();
     await this._client.subscribe(channel, (message) => this._handleMessage(message));
-
-    console.log(`[NotificationSubscriber] Subscribed to "${channel}"`);
   }
 
   _handleMessage(rawMessage) {
