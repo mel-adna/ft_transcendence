@@ -48,8 +48,8 @@ Sign-up codes and system notifications are dispatched via SMTP:
 Populate the required credential files inside `secrets_example/`.
 The Makefile will automatically generate the `secrets/` directory from secrets_example/.
 
-* `secrets_example/mail_password.txt`: Store the 16-character Gmail App Password for `MAIL_USERNAME` specified in `.env.example`.
-* `secrets_example/google_client_secret.txt`: Store the OAuth 2.0 client secret corresponding to `GOOGLE_CLIENT_ID`. *(Note: If `VITE_GOOGLE_CLIENT_ID` is left empty in `.env.example`, the Google Single Sign-On button will automatically be hidden).*
+* `secrets_example/mail_password.txt.example`: Store the 16-character Gmail App Password for `MAIL_USERNAME` specified in `.env.example`.
+* `secrets_example/google_client_secret.txt.example`: Store the OAuth 2.0 client secret corresponding to `GOOGLE_CLIENT_ID`. *(Note: If `VITE_GOOGLE_CLIENT_ID` is left empty in `.env.example`, the Google Single Sign-On button will automatically be hidden).*
 
 ---
 
