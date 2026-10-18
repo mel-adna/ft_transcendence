@@ -61,13 +61,35 @@ fi
 
 echo -e "${BLUE}🔑 Generating 2048-bit secure RSA private key and self-signed certificate...${NC}"
 
+# Temporary OpenSSL config for cross-platform compatibility (macOS LibreSSL & Linux OpenSSL)
+TMP_CONFIG=$(mktemp)
+cat <<EOF > "$TMP_CONFIG"
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+C = MA
+L = Tetouan
+O = 42Network
+OU = 1337CodingSchool
+CN = localhost
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+EOF
 
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout "$KEY_FILE" \
   -out "$CRT_FILE" \
-  -subj "/C=MA/L=Tetouan/O=42Network/OU=1337CodingSchool/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
+  -config "$TMP_CONFIG" 2>/dev/null
 
+rm -f "$TMP_CONFIG"
 
 chmod 600 "$KEY_FILE"
 chmod 644 "$CRT_FILE"
