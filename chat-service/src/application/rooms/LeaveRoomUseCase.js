@@ -1,18 +1,7 @@
 const Room = require('../../domain/rooms/Room');
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 
-/**
- * LeaveRoomUseCase
- * Removes membership, leaves socket room, emits room:left.
- */
 class LeaveRoomUseCase {
-  /**
-   * @param {object} params
-   * @param {string} params.userId
-   * @param {string} params.roomId
-   * @param {import('socket.io').Socket} [params.socket]
-   * @returns {Promise<{ roomId: string }>}
-   */
   async execute({ userId, roomId, socket = null }) {
     const room = await RoomRepository.findById(roomId);
     if (!room) throw new Error('ROOM_NOT_FOUND');

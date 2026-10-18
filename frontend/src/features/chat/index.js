@@ -1,4 +1,3 @@
-// Hooks
 export { useSocket } from './hooks/useSocket';
 export { useSocketEvent } from './hooks/useSocketEvent';
 export { useChat } from './hooks/useChat';
@@ -6,7 +5,6 @@ export { usePresence } from './hooks/usePresence';
 export { useRooms } from './hooks/useRooms';
 export { useRoomPresence } from './hooks/useRoomPresence';
 
-// Components
 export { ChatRoom } from './components/ChatRoom';
 export { ChatLayout } from './components/ChatLayout';
 export { MessageList } from './components/MessageList';
@@ -18,8 +16,7 @@ export { PresenceIndicator } from './components/PresenceIndicator';
 export { UserSearchSelect } from './components/UserSearchSelect';
 export { InviteMembersModal } from './components/InviteMembersModal';
 
-// Services
 export { chatApi } from './services/chatApi';
 
-// Context
-export { SocketProvider, useSocketContext } from './context/SocketContext';
+export { SocketProvider } from './context/SocketContext';
+export { useSocketContext } from './context/useSocketContext';

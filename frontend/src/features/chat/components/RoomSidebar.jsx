@@ -1,21 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Hash, MessageCircle } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 import { UserSearchSelect } from './UserSearchSelect';
 import { DMRequestsPanel } from './DMRequestsPanel';
 
-/**
- * CreateRoomModal
- * Create a GROUP channel or DIRECT message.
- *
- * @param {{
- *   open: boolean,
- *   onClose: () => void,
- *   onCreated: (room: object) => void,
- *   createGroup: (name: string) => Promise<object>,
- *   createDM: (targetUserId: string) => Promise<object>,
- * }} props
- */
 export function CreateRoomModal({ open, onClose, onCreated, createGroup, createDM }) {
   const [tab, setTab] = useState('group');
   const [name, setName] = useState('');
@@ -26,12 +14,15 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!open) return;
-    setError(null);
-    chatApi
-      .listUsers()
-      .then(({ users: fetched }) => setUsers(fetched))
-      .catch((err) => setError(err.message));
+    function load() {
+      if (!open) return;
+      setError(null);
+      chatApi
+        .listUsers()
+        .then(({ users: fetched }) => setUsers(fetched))
+        .catch((err) => setError(err.message));
+    }
+    load();
   }, [open]);
 
   if (!open) return null;
@@ -140,10 +131,6 @@ export function CreateRoomModal({ open, onClose, onCreated, createGroup, createD
   );
 }
 
-/**
- * RoomSidebar
- * Room list with create button.
- */
 export function RoomSidebar({
   rooms,
   selectedRoomId,

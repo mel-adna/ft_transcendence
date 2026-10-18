@@ -6,9 +6,6 @@ const STATUS_MAP = {
 };
 
 const presenceController = {
-  /**
-   * GET /api/chat/rooms/:roomId/presence
-   */
   async getRoomPresence(req, res) {
     try {
       const { roomId } = req.params;

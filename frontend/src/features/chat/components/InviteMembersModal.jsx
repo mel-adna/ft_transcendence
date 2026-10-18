@@ -1,19 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { UserPlus } from 'lucide-react';
 import { UserSearchSelect } from './UserSearchSelect';
 
-/**
- * InviteMembersModal
- * Invite users to an EXISTING group channel via the shared search UI.
- *
- * @param {{
- *   open: boolean,
- *   roomId: string,
- *   roomName?: string,
- *   onClose: () => void,
- *   onInvite: (userIds: string[]) => Promise<void>,
- * }} props
- */
 export function InviteMembersModal({ open, roomId, roomName, onClose, onInvite }) {
   const [invitees, setInvitees] = useState([]);
   const [loading, setLoading] = useState(false);

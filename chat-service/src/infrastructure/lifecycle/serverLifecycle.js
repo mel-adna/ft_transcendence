@@ -1,10 +1,6 @@
 const prisma = require('../database/prismaClient');
 const SyncStalePresenceUseCase = require('../../application/presence/SyncStalePresenceUseCase');
 
-/**
- * Periodic stale presence cleanup (Phase 6)
- * @param {number} intervalMs
- */
 function startPresenceCleanup(intervalMs = 5 * 60 * 1000) {
   const run = async () => {
     try {
@@ -21,13 +17,6 @@ function startPresenceCleanup(intervalMs = 5 * 60 * 1000) {
   return setInterval(run, intervalMs);
 }
 
-/**
- * Graceful shutdown for HTTP server, Socket.io, Redis, and Prisma
- * @param {import('http').Server} server
- * @param {import('./infrastructure/socket/SocketServer')} socketServer
- * @param {NodeJS.Timeout|null} cleanupTimer
- * @param {{ stop: () => Promise<void> }} [notificationSubscriber]
- */
 async function gracefulShutdown(server, socketServer, cleanupTimer = null, notificationSubscriber = null) {
   console.log('[Server] Graceful shutdown initiated…');
 

@@ -12,10 +12,6 @@ const STATUS_MAP = {
   ROOM_NOT_FOUND: 404,
 };
 
-/**
- * chatController (Interface Layer)
- * REST endpoints for chat messages.
- */
 const chatController = {
   async getHistory(req, res) {
     try {

@@ -3,12 +3,6 @@ import { useSocket } from './useSocket';
 import { useSocketEvent } from './useSocketEvent';
 import { chatApi } from '../services/chatApi';
 
-/**
- * useRoomPresence
- * Subscribes to room presence via socket + REST bootstrap.
- *
- * @param {string | null} roomId
- */
 export function useRoomPresence(roomId) {
   const { socket, connected } = useSocket();
   const [members, setMembers] = useState([]);
@@ -24,11 +18,14 @@ export function useRoomPresence(roomId) {
   }, [roomId]);
 
   useEffect(() => {
-    if (!roomId) {
-      setMembers([]);
-      return;
+    function sync() {
+      if (!roomId) {
+        setMembers([]);
+        return;
+      }
+      refresh();
     }
-    refresh();
+    sync();
   }, [roomId, refresh]);
 
   useEffect(() => {
@@ -73,7 +70,6 @@ export function useRoomPresence(roomId) {
     !!roomId,
   );
 
-  // A member left the room — drop them locally (and refresh for accuracy).
   useSocketEvent(
     'room:member_left',
     useCallback(
@@ -86,7 +82,6 @@ export function useRoomPresence(roomId) {
     !!roomId,
   );
 
-  // A member joined (e.g. invited) — pull the fresh roster.
   useSocketEvent(
     'room:joined',
     useCallback(

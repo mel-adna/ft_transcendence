@@ -1,6 +1,3 @@
-/**
- * Socket.io server configuration
- */
 module.exports = {
   cors: {
     origin: process.env.CLIENT_URL ?? 'http://localhost:5173',
@@ -15,6 +12,5 @@ module.exports = {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true,
   },
-  /** Max concurrent connections per server instance */
   maxConnections: parseInt(process.env.SOCKET_MAX_CONNECTIONS ?? '1000', 10),
 };

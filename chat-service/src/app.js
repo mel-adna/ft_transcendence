@@ -1,7 +1,3 @@
-// ==========================================
-// Team-Pulse Dashboard Backend Core Server
-// ==========================================
-
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const express = require('express');
@@ -37,8 +33,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(httpMetricsMiddleware);
 
-app.use('/api/chat', chatApiLimiter, chatRoutes);
-app.use('/api/chat', chatApiLimiter, roomRoutes);
+app.use('/api/chat', chatApiLimiter);
+app.use('/api/chat', chatRoutes);
+app.use('/api/chat', roomRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -48,9 +45,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Prometheus scrape target, no auth (same as the Java backend's actuator
-// endpoint and the postgres/nginx exporters). Not proxied by nginx, so only
-// reachable inside the Docker network.
 app.get('/metrics', async (req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
@@ -86,5 +80,9 @@ const shutdown = () => gracefulShutdown(server, socketServer, presenceCleanupTim
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason);
+});
 
 module.exports = { app, server };

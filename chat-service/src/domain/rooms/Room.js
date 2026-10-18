@@ -1,9 +1,5 @@
 const RoomService = require('./RoomService');
 
-/**
- * Room (Domain Entity)
- * Pure value object — no DB dependency.
- */
 class Room {
   static MAX_NAME_LENGTH = 100;
 
@@ -12,22 +8,11 @@ class Room {
     DIRECT: 'DIRECT',
   });
 
-  /**
-   * @param {object} props
-   * @param {string|null} props.name
-   * @param {string} props.type - 'GROUP' | 'DIRECT'
-   */
   constructor({ name, type }) {
     this.name = name;
     this.type = type;
   }
 
-  /**
-   * Factory with validation
-   * @param {string|null|undefined} name
-   * @param {string} type
-   * @returns {Room}
-   */
   static create(name, type) {
     if (!RoomService.isValidType(type)) {
       throw new Error('ROOM_INVALID_TYPE');

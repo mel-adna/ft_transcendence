@@ -1,15 +1,7 @@
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const RoomService = require('../../domain/rooms/RoomService');
 
-/**
- * ListPendingDMRequestsUseCase
- * DM requests sent to this user that they haven't accepted or rejected yet.
- */
 class ListPendingDMRequestsUseCase {
-  /**
-   * @param {string} userId
-   * @returns {Promise<object[]>}
-   */
   async execute(userId) {
     const rooms = await RoomRepository.findPendingDMRequestsFor(userId);
     return rooms.map((room) => {

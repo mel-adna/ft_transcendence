@@ -2,19 +2,7 @@ const ReadReceiptRepository = require('../../infrastructure/repositories/ReadRec
 const RoomRepository = require('../../infrastructure/repositories/RoomRepository');
 const MessageRepository = require('../../infrastructure/repositories/MessageRepository');
 
-/**
- * MarkAsReadUseCase
- * Records the last message a user has read in a room and returns a
- * broadcast-ready payload for the `message:read` event.
- */
 class MarkAsReadUseCase {
-  /**
-   * @param {object} params
-   * @param {string} params.userId
-   * @param {string} params.roomId
-   * @param {string|null} [params.lastReadMessageId]
-   * @returns {Promise<{ roomId: string, userId: string, lastReadMessageId: string|null, readAt: string }>}
-   */
   async execute({ userId, roomId, lastReadMessageId = null }) {
     if (!roomId) throw new Error('ROOM_ID_REQUIRED');
 

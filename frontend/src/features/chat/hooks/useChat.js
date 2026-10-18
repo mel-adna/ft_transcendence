@@ -4,34 +4,20 @@ import { useSocketEvent } from './useSocketEvent';
 
 const HISTORY_API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5005/api';
 
-/**
- * useChat
- * Manages message state, send/edit/delete, optimistic updates, and history
- * for a single room.
- *
- * @param {string | null} roomId
- * @param {string} currentUserId - id of the logged-in user (for optimistic attribution)
- * @returns {{
- *   messages: object[],
- *   isLoading: boolean,
- *   hasMore: boolean,
- *   sendMessage: (content: string, opts?: { type?: string, parentId?: string }) => void,
- *   retryMessage: (tempId: string) => void,
- *   discardMessage: (tempId: string) => void,
- *   loadMore: () => void,
- * }}
- */
 export function useChat(roomId, currentUserId) {
   const { socket, connected } = useSocket();
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const cursorRef = useRef(null);
+  const loadingRef = useRef(false);
+  const requestRef = useRef(0);
 
-  // ─── FETCH HISTORY (REST) ─────────────────────────────────────────────────
   const fetchHistory = useCallback(
     async (cursor = null, replace = false) => {
-      if (!roomId || isLoading) return;
+      if (!roomId || (loadingRef.current && !replace)) return;
+      const requestId = ++requestRef.current;
+      loadingRef.current = true;
       setIsLoading(true);
       try {
         const params = new URLSearchParams({ limit: '50' });
@@ -49,6 +35,7 @@ export function useChat(roomId, currentUserId) {
         if (!res.ok) throw new Error(`History fetch failed: ${res.status}`);
 
         const { messages: fetched, nextCursor } = await res.json();
+        if (requestId !== requestRef.current) return;
         cursorRef.current = nextCursor;
         setHasMore(!!nextCursor);
 
@@ -58,20 +45,25 @@ export function useChat(roomId, currentUserId) {
       } catch {
         // ignore, isLoading already reflects the failure
       } finally {
-        setIsLoading(false);
+        if (requestId === requestRef.current) {
+          loadingRef.current = false;
+          setIsLoading(false);
+        }
       }
     },
     [roomId],
   );
 
-  // Load history when roomId changes
   useEffect(() => {
-    if (!roomId) return;
-    cursorRef.current = null;
-    setMessages([]);
-    setHasMore(true);
-    fetchHistory(null, true);
-  }, [roomId]);
+    function load() {
+      if (!roomId) return;
+      cursorRef.current = null;
+      setMessages([]);
+      setHasMore(true);
+      fetchHistory(null, true);
+    }
+    load();
+  }, [roomId, fetchHistory]);
 
   const loadMore = useCallback(() => {
     if (hasMore && !isLoading && cursorRef.current) {
@@ -79,15 +71,11 @@ export function useChat(roomId, currentUserId) {
     }
   }, [hasMore, isLoading, fetchHistory]);
 
-  // ─── REALTIME EVENTS ──────────────────────────────────────────────────────
   useSocketEvent(
     'message:new',
     useCallback(
       (msg) => {
         if (msg.roomId !== roomId) return;
-        // The server excludes the sender from this broadcast, so our own
-        // messages never arrive here (they're handled optimistically on send).
-        // Guard against duplicate ids from reconnect replays / StrictMode.
         setMessages((prev) =>
           prev.some((m) => m.id === msg.id) ? prev : [...prev, msg],
         );
@@ -123,9 +111,6 @@ export function useChat(roomId, currentUserId) {
     !!roomId,
   );
 
-  // ─── SEND ─────────────────────────────────────────────────────────────────
-  // Emits an already-optimistic message (identified by tempId) and reconciles
-  // the ack. Shared by sendMessage (first attempt) and retryMessage.
   const emitMessage = useCallback(
     (tempId, { content, type, parentId }) => {
       if (!socket || !connected) {
@@ -140,9 +125,8 @@ export function useChat(roomId, currentUserId) {
       socket.emit(
         'message:send',
         { roomId, content, type, parentId },
-        ({ ok, messageId, error }) => {
+        ({ ok, messageId }) => {
           if (ok) {
-            // Replace temp id with the real DB id so edit/delete target it.
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempId
@@ -151,8 +135,6 @@ export function useChat(roomId, currentUserId) {
               ),
             );
           } else {
-            // Keep the message visible and flag it so the user can retry.
-            console.error('[useChat] Send failed:', error);
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempId ? { ...m, _optimistic: false, _failed: true } : m,
@@ -170,7 +152,6 @@ export function useChat(roomId, currentUserId) {
       if (!roomId || !content.trim()) return;
       const trimmed = content.trim();
 
-      // Optimistic: immediate local append with a temp id.
       const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       const optimisticMsg = {
         id: tempId,
@@ -192,7 +173,6 @@ export function useChat(roomId, currentUserId) {
     [roomId, currentUserId, emitMessage],
   );
 
-  // ─── RETRY ────────────────────────────────────────────────────────────────
   const retryMessage = useCallback(
     (tempId) => {
       setMessages((prev) => {
@@ -204,7 +184,6 @@ export function useChat(roomId, currentUserId) {
             parentId: target.parentId,
           });
         }
-        // Flip back to "sending" state immediately for feedback.
         return prev.map((m) =>
           m.id === tempId ? { ...m, _optimistic: true, _failed: false } : m,
         );
@@ -213,14 +192,9 @@ export function useChat(roomId, currentUserId) {
     [emitMessage],
   );
 
-  // ─── DISCARD (drop a failed optimistic message) ─────────────────────────────
   const discardMessage = useCallback((tempId) => {
     setMessages((prev) => prev.filter((m) => m.id !== tempId));
   }, []);
-
-  // Inbound message:updated / message:deleted are still handled above so the
-  // list stays in sync if another client (or a moderator tool) changes a
-  // message — this UI just no longer exposes edit/delete actions itself.
 
   return {
     messages,

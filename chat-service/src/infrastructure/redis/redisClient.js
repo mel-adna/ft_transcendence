@@ -1,9 +1,5 @@
 const { createClient } = require('redis');
 
-/**
- * Redis client factory for Socket.io adapter.
- * Returns null when REDIS_URL is not configured (single-instance mode).
- */
 async function createRedisClients() {
   const url = process.env.REDIS_URL;
   if (!url) return null;

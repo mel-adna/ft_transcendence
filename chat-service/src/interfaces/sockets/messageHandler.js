@@ -5,32 +5,9 @@ const MarkAsReadUseCase = require('../../application/messaging/MarkAsReadUseCase
 const GetRoomReadReceiptsUseCase = require('../../application/messaging/GetRoomReadReceiptsUseCase');
 const { messagesSentCounter } = require('../../infrastructure/metrics/metrics');
 
-/**
- * messageHandler (Interface Layer)
- * Binds socket events to messaging use cases.
- * Zero business logic — input extraction + error handling only.
- *
- * Socket Events (inbound):
- *   message:send    { roomId, content, type?, parentId? }
- *   message:edit    { messageId, newContent }
- *   message:delete  { messageId }
- *   message:read    { roomId, lastReadMessageId? }
- *   read:sync       { roomId }                       (ack → { ok, receipts })
- *
- * Socket Events (outbound):
- *   message:new          → room broadcast
- *   message:updated      → room broadcast
- *   message:deleted      → room broadcast
- *   message:read         → room broadcast { roomId, userId, lastReadMessageId, readAt }
- *   message:error        → sender only
- *
- * @param {import('socket.io').Server} io
- * @param {import('socket.io').Socket} socket
- */
 function registerMessageHandlers(io, socket) {
   const userId = socket.user.id;
 
-  // ─── SEND ──────────────────────────────────────────────────────────────────
   socket.on('message:send', async (payload, ack) => {
     try {
       const { roomId, content, type, parentId } = payload ?? {};
@@ -43,13 +20,9 @@ function registerMessageHandlers(io, socket) {
         parentId,
       });
 
-      // Broadcast to the room EXCEPT the sender. The sender already renders
-      // this message via optimistic append and reconciles it from the ack
-      // below — echoing it back would render a duplicate on the sender side.
       socket.to(roomId).emit('message:new', result);
       messagesSentCounter.inc();
 
-      // Acknowledge sender with message id (for optimistic UI reconciliation)
       if (typeof ack === 'function') ack({ ok: true, messageId: result.id });
     } catch (err) {
       _emitError(socket, 'message:send', err);
@@ -57,7 +30,6 @@ function registerMessageHandlers(io, socket) {
     }
   });
 
-  // ─── EDIT ──────────────────────────────────────────────────────────────────
   socket.on('message:edit', async (payload, ack) => {
     try {
       const { messageId, newContent } = payload ?? {};
@@ -77,7 +49,6 @@ function registerMessageHandlers(io, socket) {
     }
   });
 
-  // ─── DELETE ────────────────────────────────────────────────────────────────
   socket.on('message:delete', async (payload, ack) => {
     try {
       const { messageId } = payload ?? {};
@@ -99,7 +70,6 @@ function registerMessageHandlers(io, socket) {
     }
   });
 
-  // ─── READ RECEIPT ────────────────────────────────────────────────────────
   socket.on('message:read', async (payload, ack) => {
     try {
       const { roomId, lastReadMessageId } = payload ?? {};
@@ -119,7 +89,6 @@ function registerMessageHandlers(io, socket) {
     }
   });
 
-  // ─── READ SYNC (bootstrap all members' read positions on room open) ────────
   socket.on('read:sync', async (payload, ack) => {
     try {
       const { roomId } = payload ?? {};

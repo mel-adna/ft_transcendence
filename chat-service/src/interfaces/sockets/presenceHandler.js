@@ -5,20 +5,6 @@ const PresenceService = require('../../domain/presence/PresenceService');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 const registry = require('../../infrastructure/socket/SocketRegistry');
 
-/**
- * presenceHandler (Interface Layer)
- *
- * Socket Events (inbound):
- *   presence:set         { status: 'ONLINE' | 'AWAY' }
- *   presence:heartbeat   (no payload)
- *   presence:subscribe   { roomId }
- *   presence:unsubscribe { roomId }
- *
- * Socket Events (outbound):
- *   presence:update    → room-mates: { userId, status, lastSeen }
- *   presence:snapshot  → subscriber: { roomId, members }
- *   presence:error     → sender only
- */
 function registerPresenceHandlers(io, socket) {
   const userId = socket.user.id;
 
@@ -28,11 +14,11 @@ function registerPresenceHandlers(io, socket) {
 
   _broadcastPresence(io, userId, PresenceStatus.ONLINE);
 
-  socket.on('presence:set', async ({ status } = {}) => {
+  socket.on('presence:set', async (payload) => {
     try {
-      const validated = PresenceService.validateStatusChange(status);
-      const payload = await UpdatePresenceUseCase.execute({ userId, status: validated });
-      await _broadcastPresence(io, userId, validated, payload.lastSeen);
+      const validated = PresenceService.validateStatusChange(payload?.status);
+      const result = await UpdatePresenceUseCase.execute({ userId, status: validated });
+      await _broadcastPresence(io, userId, validated, result.lastSeen);
     } catch (err) {
       socket.emit('presence:error', { code: err.message });
     }
@@ -50,9 +36,10 @@ function registerPresenceHandlers(io, socket) {
     }
   });
 
-  socket.on('presence:subscribe', async ({ roomId } = {}) => {
+  socket.on('presence:subscribe', async (payload) => {
     try {
-      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+      const roomId = payload?.roomId;
+      if (typeof roomId !== 'string' || !roomId) throw new Error('ROOM_ID_REQUIRED');
 
       const members = await GetRoomPresenceUseCase.execute({ roomId, requesterId: userId });
       socket.data.presenceRooms.add(roomId);
@@ -63,8 +50,9 @@ function registerPresenceHandlers(io, socket) {
     }
   });
 
-  socket.on('presence:unsubscribe', ({ roomId } = {}) => {
-    if (roomId) socket.data.presenceRooms.delete(roomId);
+  socket.on('presence:unsubscribe', (payload) => {
+    const roomId = payload?.roomId;
+    if (typeof roomId === 'string') socket.data.presenceRooms.delete(roomId);
   });
 
   socket.on('disconnect', async () => {

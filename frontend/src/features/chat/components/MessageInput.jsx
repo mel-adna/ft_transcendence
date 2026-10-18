@@ -1,17 +1,5 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 
-/**
- * MessageInput
- * Text input bar. Enter to send, Shift+Enter for newline.
- *
- * @param {{
- *   onSend: (content: string) => void,
- *   onTyping?: () => void,
- *   onStopTyping?: () => void,
- *   disabled?: boolean,
- *   placeholder?: string,
- * }} props
- */
 export function MessageInput({ onSend, onTyping, onStopTyping, disabled = false, placeholder = 'Message…' }) {
   const [value, setValue] = useState('');
   const textareaRef = useRef(null);

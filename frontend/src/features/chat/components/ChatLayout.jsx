@@ -1,18 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRooms } from '../hooks/useRooms';
 import { RoomSidebar, CreateRoomModal } from './RoomSidebar';
 import { ChatRoom } from './ChatRoom';
 
-/**
- * ChatLayout
- * Full chat experience: room sidebar + active room + members panel.
- *
- * Responsive: on screens < md it behaves as a master-detail view — the room
- * list and the open conversation are shown one at a time, with a back button.
- * On md+ both are shown side by side.
- *
- * @param {{ currentUserId: string }} props
- */
 export function ChatLayout({ currentUserId }) {
   const {
     rooms,
@@ -28,22 +18,16 @@ export function ChatLayout({ currentUserId }) {
   } = useRooms(currentUserId);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
-  // Mobile master-detail: which pane is showing.
-  const [mobileView, setMobileView] = useState('list'); // 'list' | 'room'
+  const [mobileView, setMobileView] = useState('list');
 
-  // Resolve the active room from the live list so its members/roles stay fresh
-  // (and so a deleted room falls back to the first available one).
   const roomList = rooms ?? [];
   const activeRoom =
     roomList.find((r) => r.id === selectedRoomId) ?? roomList[0] ?? null;
 
-  // Tell useRooms which room is in view so its messages don't count as unread
-  // and its badge clears on open.
   useEffect(() => {
     setActiveRoom(activeRoom?.id ?? null);
   }, [activeRoom?.id, setActiveRoom]);
 
-  // Prefer the server-computed myRole; fall back to scanning members.
   const isOwner =
     activeRoom?.type === 'GROUP' &&
     (activeRoom.myRole === 'OWNER' ||
@@ -53,9 +37,6 @@ export function ChatLayout({ currentUserId }) {
 
   const canLeave = activeRoom?.type === 'GROUP' && !isOwner;
 
-  // The requester's own membership is ACCEPTED right away, but the other
-  // side can't see the room until they respond, so this stops messages
-  // getting sent into a conversation nobody's on the other end of yet.
   const isPendingDM =
     activeRoom?.type === 'DIRECT' &&
     activeRoom.members?.some((m) => m.userId !== currentUserId && m.status === 'PENDING');
@@ -86,7 +67,6 @@ export function ChatLayout({ currentUserId }) {
 
   return (
     <div className="flex h-full min-h-0 rounded-xl border border-[#71717A]/25 overflow-hidden bg-[#0c0c14]">
-      {/* Sidebar: always on md+, only in 'list' view on mobile */}
       <div
         className={`${
           mobileView === 'list' ? 'flex' : 'hidden'
@@ -104,7 +84,6 @@ export function ChatLayout({ currentUserId }) {
         />
       </div>
 
-      {/* Conversation: always on md+, only in 'room' view on mobile */}
       <div
         className={`${
           mobileView === 'room' ? 'flex' : 'hidden'

@@ -2,32 +2,11 @@ const { createClient } = require('redis');
 const socketServer = require('../socket/SocketServer');
 const UserRepository = require('../repositories/UserRepository');
 
-/**
- * NotificationSubscriber
- *
- * Subscribes to the Java backend's cross-service event channel
- * (RedisEventPublisherService / app.redis.channel, default
- * "teampulse-realtime-events") and relays each event to the recipient's
- * live socket as `notification:new`. Every logged-in user already holds a
- * socket to this service, so it doubles as the delivery pipe for events
- * the Java side has no WebSocket of its own to push — same idea as
- * notifyController's data:changed relay, but for the WORKSPACE/TASK/SYSTEM
- * notification stream instead of "refetch this resource".
- *
- * This is read-only relay: no state is kept here. The Java backend remains
- * the source of truth (NotificationController's REST endpoints) for anyone
- * who wasn't online when the event fired.
- */
 class NotificationSubscriber {
   constructor() {
-    /** @type {import('redis').RedisClientType | null} */
     this._client = null;
   }
 
-  /**
-   * @returns {Promise<void>} no-op when REDIS_URL isn't configured, same
-   *   single-instance fallback as the Socket.io Redis adapter.
-   */
   async start() {
     const url = process.env.REDIS_URL;
     if (!url) {
@@ -48,9 +27,6 @@ class NotificationSubscriber {
     console.log(`[NotificationSubscriber] Subscribed to "${channel}"`);
   }
 
-  /**
-   * @param {string} rawMessage - JSON-encoded UnifiedEvent from RedisEventPublisherService
-   */
   _handleMessage(rawMessage) {
     let event;
     try {
@@ -60,7 +36,6 @@ class NotificationSubscriber {
       return;
     }
 
-    // account deleted on the java side: not a notification, it's a sync
     if (event.type === 'USER' && event.action === 'DELETED') {
       this._handleUserDeleted(event);
       return;
@@ -68,16 +43,12 @@ class NotificationSubscriber {
 
     const recipientId = event.recipientId;
     if (!recipientId) {
-      // SYSTEM/broadcast-style events with no single recipient aren't routed
-      // here yet — nothing in the current schema needs it.
       return;
     }
 
     socketServer.emitToUser(String(recipientId), 'notification:new', event);
   }
 
-  // free the email so it can sign up again, and drop any open sockets,
-  // since the handshake was the only auth check they ever had
   async _handleUserDeleted(event) {
     const userId = event.payload?.userId ?? event.entityId;
     if (!userId) return;

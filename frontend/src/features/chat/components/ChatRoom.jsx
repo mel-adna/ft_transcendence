@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useChat } from '../hooks/useChat';
 import { useSocket } from '../hooks/useSocket';
 import { useRoomPresence } from '../hooks/useRoomPresence';
@@ -12,10 +12,6 @@ import { InviteMembersModal } from './InviteMembersModal';
 import { Search, Trash2, LogOut, MoreVertical, ArrowLeft, Users } from 'lucide-react';
 import { chatApi } from '../services/chatApi';
 
-/**
- * ChatRoom
- * Full-feature room view with optional members panel and search.
- */
 export function ChatRoom({
   roomId,
   currentUserId,
@@ -46,8 +42,6 @@ export function ChatRoom({
   const { typingUsers, notifyTyping, stopTyping } = useTyping(roomId);
   const { isReadByOthers } = useReadReceipts(roomId, currentUserId, messages, connected);
 
-  // Show a read/sent indicator only on the most recent message *I* sent, like
-  // iMessage/WhatsApp — avoids cluttering every bubble.
   const lastOwnMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].sender?.id === currentUserId) return messages[i].id;
@@ -67,10 +61,11 @@ export function ChatRoom({
   const [searching, setSearching] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [membersOpen, setMembersOpen] = useState(false); // mobile drawer
-  // null | 'delete' | 'leave'
+  const [membersOpen, setMembersOpen] = useState(false);
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [searchError, setSearchError] = useState(null);
 
   const canInvite = showMembers && roomType === 'GROUP';
   const hasMenuActions = canDelete || canLeave;
@@ -79,13 +74,12 @@ export function ChatRoom({
     const action = confirm === 'delete' ? onDeleteRoom : onLeaveRoom;
     if (!action) return;
     setBusy(true);
+    setActionError(null);
     try {
       await action();
-      // On success the room unmounts — no state reset needed.
     } catch (err) {
-      console.error(`[ChatRoom] ${confirm} failed:`, err.message);
       setBusy(false);
-      setConfirm(null);
+      setActionError(err.message || `Could not ${confirm} the room`);
     }
   };
 
@@ -106,11 +100,12 @@ export function ChatRoom({
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setSearching(true);
+    setSearchError(null);
     try {
       const { messages: results } = await chatApi.searchMessages(roomId, searchQuery.trim());
       setSearchResults(results);
     } catch (err) {
-      console.error('[ChatRoom] search error:', err.message);
+      setSearchError(err.message || 'Search failed');
     } finally {
       setSearching(false);
     }
@@ -123,7 +118,6 @@ export function ChatRoom({
     <div className="flex h-full min-h-0">
       <div className="flex flex-col flex-1 min-w-0 bg-[#0c0c14] text-slate-100">
         <div className="px-3 sm:px-4 py-3 border-b border-[#71717A]/25 flex items-center gap-1.5 shrink-0">
-          {/* Mobile back button */}
           {onBack && (
             <button
               onClick={onBack}
@@ -136,7 +130,6 @@ export function ChatRoom({
 
           <span className="font-bold text-sm flex-1 truncate">{roomName ?? roomId}</span>
 
-          {/* Connection dot — compact on mobile, labelled pill on sm+ */}
           <span
             className={`shrink-0 w-2 h-2 rounded-full sm:hidden ${
               connected ? 'bg-emerald-400' : 'bg-red-400'
@@ -156,7 +149,6 @@ export function ChatRoom({
             <Search size={14} />
           </button>
 
-          {/* Mobile members toggle */}
           {showMembers && (
             <button
               onClick={() => setMembersOpen(true)}
@@ -167,7 +159,6 @@ export function ChatRoom({
             </button>
           )}
 
-          {/* Overflow menu: delete / leave */}
           {hasMenuActions && (
             <div className="relative">
               <button
@@ -179,7 +170,6 @@ export function ChatRoom({
               </button>
               {menuOpen && (
                 <>
-                  {/* click-away backdrop */}
                   <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                   <div className="absolute right-0 mt-1 z-20 w-40 rounded-lg border border-[#71717A]/25 bg-[#181824] shadow-xl py-1">
                     {canLeave && (
@@ -229,6 +219,7 @@ export function ChatRoom({
               ) : (
                 <>Leave <strong>{roomName}</strong>? You'll need to be re-invited to rejoin.</>
               )}
+              {actionError && <span className="block mt-1 text-red-400">{actionError}</span>}
             </span>
             <div className="flex items-center gap-2 ml-auto">
               <button
@@ -241,7 +232,7 @@ export function ChatRoom({
                 {busy ? 'Working…' : confirm === 'delete' ? 'Delete' : 'Leave'}
               </button>
               <button
-                onClick={() => setConfirm(null)}
+                onClick={() => { setConfirm(null); setActionError(null); }}
                 disabled={busy}
                 className="rounded-lg px-3 py-1.5 text-xs font-semibold text-[#71717A] hover:text-white cursor-pointer"
               >
@@ -261,6 +252,9 @@ export function ChatRoom({
             />
             {searching && (
               <p className="text-[10px] text-[#71717A] mt-1">Searching…</p>
+            )}
+            {searchError && !searching && (
+              <p className="text-[10px] text-red-400 mt-1">{searchError}</p>
             )}
             {searchResults.length > 0 && (
               <p className="text-[10px] text-[#71717A] mt-1">
@@ -301,7 +295,6 @@ export function ChatRoom({
         )}
       </div>
 
-      {/* Desktop members panel */}
       {showMembers && (
         <aside className="w-48 shrink-0 border-l border-[#71717A]/25 bg-[#0e0e17] hidden md:flex flex-col">
           <MemberList
@@ -313,7 +306,6 @@ export function ChatRoom({
         </aside>
       )}
 
-      {/* Mobile members drawer */}
       {showMembers && membersOpen && (
         <div className="md:hidden fixed inset-0 z-40 flex">
           <div className="flex-1 bg-black/50" onClick={() => setMembersOpen(false)} />

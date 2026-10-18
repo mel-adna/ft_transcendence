@@ -1,7 +1,5 @@
 const client = require('prom-client');
 
-// Prometheus registry for chat-service: default Node process metrics
-// (event loop lag, heap, GC, CPU) plus connection/message/DM counters below.
 const register = new client.Registry();
 register.setDefaultLabels({ service: 'chat-service' });
 client.collectDefaultMetrics({ register });
@@ -42,7 +40,14 @@ const socketAuthFailuresCounter = new client.Counter({
 const dmRequestsCounter = new client.Counter({
   name: 'chat_dm_requests_total',
   help: 'DM requests, by outcome',
-  labelNames: ['outcome'], // sent | accepted | rejected
+  labelNames: ['outcome'],
+  registers: [register],
+});
+
+const socketRateLimitedCounter = new client.Counter({
+  name: 'chat_socket_rate_limited_total',
+  help: 'Socket events dropped by the per-user rate limit, by event',
+  labelNames: ['event'],
   registers: [register],
 });
 
@@ -52,9 +57,6 @@ const redisConnectedGauge = new client.Gauge({
   registers: [register],
 });
 
-// Records request duration/count per response. Uses req.route.path when set
-// so the route label stays a pattern like "/rooms/:roomId" instead of one
-// label per real room id; falls back to the raw path for unmatched (404) routes.
 function httpMetricsMiddleware(req, res, next) {
   const start = process.hrtime.bigint();
   res.on('finish', () => {
@@ -78,5 +80,6 @@ module.exports = {
   messagesSentCounter,
   socketAuthFailuresCounter,
   dmRequestsCounter,
+  socketRateLimitedCounter,
   redisConnectedGauge,
 };

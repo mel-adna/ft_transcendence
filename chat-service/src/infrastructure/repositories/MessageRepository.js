@@ -20,15 +20,7 @@ const MESSAGE_SELECT = {
   },
 };
 
-/**
- * MessageRepository
- * Isolates all Prisma message operations.
- */
 const MessageRepository = {
-  /**
-   * @param {object} data - { senderId, roomId, content, type, parentId }
-   * @returns {Promise<object>}
-   */
   async create(data) {
     return prisma.message.create({
       data: {
@@ -42,12 +34,6 @@ const MessageRepository = {
     });
   },
 
-  /**
-   * Cursor-based pagination, newest-first
-   * @param {string} roomId
-   * @param {{ cursor?: string, limit?: number }} options
-   * @returns {Promise<{ messages: object[], nextCursor: string|null }>}
-   */
   async findByRoom(roomId, { cursor, limit = 50 } = {}) {
     const take = Math.min(limit, 100);
 
@@ -72,11 +58,6 @@ const MessageRepository = {
     };
   },
 
-  /**
-   * Thread replies for a parent message
-   * @param {string} parentId
-   * @param {{ limit?: number }} [options]
-   */
   async findByThread(parentId, { limit = 50 } = {}) {
     const take = Math.min(limit, 100);
     return prisma.message.findMany({
@@ -90,12 +71,6 @@ const MessageRepository = {
     });
   },
 
-  /**
-   * Full-text search within a room (case-insensitive)
-   * @param {string} roomId
-   * @param {string} query
-   * @param {number} [limit=20]
-   */
   async search(roomId, query, limit = 20) {
     const take = Math.min(limit, 50);
     const trimmed = query.trim();
@@ -113,10 +88,6 @@ const MessageRepository = {
     });
   },
 
-  /**
-   * @param {string} id
-   * @returns {Promise<object|null>}
-   */
   async findById(id) {
     return prisma.message.findUnique({
       where: { id },
@@ -124,11 +95,6 @@ const MessageRepository = {
     });
   },
 
-  /**
-   * @param {string} id
-   * @param {string} content
-   * @returns {Promise<object>}
-   */
   async updateContent(id, content) {
     return prisma.message.update({
       where: { id },
@@ -137,10 +103,6 @@ const MessageRepository = {
     });
   },
 
-  /**
-   * Soft delete
-   * @param {string} id
-   */
   async softDelete(id) {
     await prisma.message.update({
       where: { id },
@@ -148,10 +110,6 @@ const MessageRepository = {
     });
   },
 
-  /**
-   * Count replies for a parent message
-   * @param {string} parentId
-   */
   async countReplies(parentId) {
     return prisma.message.count({
       where: { parentId, deletedAt: null },

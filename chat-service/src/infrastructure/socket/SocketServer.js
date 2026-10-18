@@ -9,6 +9,7 @@ const registerMessageHandlers = require('../../interfaces/sockets/messageHandler
 const registerPresenceHandlers = require('../../interfaces/sockets/presenceHandler');
 const registerRoomHandlers = require('../../interfaces/sockets/roomHandler');
 const registerTypingHandlers = require('../../interfaces/sockets/typingHandler');
+const applySocketRateLimit = require('../../interfaces/sockets/socketRateLimit');
 const {
   socketConnectionsGauge,
   onlineUsersGauge,
@@ -16,23 +17,13 @@ const {
   redisConnectedGauge,
 } = require('../metrics/metrics');
 
-/**
- * SocketServer
- * Bootstraps Socket.io, optional Redis adapter, auth, and handlers.
- */
 class SocketServer {
   constructor() {
-    /** @type {import('socket.io').Server | null} */
     this.io = null;
-    /** @type {{ pubClient: import('redis').RedisClientType, subClient: import('redis').RedisClientType } | null} */
     this._redis = null;
     this._connectionCount = 0;
   }
 
-  /**
-   * @param {import('http').Server} httpServer
-   * @returns {Promise<import('socket.io').Server>}
-   */
   async init(httpServer) {
     const { maxConnections, ...ioOptions } = socketConfig;
 
@@ -71,7 +62,6 @@ class SocketServer {
         socket.user = user;
         next();
       } catch (err) {
-        // don't send db errors to the client, or into a metric label
         const reason = err.message?.startsWith('AUTH_') ? err.message : 'INTERNAL_ERROR';
         console.warn(`[SocketServer] Auth rejected: ${err.message} | socketId=${socket.id}`);
         socketAuthFailuresCounter.inc({ reason });
@@ -93,6 +83,7 @@ class SocketServer {
         `[SocketServer] Connected: userId=${userId} socketId=${socket.id} | online=${stats.totalSockets}`,
       );
 
+      applySocketRateLimit(socket);
       registerChatHandlers(this.io, socket);
       registerMessageHandlers(this.io, socket);
       registerPresenceHandlers(this.io, socket);
@@ -130,14 +121,6 @@ class SocketServer {
     }
   }
 
-  /**
-   * Add all of a user's live sockets to a room so they receive its events
-   * immediately (e.g. after being invited). No-op if the user is offline —
-   * their sockets auto-join on next connect via chatSocket. Cluster-safe via
-   * the Redis adapter's socketsJoin.
-   * @param {string} userId
-   * @param {string} roomId
-   */
   joinUserToRoom(userId, roomId) {
     if (!this.io) return;
     for (const socketId of registry.getSocketIds(userId)) {
@@ -145,13 +128,6 @@ class SocketServer {
     }
   }
 
-  /**
-   * Remove all of a user's live sockets from a room so they stop receiving its
-   * events immediately (e.g. after leaving). No-op if offline. Cluster-safe via
-   * the Redis adapter's socketsLeave.
-   * @param {string} userId
-   * @param {string} roomId
-   */
   leaveUserFromRoom(userId, roomId) {
     if (!this.io) return;
     for (const socketId of registry.getSocketIds(userId)) {

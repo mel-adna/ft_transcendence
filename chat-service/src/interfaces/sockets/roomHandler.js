@@ -1,29 +1,13 @@
 const JoinRoomUseCase = require('../../application/rooms/JoinRoomUseCase');
 const LeaveRoomUseCase = require('../../application/rooms/LeaveRoomUseCase');
 
-/**
- * roomHandler (Interface Layer)
- * Binds socket events to room use cases.
- *
- * Socket Events (inbound):
- *   room:join   { roomId }
- *   room:leave  { roomId }
- *
- * Socket Events (outbound):
- *   room:joined  → sender only (via JoinRoomUseCase)
- *   room:left    → sender only (via LeaveRoomUseCase)
- *   room:error   → sender only
- *
- * @param {import('socket.io').Server} io
- * @param {import('socket.io').Socket} socket
- */
 function registerRoomHandlers(io, socket) {
   const userId = socket.user.id;
 
   socket.on('room:join', async (payload, ack) => {
     try {
       const { roomId } = payload ?? {};
-      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+      if (!roomId || typeof roomId !== 'string') throw new Error('ROOM_ID_REQUIRED');
 
       const result = await JoinRoomUseCase.execute({ userId, roomId, socket });
 
@@ -37,7 +21,7 @@ function registerRoomHandlers(io, socket) {
   socket.on('room:leave', async (payload, ack) => {
     try {
       const { roomId } = payload ?? {};
-      if (!roomId) throw new Error('ROOM_ID_REQUIRED');
+      if (!roomId || typeof roomId !== 'string') throw new Error('ROOM_ID_REQUIRED');
 
       const result = await LeaveRoomUseCase.execute({ userId, roomId, socket });
 

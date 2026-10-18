@@ -5,19 +5,7 @@ const UserRepository = require('../../infrastructure/repositories/UserRepository
 
 const PRIVILEGED_ROLES = ['OWNER', 'ADMIN'];
 
-/**
- * InviteToRoomUseCase
- * An OWNER/ADMIN adds other users to a GROUP room.
- * DB-only — realtime side-effects (socket join + notify) are handled by the caller.
- */
 class InviteToRoomUseCase {
-  /**
-   * @param {object} params
-   * @param {string} params.roomId
-   * @param {string} params.inviterId
-   * @param {string[]} params.userIds
-   * @returns {Promise<{ room: object, invitedUserIds: string[] }>}
-   */
   async execute({ roomId, inviterId, userIds }) {
     if (!Array.isArray(userIds) || userIds.length === 0) {
       throw new Error('ROOM_INVITE_NO_USERS');
@@ -31,7 +19,6 @@ class InviteToRoomUseCase {
     if (!inviter) throw new Error('ROOM_NOT_MEMBER');
     if (!PRIVILEGED_ROLES.includes(inviter.role)) throw new Error('ROOM_INVITE_FORBIDDEN');
 
-    // Drop the inviter and anyone already in the room, then keep only real users.
     const existingIds = new Set(room.members.map((m) => m.userId));
     const candidateIds = [...new Set(userIds)].filter(
       (id) => id && id !== inviterId && !existingIds.has(id),
