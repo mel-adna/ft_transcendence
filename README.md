@@ -57,17 +57,17 @@ The Makefile will automatically generate the `secrets/` directory from secrets_e
 
 Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, MinIO, Nginx, Prometheus, Grafana) with a single command:
 
-- 1. Clone the repository
+- Clone the repository
 ```bash
   git clone https://github.com/mel-adna/ft_transcendence.git
 ```
 
-- 2. Enter the project directory
+- Enter the project directory
 ```bash
   cd ft_transcendence
 ```
 
-- 3. Build and launch all services
+- Build and launch all services
 ```bash
   make
 ```
