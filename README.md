@@ -116,7 +116,7 @@ All members used AI assistants as helpers: to explain concepts and error message
 | Member | Role(s) | Responsibilities |
 |---|---|---|
 | mdbentaleb | Technical Lead / Architect, Developer | The backend architecture and main technical choices. Builds the Spring Boot API, its security, the Docker secrets and the monitoring, and merges the branches into main. |
-| ouzouini | Developer | The database: the PostgreSQL schema, the JPA entities and repositories, and the activity log. |
+| ouzouini | Developer | Builds the data layer: the PostgreSQL database tables, the JPA models (entities), the enums, the DTOs and the custom exceptions. |
 | szemmour | Project Manager / Scrum Master, Developer | Tracks progress, module points and next tasks, reviews and merges pull requests, and sends each bug to its owner. Builds the frontend core. |
 | ayaarab | Developer | The real-time chat service and the live updates it relays. |
 | mel-adna | Product Owner, Developer | Keeps the project scope and priorities, and builds the analytics dashboards and the notification bell. |
