@@ -205,6 +205,7 @@ public class UserService {
 		}
 	}
 
+	@Transactional(noRollbackFor = UnauthorizedAccessException.class)
 	public AuthResponse refreshToken(RefreshTokenRequest request) {
 		String tokenStr = request.getRefreshToken();
 

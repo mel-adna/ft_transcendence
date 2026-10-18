@@ -85,7 +85,6 @@ public class SecurityConfig {
 
 								"/actuator/health",
 								"/actuator/prometheus",
-								"/actuator/**",
 
 								/*
 								 * Intentionally permitted in production:
