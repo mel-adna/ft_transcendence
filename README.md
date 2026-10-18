@@ -231,11 +231,11 @@ Why we chose each module, and how it works:
 
 ### ouzouini
 
-- The SQL schema: users, teams, members, tasks, invitations, notifications, activity logs, API keys and tokens.
-- The JPA entities, Spring Data repositories, DTOs, mappers, enums and exceptions.
-- The activity log service and controller behind Recent Activity, and the API key controller.
-- Removed the unused `task_comments` and `chat_messages` tables, and fixed the `Makefile` so a fresh clone builds.
-- Challenge: this branch re-created the entities and the schema alongside the backend's, so it could not be merged as it was. The two versions were reconciled for the 8 October merge.
+- Designed the PostgreSQL database schema: users, teams, members, tasks, invitations, notifications, activity logs, API keys and tokens.
+- Implemented the JPA entities that map each table to the application's domain model.
+- Defined the enumerations used by the entities, such as roles, task statuses and priorities.
+- Created the DTOs that carry data between the API and its clients.
+- Implemented the custom exceptions used for consistent error handling across the backend.
 
 ### szemmour
 
