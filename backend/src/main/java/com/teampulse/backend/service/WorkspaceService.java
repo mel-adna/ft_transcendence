@@ -95,8 +95,7 @@ public class WorkspaceService {
 	@Transactional(readOnly = true)
 	public List<WorkspaceResponse> getAllWorkSpaceForUser(String email) {
 		String cleanEmail = EmailUtils.normalize(email);
-
-//		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail);
+		
 		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail)
 				.stream()
 				.filter(ws -> !ws.isDeleted())
