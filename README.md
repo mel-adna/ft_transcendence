@@ -17,7 +17,9 @@ Key features:
 - GDPR tools: download everything stored about you, or delete your account.
 - A public API with API keys, and monitoring with Prometheus and Grafana.
 
-## 🛠️ Prerequisites
+## Instructions
+
+### 🛠️ Prerequisites
 
 Ensure your host system meets the following software requirements:
 
@@ -25,18 +27,20 @@ Ensure your host system meets the following software requirements:
 | :--- | :--- | :--- |
 | **Docker Engine** | `24.0.0+` | Containerization runtime |
 | **Docker Compose** | `v2.20.0+` | Multi-container orchestration |
-| **Java JDK** | `21` | Required for local backend development |
-| **Node.js** | `v20.0.0+` | Required for frontend & chat service development |
-| **GNU Make** | `4.0+` | Build automation utility |
+| **GNU Make** | `3.81+` | Build automation utility |
 | **OpenSSL** | `3.0+` | Automatic SSL certificate generation |
+| **Java JDK** | `21` | Only for local backend development |
+| **Node.js** | `v20.0.0+` | Only for local frontend and chat service development |
+
+Running the project needs only Docker, Docker Compose, make and OpenSSL: Java, Node.js and PostgreSQL run inside the containers. Ports 80 and 443 must be free.
 
 ---
 
-## 🔑 Environment Setup & Secrets Configuration
+### 🔑 Environment Setup & Secrets Configuration
 
-Before starting the application, set up your secrets and external authentication provider keys.
+Credentials stay in files that Git ignores: `.env` and the `secrets/` folder. Set them up before the first start.
 
-### 1. Generating a Gmail App Password
+#### 1. Generating a Gmail App Password
 Sign-up codes and system notifications are dispatched via SMTP:
 1. Go to your **[Google Account Security Settings](https://myaccount.google.com/security)**.
 2. Enable **2-Step Verification** if not already active.
@@ -44,16 +48,14 @@ Sign-up codes and system notifications are dispatched via SMTP:
 4. Create a new App Password (e.g., named `TeamPulse-Backend`).
 5. Copy the generated **16-character passcode** (without spaces).
 
-### 2. Configuring Secrets
-Populate the required credential files inside `secrets_example/`.
-The Makefile will automatically generate the `secrets/` directory from secrets_example/.
-
-* `secrets_example/mail_password.txt.example`: Store the 16-character Gmail App Password for `MAIL_USERNAME` specified in `.env.example`.
-* `secrets_example/google_client_secret.txt.example`: Store the OAuth 2.0 client secret corresponding to `GOOGLE_CLIENT_ID`. *(Note: If `VITE_GOOGLE_CLIENT_ID` is left empty in `.env.example`, the Google Single Sign-On button will automatically be hidden).*
+#### 2. Configuring Secrets
+1. Run `make env secrets`. It creates `.env` from `.env.example`, and the `secrets/` folder with a generated JWT secret and generated passwords for the database, Redis, MinIO and Grafana.
+2. `.env` comes with the team's `MAIL_USERNAME`, `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. Change them there to use your own Google account. If `VITE_GOOGLE_CLIENT_ID` is empty, the Google sign-in button is hidden.
+3. Put the 16-character App Password of `MAIL_USERNAME` in `secrets/mail_password.txt`, and the OAuth 2.0 client secret of `GOOGLE_CLIENT_ID` in `secrets/google_client_secret.txt`.
 
 ---
 
-## ⚡ Quick Start
+### ⚡ Quick Start
 
 Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, MinIO, Nginx, Prometheus, Grafana) with a single command:
 
@@ -72,25 +74,27 @@ Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, Mi
   make
 ```
 
-> **Note:** Executing `make` automatically runs `scripts/generate_certs.sh` to generate self-signed TLS certificates, creates required environment configurations from `.env.example`, generates secure random credentials (JWT secret, DB, Grafana admin, MinIO, and Redis passwords), and executes `docker compose up --build -d`.
+> **Note:** Executing `make` automatically runs `generate_certs.sh` to generate self-signed TLS certificates, creates required environment configurations from `.env.example`, generates secure random credentials (JWT secret, DB, Grafana admin, MinIO, and Redis passwords), and executes `docker compose up --build -d`. The frontend is built for production and served by nginx.
 
-### 🌐 Accessing Endpoints
+#### 🌐 Accessing Endpoints
 
 Once the stack is initialized:
 
 * **Web Application:** Access [https://localhost](https://localhost) *(accept the self-signed SSL certificate in your browser)*.
+* **API Documentation (Swagger):** Access [https://localhost/api/v1/swagger-ui/index.html](https://localhost/api/v1/swagger-ui/index.html)
 * **Grafana Monitoring:** Access [https://localhost/grafana](https://localhost/grafana)
 * **Username:** Value of `GRAFANA_ADMIN_USER` in `.env`.
 * **Password:** Stored in `secrets/grafana_admin_password.txt`.
 
 ---
 
-## 🛠️ Makefile Commands
+### 🛠️ Makefile Commands
 
 | Command | Description |
 | --- | --- |
 | `make` | Generates TLS certificates, creates configuration files, and starts all containers in detached mode. |
 | `make ps` | Displays the current running status of all containers in the stack. |
+| `make backend` | Rebuilds and restarts the backend container only. |
 | `make clean` | Stops all containers and removes active networks and volume data. |
 | `make fclean` | Complete wipe: Stops containers, deletes Docker images, `secrets/` directory, certificates, and `.env`. |
 | `make re` | Executes `make fclean` followed by `make` for a clean rebuild from scratch. |
@@ -129,7 +133,7 @@ All members used AI assistants as helpers: to explain concepts and error message
 
 ## Technical Stack
 
-- **Frontend:** React 19, React Router 7, Vite 8, Tailwind CSS 4, axios, socket.io-client, recharts and jsPDF. React Router makes a single-page app, and Tailwind 4 reads its colours from CSS variables, which the design system is built on.
+- **Frontend:** React 19, React Router 7, Vite 8, Tailwind CSS 4, axios, socket.io-client, recharts and jsPDF. React Router makes a single-page app, and Tailwind 4 reads its colours from CSS variables, which the design system is built on. Vite builds the app into static files, and nginx serves them.
 - **Backend:** Spring Boot 3.5 on Java 21, with Spring Security (JWT and Google sign-in), Spring Data JPA, Flyway, springdoc (Swagger) and Bucket4j. Spring brings security, validation, mail and metrics ready to use.
 - **Chat service:** Node.js 22 with Express, Socket.IO 4 and Prisma 6. Node handles many open connections well, and Socket.IO adds rooms and reconnection.
 - **Database:** PostgreSQL 15. The data is relational (users, teams, members, tasks), so foreign keys and transactions matter, and both JPA and Prisma support it. The chat service keeps its tables in its own `chat` schema on the same server.
@@ -244,6 +248,7 @@ Why we chose each module, and how it works:
 - `lib/api.js` (the token on every request, renewed before it expires), the live updates (`lib/realtimeNotify.js`, `useDataChanged`), and the CSV task import and export.
 - Modules: the design system and the browser support, and the frontend half of Frameworks, Organization system, OAuth, Public API, GDPR and collaboration.
 - Team work: reviewed and merged pull requests, kept the status page, and sent bugs to their owners.
+- Challenges: 334 hand-written colours in 26 files became 12 tokens. Expired tokens printed red console errors, so tokens now renew a minute early, and two tabs never renew at the same moment. Live refetches closed open forms until they were made quiet.
 
 ### ayaarab
 
