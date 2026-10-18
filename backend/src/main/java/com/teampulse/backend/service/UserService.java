@@ -275,6 +275,7 @@ public class UserService {
 		userRepository.save(user);
 
 		refreshTokenService.deleteByUserId(user);
+		publishSecurityChanged(user);
 
 		notificationService.createAndSendNotification(
 				user,
@@ -359,6 +360,7 @@ public class UserService {
 		user.setSecurityVersion(user.getSecurityVersion() + 1);
 
 		userRepository.save(user);
+		publishSecurityChanged(user);
 
 		passwordResetTokenRepository.delete(resetToken);
 
@@ -871,5 +873,32 @@ public class UserService {
 		if (httpServletRequest == null) return "Unknown";
 		String userAgent = httpServletRequest.getHeader("User-Agent");
 		return userAgent != null ? userAgent : "Unknown";
+	}
+
+	private void publishSecurityChanged(User user) {
+		UnifiedEvent event = UnifiedEvent.builder()
+				.eventId(UUID.randomUUID())
+				.type("USER")
+				.action("SECURITY_CHANGED")
+				.recipientId(user.getId())
+				.senderId(user.getId())
+				.entityType("USER")
+				.entityId(user.getId().toString())
+				.payload(Map.<String, Object>of(
+						"userId", user.getId().toString(),
+						"securityVersion", user.getSecurityVersion()))
+				.timestamp(Instant.now())
+				.build();
+
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					redisEventPublisherService.publish(event);
+				}
+			});
+		} else {
+			redisEventPublisherService.publish(event);
+		}
 	}
 }
