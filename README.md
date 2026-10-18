@@ -231,6 +231,7 @@ Why we chose each module, and how it works:
 
 ### ouzouini
 
+
 - Designed the PostgreSQL database schema: users, teams, members, tasks, invitations, notifications, activity logs, API keys and tokens.
 - Implemented the JPA entities that map each table to the application's domain model.
 - Defined the enumerations used by the entities, such as roles, task statuses and priorities.
