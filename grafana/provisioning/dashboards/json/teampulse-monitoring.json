@@ -93,9 +93,15 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "socket_io_connected_clients or socket_io_sockets_current or websocket_active_connections or vector(0)",
-          "legendFormat": "Active Connections",
+          "expr": "chat_socket_connections_total",
+          "legendFormat": "Active Sockets",
           "refId": "A"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "chat_online_users_total",
+          "legendFormat": "Online Users",
+          "refId": "B"
         }
       ],
       "title": "Active WebSocket / Chat Connections",
@@ -115,8 +121,8 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "sum(rate(socket_io_events_received_total[1m])) or sum(rate(socket_io_messages_total[1m])) or sum(rate(websocket_messages_sent_total[1m])) or vector(0)",
-          "legendFormat": "Messages Rate",
+          "expr": "sum(rate(chat_messages_sent_total[1m]))",
+          "legendFormat": "Messages Rate (req/s)",
           "refId": "A"
         }
       ],
@@ -189,5 +195,5 @@
   "time": { "from": "now-1h", "to": "now" },
   "title": "TeamPulse Monitoring",
   "uid": "teampulse-custom-monitoring",
-  "version": 2
+  "version": 4
 }

@@ -92,11 +92,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,prometheus,metrics
+        include: health,prometheus
+        exclude: "*"
   endpoint:
-    prometheus:
-      access: read-only
     health:
+      show-details: never
+      access: read-only
+    prometheus:
       access: read-only
   metrics:
     tags:

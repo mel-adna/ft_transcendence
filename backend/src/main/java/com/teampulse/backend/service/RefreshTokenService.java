@@ -7,16 +7,17 @@ import com.teampulse.backend.repository.RefreshTokenRepository;
 import com.teampulse.backend.security.utils.EmailUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.springframework.transaction.annotation.Transactional;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-import java.security.SecureRandom;
 
 
 @Slf4j
@@ -60,7 +61,7 @@ public class RefreshTokenService {
 		return new RefreshTokenResult(rawToken, savedToken);
 	}
 
-	@Transactional(noRollbackFor = UnauthorizedAccessException.class)
+	@Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = UnauthorizedAccessException.class)
 	public RefreshToken verifyAndRotateToken(String rawTokenStr, String currentClientIp, String currentUserAgent) {
 		if (rawTokenStr == null || rawTokenStr.isBlank()) {
 			throw new UnauthorizedAccessException("Refresh token is required.");
@@ -77,12 +78,16 @@ public class RefreshTokenService {
 		if (token.isConsumed() || token.isRevoked()) {
 			log.warn("SECURITY ALERT: Attempted reuse of consumed/revoked refresh token for user: {}",
 					EmailUtils.maskEmail(token.getUser().getEmail()));
+
 			refreshTokenRepository.deleteByUserId(token.getUser().getId());
+			refreshTokenRepository.flush();
+
 			throw new UnauthorizedAccessException("Security violation: Token was already used. All sessions terminated.");
 		}
 
 		if (token.getExpiryDate().isBefore(Instant.now())) {
 			refreshTokenRepository.delete(token);
+			refreshTokenRepository.flush();
 			throw new UnauthorizedAccessException("Refresh token has expired. Please log in again.");
 		}
 
@@ -94,12 +99,13 @@ public class RefreshTokenService {
 			log.warn("Client mismatch for user: {}. IP mismatch: {}, Agent mismatch: {}",
 					EmailUtils.maskEmail(token.getUser().getEmail()), ipMismatch, agentMismatch);
 			refreshTokenRepository.delete(token);
+			refreshTokenRepository.flush();
 			throw new UnauthorizedAccessException("Security alert: Client context mismatch. Session invalidated.");
 		}
 
 		token.setConsumed(true);
 		token.setRevoked(true);
-		refreshTokenRepository.save(token);
+		refreshTokenRepository.saveAndFlush(token);
 
 		return token;
 	}

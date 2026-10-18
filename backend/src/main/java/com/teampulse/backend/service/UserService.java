@@ -11,6 +11,8 @@ import com.teampulse.backend.dto.response.UserDataExportDTO;
 import com.teampulse.backend.dto.response.UserResponse;
 import com.teampulse.backend.dto.response.WorkspaceInvitationResponse;
 import com.teampulse.backend.enums.AuthProvider;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.enums.WorkspaceMemberRole;
 import com.teampulse.backend.event.UserWelcomeEvent;
 import com.teampulse.backend.exception.*;
@@ -78,6 +80,7 @@ public class UserService {
 	private final ActivityLogRepository activityLogRepository;
 	private final WorkspaceInvitationMapper workspaceInvitationMapper;
 	private final RedisEventPublisherService redisEventPublisherService;
+	private final NotificationService notificationService;
 
 
 	@Value("${app.frontend-url}")
@@ -271,6 +274,14 @@ public class UserService {
 		userRepository.save(user);
 
 		refreshTokenService.deleteByUserId(user);
+
+		notificationService.createAndSendNotification(
+				user,
+				NotificationType.SECURITY_ALERT,
+				EntityType.WORKSPACE,
+				user.getId(),
+				"Security Alert: Your password was changed. All other sessions have been logged out."
+		);
 	}
 
 	@Transactional(readOnly = true)
@@ -525,6 +536,14 @@ public class UserService {
 		String avatarUrl = fileStorageService.uploadAvatar(userId, file);
 		user.setAvatarUrl(avatarUrl);
 		User updatedUser = userRepository.save(user);
+
+		notificationService.createAndSendNotification(
+				user,
+				NotificationType.SECURITY_ALERT,
+				EntityType.WORKSPACE,
+				user.getId(),
+				"Your profile picture has been updated successfully."
+		);
 
 		return userMapper.toResponse(updatedUser);
 	}

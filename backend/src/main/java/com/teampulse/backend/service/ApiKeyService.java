@@ -1,6 +1,8 @@
 package com.teampulse.backend.service;
 
 import com.teampulse.backend.dto.response.ApiKeyResponse;
+import com.teampulse.backend.enums.EntityType;
+import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.model.ApiKey;
 import com.teampulse.backend.model.User;
@@ -24,6 +26,7 @@ import java.util.Optional;
 public class ApiKeyService {
 	private final ApiKeyRepository apiKeyRepository;
 	private final UserRepository userRepository;
+	private final NotificationService notificationService;
 
 	private static final String PREFIX = "tp_live_";
 
@@ -50,6 +53,14 @@ public class ApiKeyService {
 				.build();
 
 		apiKeyRepository.saveAndFlush(apiKey);
+
+		notificationService.createAndSendNotification(
+				user,
+				NotificationType.SECURITY_ALERT,
+				EntityType.WORKSPACE,
+				apiKey.getId(),
+				String.format("A new API key was generated for your account.")
+		);
 
 		return fullKey;
 	}
@@ -83,6 +94,14 @@ public class ApiKeyService {
 	public Optional<ApiKeyResponse> getApiKeyInfo(String userEmail) {
 		User user = userRepository.findByEmail(userEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
+
+		notificationService.createAndSendNotification(
+				user,
+				NotificationType.SECURITY_ALERT,
+				EntityType.WORKSPACE,
+				null,
+				String.format("The API key has been revoked.")
+		);
 
 		return apiKeyRepository.findByUser(user)
 				.map(apiKey -> ApiKeyResponse.builder()

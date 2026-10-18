@@ -18,5 +18,6 @@ public enum NotificationType {
     WORKSPACE_MEMBER_REMOVED,
     WORKSPACE_ROLE_CHANGED,
 
-    USER_WELCOME
+    USER_WELCOME,
+    SECURITY_ALERT
 }
