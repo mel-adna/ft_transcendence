@@ -251,7 +251,11 @@ export default function StatsDashboard({
     setExportError(false);
     try {
       const [{ toJpeg }, { jsPDF }] = await Promise.all([import('html-to-image'), import('jspdf')]);
+      const width = node.offsetWidth;
+      const height = node.offsetHeight;
       const image = await toJpeg(node, {
+        width,
+        height,
         backgroundColor: CHART.canvas,
         pixelRatio: 2,
         quality: 0.92,
@@ -261,8 +265,6 @@ export default function StatsDashboard({
         filter: (element) => element.dataset?.pdfIgnore === undefined,
         skipFonts: true,
       });
-      const width = node.offsetWidth;
-      const height = node.offsetHeight;
       const pdf = new jsPDF({
         orientation: width > height ? 'landscape' : 'portrait',
         unit: 'px',

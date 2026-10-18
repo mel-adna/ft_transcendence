@@ -15,6 +15,7 @@ export function useActivityLogs(workspaceId, size = 20) {
   const { items: logs, loading, error, reload } = useList(load);
 
   useDataChanged('tasks', () => reload({ quiet: true }));
+  useDataChanged('members', () => reload({ quiet: true }));
 
   return { logs, loading, error, reload };
 }

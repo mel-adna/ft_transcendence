@@ -19,6 +19,7 @@ export default function NotificationBell({
   notifications = [],
   unreadCount = 0,
   loading = false,
+  error = null,
   markAsRead,
   markAllAsRead,
 }) {
@@ -102,6 +103,12 @@ export default function NotificationBell({
               </button>
             )}
           </div>
+
+          {error && (
+            <p role="alert" className="px-4 pt-3 text-xs font-medium text-danger">
+              {error}
+            </p>
+          )}
 
           {loading && notifications.length === 0 ? (
             <div className="flex items-center justify-center py-8">
