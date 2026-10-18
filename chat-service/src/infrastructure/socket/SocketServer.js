@@ -55,6 +55,7 @@ class SocketServer {
     this.io.use(async (socket, next) => {
       try {
         const user = await socketAuthUseCase.execute(socket.handshake.auth);
+        if (user.svRaised) this.disconnectStaleSessions(user.id, user.sv);
         socket.user = user;
         next();
       } catch (err) {
@@ -108,6 +109,14 @@ class SocketServer {
     if (!this.io) return;
     for (const socketId of registry.getSocketIds(userId)) {
       this.io.in(socketId).disconnectSockets(true);
+    }
+  }
+
+  disconnectStaleSessions(userId, sv) {
+    if (!this.io) return;
+    for (const socketId of registry.getSocketIds(userId)) {
+      const s = this.io.sockets.sockets.get(socketId);
+      if (s && (s.user?.sv ?? 0) < sv) s.disconnect(true);
     }
   }
 

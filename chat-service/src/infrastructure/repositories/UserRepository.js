@@ -41,6 +41,15 @@ const UserRepository = {
     });
   },
 
+  async syncSecurityVersion(id, securityVersion) {
+    const raised = await prisma.user.updateMany({
+      where: { id, securityVersion: { lt: securityVersion } },
+      data: { securityVersion },
+    });
+    const row = await prisma.user.findUnique({ where: { id }, select: { securityVersion: true } });
+    return { current: row?.securityVersion ?? securityVersion, raised: raised.count > 0 };
+  },
+
   async releaseEmail(id) {
     await prisma.user.updateMany({
       where: { id },

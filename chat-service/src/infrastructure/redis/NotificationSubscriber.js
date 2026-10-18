@@ -35,6 +35,10 @@ class NotificationSubscriber {
       this._handleUserDeleted(event);
       return;
     }
+    if (event.type === 'USER' && event.action === 'SECURITY_CHANGED') {
+      this._handleSecurityChanged(event);
+      return;
+    }
 
     const recipientId = event.recipientId;
     if (!recipientId) {
@@ -42,6 +46,18 @@ class NotificationSubscriber {
     }
 
     socketServer.emitToUser(String(recipientId), 'notification:new', event);
+  }
+
+  async _handleSecurityChanged(event) {
+    const userId = event.payload?.userId ?? event.entityId;
+    const sv = Number(event.payload?.securityVersion);
+    if (!userId || !Number.isInteger(sv)) return;
+    try {
+      await UserRepository.syncSecurityVersion(String(userId), sv);
+      socketServer.disconnectStaleSessions(String(userId), sv);
+    } catch (err) {
+      console.error('[NotificationSubscriber] SECURITY_CHANGED sync failed:', err.message);
+    }
   }
 
   async _handleUserDeleted(event) {

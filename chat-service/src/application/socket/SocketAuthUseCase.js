@@ -32,11 +32,11 @@ class SocketAuthUseCase {
 
     await UserRepository.ensureFromIdentity({ id: String(id), username, email });
 
-    return {
-      id: String(id),
-      username,
-      email,
-    };
+    const sv = Number.isInteger(payload.sv) && payload.sv >= 0 ? payload.sv : 0;
+    const { current, raised } = await UserRepository.syncSecurityVersion(String(id), sv);
+    if (sv < current) throw new Error('AUTH_TOKEN_REVOKED');
+
+    return { id: String(id), username, email, sv, svRaised: raised };
   }
 }
 

@@ -1,4 +1,5 @@
 const socketAuthUseCase = require('../application/socket/SocketAuthUseCase');
+const socketServer = require('../infrastructure/socket/SocketServer');
 
 async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -10,6 +11,7 @@ async function authMiddleware(req, res, next) {
 
   try {
     req.user = await socketAuthUseCase.execute({ token });
+    if (req.user.svRaised) socketServer.disconnectStaleSessions(req.user.id, req.user.sv);
     req.user.token = token;
     next();
   } catch (err) {
