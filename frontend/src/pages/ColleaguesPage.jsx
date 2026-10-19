@@ -187,7 +187,7 @@ export default function ColleaguesPage() {
         role,
       });
       notifyDataChanged('members', null, { workspaceId });
-      await reload({ quiet: true });
+      await reload({ quiet: true, keepOnError: false });
     } catch (requestError) {
       setRoleError(getErrorMessage(requestError));
     } finally {
@@ -220,7 +220,7 @@ export default function ColleaguesPage() {
       notifyDataChanged('members', remainingIds, { workspaceId });
 
       setPendingRemove(null);
-      await reload({ quiet: true });
+      await reload({ quiet: true, keepOnError: false });
     } catch (requestError) {
       setRemoveError(getErrorMessage(requestError));
     } finally {

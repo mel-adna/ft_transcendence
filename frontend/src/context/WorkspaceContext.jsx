@@ -14,8 +14,10 @@ export function WorkspaceProvider({ children }) {
   const [error, setError] = useState(null);
 
   const load = useCallback(async ({ quiet = false } = {}) => {
-    if (!quiet) setLoading(true);
-    setError(null);
+    if (!quiet) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const response = await api.get('/workspaces');
       setWorkspaces(response.data);
@@ -23,8 +25,9 @@ export function WorkspaceProvider({ children }) {
         const stillExists = response.data.some((item) => item.id === previous);
         return stillExists ? previous : (response.data[0]?.id ?? null);
       });
+      setError(null);
     } catch (requestError) {
-      setError(requestError);
+      if (!quiet) setError(requestError);
     } finally {
       if (!quiet) setLoading(false);
     }

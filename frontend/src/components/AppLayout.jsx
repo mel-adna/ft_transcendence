@@ -17,6 +17,7 @@ import Spinner from './Spinner';
 import LegalLinks from './LegalLinks';
 import NotificationBell from '../features/notifications/NotificationBell';
 import { useNotifications } from '../features/notifications/useNotifications';
+import { useSocketReconnect } from '../lib/useDataChanged';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -39,6 +40,7 @@ export default function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const notificationState = useNotifications();
+  useSocketReconnect(notificationState.reload);
 
   async function handleLogout() {
     await logout();
