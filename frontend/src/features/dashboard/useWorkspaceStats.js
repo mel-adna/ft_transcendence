@@ -23,6 +23,7 @@ export function useWorkspaceStats(workspaceId, params) {
   const [loading, setLoading] = useState(Boolean(workspaceId));
   const [error, setError] = useState(null);
   const currentRequestRef = useRef(null);
+  const loadingRef = useRef(Boolean(workspaceId));
 
   const reload = useCallback(
     async ({ quiet = false } = {}) => {
@@ -33,10 +34,14 @@ export function useWorkspaceStats(workspaceId, params) {
         return;
       }
 
+      const background = quiet && !loadingRef.current;
       const requestToken = {};
       currentRequestRef.current = requestToken;
-      if (!quiet) setLoading(true);
-      setError(null);
+      if (!background) {
+        loadingRef.current = true;
+        setLoading(true);
+        setError(null);
+      }
 
       try {
         const response = await api.get(`/workspaces/${workspaceId}/stats`, {
@@ -44,11 +49,16 @@ export function useWorkspaceStats(workspaceId, params) {
         });
         if (currentRequestRef.current !== requestToken) return;
         setStats(response.data ?? DEFAULT_STATS);
+        setError(null);
       } catch (requestError) {
         if (currentRequestRef.current !== requestToken) return;
+        if (background) return;
         setError(requestError);
       } finally {
-        if (currentRequestRef.current === requestToken) setLoading(false);
+        if (currentRequestRef.current === requestToken) {
+          loadingRef.current = false;
+          setLoading(false);
+        }
       }
     },
     [workspaceId, params],
@@ -61,7 +71,7 @@ export function useWorkspaceStats(workspaceId, params) {
     sync();
   }, [reload]);
 
-  useDataChanged('tasks', () => reload({ quiet: true }));
+  useDataChanged('tasks', () => reload({ quiet: true }), workspaceId);
 
   return { stats, loading, error, reload };
 }
