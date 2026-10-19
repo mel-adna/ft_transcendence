@@ -7,8 +7,9 @@ function toClientCode(err) {
 
 function sendHttpError(res, err, statusMap = {}) {
   const code = toClientCode(err);
-  if (code === 'INTERNAL_ERROR') console.error('[http] unexpected error:', err);
-  return res.status(statusMap[code] ?? 500).json({ error: code });
+  const status = statusMap[code] ?? 500;
+  if (status >= 500) console.error('[http] server error:', err);
+  return res.status(status).json({ error: code });
 }
 
 module.exports = { toClientCode, sendHttpError };

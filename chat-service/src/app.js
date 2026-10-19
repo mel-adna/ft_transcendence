@@ -53,9 +53,10 @@ app.get('/metrics', async (req, res) => {
 app.use((err, req, res, next) => {
   const status = err.status || 500;
   if (status >= 500) console.error('Server error:', err.stack);
+  const byStatus = { 400: 'BAD_REQUEST', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 413: 'PAYLOAD_TOO_LARGE', 415: 'UNSUPPORTED_MEDIA_TYPE' };
   const code = err.type === 'entity.parse.failed' ? 'INVALID_JSON'
-    : err.type === 'entity.too.large' ? 'PAYLOAD_TOO_LARGE'
-      : status < 500 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
+    : status >= 500 ? 'INTERNAL_ERROR'
+      : byStatus[status] ?? `HTTP_${status}`;
   res.status(status).json({ error: code });
 });
 

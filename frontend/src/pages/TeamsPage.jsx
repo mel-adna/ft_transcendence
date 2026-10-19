@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api, { getErrorMessage } from '../lib/api';
-import { holdDataChanged, releaseDataChanged } from '../lib/realtimeNotify';
 import { useAuth } from '../context/useAuth';
 import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
@@ -109,18 +108,7 @@ export default function TeamsPage() {
     setDeleting(true);
     setDeleteError(null);
     try {
-      let memberIds = [];
-      try {
-        const { data } = await api.get(`/workspaces/${pendingDelete.id}/members`);
-        memberIds = data.map((member) => member.member?.id).filter(Boolean);
-      } catch {
-        memberIds = [];
-      }
-
-      const ticket = await holdDataChanged('workspaces', memberIds, { workspaceId: pendingDelete.id });
       await api.delete(`/workspaces/${pendingDelete.id}`);
-
-      releaseDataChanged(ticket);
 
       setPendingDelete(null);
       await refresh();

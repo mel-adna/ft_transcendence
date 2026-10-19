@@ -41,13 +41,42 @@ const UserRepository = {
     });
   },
 
-  async syncSecurityVersion(id, securityVersion) {
-    const raised = await prisma.user.updateMany({
-      where: { id, securityVersion: { lt: securityVersion } },
-      data: { securityVersion },
+  async authenticate({ id, username, email, sv, issuedAtMs }) {
+    const row = await prisma.user.findUnique({
+      where: { id },
+      select: { username: true, email: true, securityVersion: true, svSeenAt: true },
     });
-    const row = await prisma.user.findUnique({ where: { id }, select: { securityVersion: true } });
-    return { current: row?.securityVersion ?? securityVersion, raised: raised.count > 0 };
+    const isRealName = username && username !== email;
+    const profileStale = !row || (email && row.email !== email) || (isRealName && row.username !== username);
+    if (profileStale) await UserRepository.ensureFromIdentity({ id, username, email });
+
+    const stored = row?.securityVersion ?? 0;
+    if (sv === stored) return { revoked: false, raised: false };
+
+    if (sv > stored) {
+      const { count } = await prisma.user.updateMany({
+        where: { id, securityVersion: { lt: sv } },
+        data: { securityVersion: sv, svSeenAt: new Date() },
+      });
+      return { revoked: false, raised: count > 0 };
+    }
+
+    if (issuedAtMs > (row?.svSeenAt?.getTime() ?? 0)) {
+      await prisma.user.updateMany({
+        where: { id, securityVersion: stored },
+        data: { securityVersion: sv, svSeenAt: new Date() },
+      });
+      return { revoked: false, raised: false };
+    }
+    return { revoked: true, raised: false };
+  },
+
+  async raiseSecurityVersion(id, sv) {
+    const { count } = await prisma.user.updateMany({
+      where: { id, securityVersion: { lt: sv } },
+      data: { securityVersion: sv, svSeenAt: new Date() },
+    });
+    return count > 0;
   },
 
   async releaseEmail(id) {

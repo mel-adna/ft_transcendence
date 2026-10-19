@@ -17,6 +17,8 @@ const {
   redisConnectedGauge,
 } = require('../metrics/metrics');
 
+const userRoom = (userId) => `user:${userId}`;
+
 class SocketServer {
   constructor() {
     this.io = null;
@@ -57,6 +59,7 @@ class SocketServer {
         const user = await socketAuthUseCase.execute(socket.handshake.auth);
         if (user.svRaised) this.disconnectStaleSessions(user.id, user.sv);
         socket.user = user;
+        socket.data.sv = user.sv;
         next();
       } catch (err) {
         const reason = err.message?.startsWith('AUTH_') ? err.message : 'INTERNAL_ERROR';
@@ -72,6 +75,7 @@ class SocketServer {
       this._connectionCount += 1;
       const { id: userId } = socket.user;
 
+      socket.join(userRoom(userId));
       registry.register(userId, socket.id);
       const stats = registry.stats();
       socketConnectionsGauge.set(stats.totalSockets);
@@ -98,40 +102,36 @@ class SocketServer {
     });
   }
 
-  emitToUser(userId, event, payload) {
-    const socketIds = registry.getSocketIds(userId);
-    for (const socketId of socketIds) {
-      this.io.to(socketId).emit(event, payload);
-    }
+  emitToUser(userId, event, payload, { local = false, exceptSocketId = null } = {}) {
+    if (!this.io) return;
+    let target = (local ? this.io.local : this.io).to(userRoom(userId));
+    // only skips the socket if it sits in this user's room, so a foreign id is a no-op
+    if (exceptSocketId) target = target.except(exceptSocketId);
+    target.emit(event, payload);
   }
 
   disconnectUser(userId) {
     if (!this.io) return;
-    for (const socketId of registry.getSocketIds(userId)) {
-      this.io.in(socketId).disconnectSockets(true);
-    }
+    this.io.in(userRoom(userId)).disconnectSockets(true);
   }
 
   disconnectStaleSessions(userId, sv) {
     if (!this.io) return;
-    for (const socketId of registry.getSocketIds(userId)) {
-      const s = this.io.sockets.sockets.get(socketId);
-      if (s && (s.user?.sv ?? 0) < sv) s.disconnect(true);
-    }
+    this.io.in(userRoom(userId)).fetchSockets()
+      .then((sockets) => {
+        for (const s of sockets) if ((s.data?.sv ?? 0) < sv) s.disconnect(true);
+      })
+      .catch((err) => console.error('[SocketServer] stale session check failed:', err.message));
   }
 
   joinUserToRoom(userId, roomId) {
     if (!this.io) return;
-    for (const socketId of registry.getSocketIds(userId)) {
-      this.io.in(socketId).socketsJoin(roomId);
-    }
+    this.io.in(userRoom(userId)).socketsJoin(roomId);
   }
 
   leaveUserFromRoom(userId, roomId) {
     if (!this.io) return;
-    for (const socketId of registry.getSocketIds(userId)) {
-      this.io.in(socketId).socketsLeave(roomId);
-    }
+    this.io.in(userRoom(userId)).socketsLeave(roomId);
   }
 
   getStats() {

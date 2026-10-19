@@ -45,7 +45,14 @@ class NotificationSubscriber {
       return;
     }
 
-    socketServer.emitToUser(String(recipientId), 'notification:new', event);
+    socketServer.emitToUser(String(recipientId), 'notification:new', event, { local: true });
+
+    if (event.type === 'WORKSPACE' && (event.action === 'DELETED' || event.action === 'MEMBER_REMOVED')) {
+      socketServer.emitToUser(String(recipientId), 'data:changed', {
+        resource: 'workspaces',
+        workspaceId: event.entityId ?? null,
+      }, { local: true });
+    }
   }
 
   async _handleSecurityChanged(event) {
@@ -53,7 +60,7 @@ class NotificationSubscriber {
     const sv = Number(event.payload?.securityVersion);
     if (!userId || !Number.isInteger(sv)) return;
     try {
-      await UserRepository.syncSecurityVersion(String(userId), sv);
+      await UserRepository.raiseSecurityVersion(String(userId), sv);
       socketServer.disconnectStaleSessions(String(userId), sv);
     } catch (err) {
       console.error('[NotificationSubscriber] SECURITY_CHANGED sync failed:', err.message);

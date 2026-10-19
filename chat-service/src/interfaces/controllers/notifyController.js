@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { sendHttpError } = require('../clientError');
 const socketServer = require('../../infrastructure/socket/SocketServer');
 const { listWorkspaceMemberIds } = require('../../infrastructure/http/JavaBackendClient');
@@ -6,23 +5,18 @@ const { listWorkspaceMemberIds } = require('../../infrastructure/http/JavaBacken
 const ALLOWED_RESOURCES = new Set(['workspaces', 'members', 'tasks']);
 
 const MAX_TARGETS = 200;
-const HOLD_TTL_MS = 60_000;
-const MAX_HOLDS_PER_USER = 20;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
 
-const holds = new Map();
+const SOCKET_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-setInterval(() => {
-  const now = Date.now();
-  for (const [ticket, h] of holds) if (h.expiresAt <= now) holds.delete(ticket);
-}, HOLD_TTL_MS).unref();
-
-function deliver(resource, workspaceId, targets) {
+// the caller's other tabs need it too, just not the tab that made the change
+function deliver(resource, workspaceId, targets, callerId, callerSocketId) {
   const payload = { resource, workspaceId };
   for (const userId of targets) {
-    socketServer.emitToUser(userId, 'data:changed', payload);
+    const exceptSocketId = userId === callerId ? callerSocketId : null;
+    socketServer.emitToUser(userId, 'data:changed', payload, { exceptSocketId });
   }
 }
 
@@ -40,7 +34,7 @@ async function resolveTargets(req) {
   const roster = new Set(await listWorkspaceMemberIds(workspaceId, req.user.token));
   const wanted = Array.isArray(userIds) ? userIds : [...roster];
   const targets = [...new Set(wanted)]
-    .filter((id) => roster.has(id) && id !== req.user.id)
+    .filter((id) => roster.has(id))
     .slice(0, MAX_TARGETS);
 
   return { resource, workspaceId, targets };
@@ -53,31 +47,10 @@ const notifyController = {
       if (resolved.error) return res.status(400).json({ error: resolved.error });
       const { resource, workspaceId, targets } = resolved;
 
-      if (req.body?.hold === true) {
-        const mine = [...holds.values()].filter((h) => h.userId === req.user.id).length;
-        if (mine >= MAX_HOLDS_PER_USER) return res.status(429).json({ error: 'NOTIFY_TOO_MANY_HOLDS' });
-        const ticket = crypto.randomUUID();
-        holds.set(ticket, { userId: req.user.id, resource, workspaceId, targets, expiresAt: Date.now() + HOLD_TTL_MS });
-        return res.json({ ok: true, ticket, held: targets.length });
-      }
-
-      deliver(resource, workspaceId, targets);
+      const { socketId } = req.body ?? {};
+      const callerSocketId = typeof socketId === 'string' && SOCKET_ID_RE.test(socketId) ? socketId : null;
+      deliver(resource, workspaceId, targets, req.user.id, callerSocketId);
       return res.json({ ok: true, notified: targets.length });
-    } catch (err) {
-      return sendHttpError(res, err);
-    }
-  },
-
-  async release(req, res) {
-    try {
-      const ticket = req.body?.ticket;
-      const held = typeof ticket === 'string' ? holds.get(ticket) : null;
-      if (!held || held.userId !== req.user.id || held.expiresAt <= Date.now()) {
-        return res.status(404).json({ error: 'NOTIFY_TICKET_NOT_FOUND' });
-      }
-      holds.delete(ticket);
-      deliver(held.resource, held.workspaceId, held.targets);
-      return res.json({ ok: true, notified: held.targets.length });
     } catch (err) {
       return sendHttpError(res, err);
     }

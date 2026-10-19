@@ -30,11 +30,10 @@ class SocketAuthUseCase {
     const email = payload.email ?? payload.sub ?? null;
     const username = payload.name ?? payload.username ?? email ?? payload.sub ?? null;
 
-    await UserRepository.ensureFromIdentity({ id: String(id), username, email });
-
     const sv = Number.isInteger(payload.sv) && payload.sv >= 0 ? payload.sv : 0;
-    const { current, raised } = await UserRepository.syncSecurityVersion(String(id), sv);
-    if (sv < current) throw new Error('AUTH_TOKEN_REVOKED');
+    const issuedAtMs = Number.isInteger(payload.iat) ? payload.iat * 1000 : 0;
+    const { revoked, raised } = await UserRepository.authenticate({ id: String(id), username, email, sv, issuedAtMs });
+    if (revoked) throw new Error('AUTH_TOKEN_REVOKED');
 
     return { id: String(id), username, email, sv, svRaised: raised };
   }
