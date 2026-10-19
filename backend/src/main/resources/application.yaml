@@ -92,7 +92,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: "health,prometheus"
+        include: health,prometheus
+        exclude: "*"
   endpoint:
     health:
       show-details: never

@@ -16,6 +16,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.teampulse.backend.dto.request.WorkspaceCreateRequest;
 import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
@@ -31,6 +33,7 @@ import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.exception.ResourceNotFoundException;
 import com.teampulse.backend.exception.UnauthorizedAccessException;
 import com.teampulse.backend.mapper.WorkspaceMapper;
+import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.model.Workspace;
 import com.teampulse.backend.model.WorkspaceMember;
@@ -95,12 +98,11 @@ public class WorkspaceService {
 	@Transactional(readOnly = true)
 	public List<WorkspaceResponse> getAllWorkSpaceForUser(String email) {
 		String cleanEmail = EmailUtils.normalize(email);
-		
+
 		List<Workspace> workspaces = workspaceRepository.findAllByMembersUserEmail(cleanEmail)
 				.stream()
 				.filter(ws -> !ws.isDeleted())
 				.toList();
-
 
 		Map<String, Long> nameCounts = workspaces.stream()
 				.collect(Collectors.groupingBy(Workspace::getName, Collectors.counting()));
@@ -109,7 +111,6 @@ public class WorkspaceService {
 
 		return workspaces.stream().map(ws -> {
 			WorkspaceResponse wsResponse = workspaceMapper.toResponse(ws);
-
 			String originalName = ws.getName();
 
 			if (nameCounts.get(originalName) > 1) {
@@ -147,7 +148,6 @@ public class WorkspaceService {
 		return workspaceMapper.toResponse(workspace);
 	}
 
-
 	@Transactional(readOnly = true)
 	public List<WorkspaceMemberResponse> getWorkspaceMembers(UUID workspaceId, String email) {
 		if (workspaceId == null)
@@ -164,7 +164,6 @@ public class WorkspaceService {
 				.map(workspaceMapper::toMemberResponse)
 				.toList();
 	}
-
 
 	public WorkspaceResponse updateWorkspace(UUID workspaceId, String email, WorkspaceUpdateRequest request) {
 		if (workspaceId == null)
@@ -237,8 +236,6 @@ public class WorkspaceService {
 		workspaceRepository.softDeleteById(workspaceId);
 
 		eventPublisher.publishEvent(new WorkspaceDeletedEvent(this, workspaceId, workspaceName, admin, memberIds));
-
-		log.info("Workspace with ID: {} has been soft-deleted successfully.", workspaceId);
 	}
 
 	public void updateMemberRole(UUID workspaceId, String adminEmail, WorkspaceMemberRoleUpdateRequest request) {
@@ -295,16 +292,12 @@ public class WorkspaceService {
 		workspaceMemberRepository.delete(Objects.requireNonNull(memberShip));
 
 		eventPublisher.publishEvent(new WorkspaceMemberRemovedEvent(this, workspace, removedUser, admin));
-
-		log.info("User {} was removed from workspace {} by admin {}",
-				EmailUtils.maskEmail(cleanMemberEmail), workspace.getName(), EmailUtils.maskEmail(cleanAdminEmail));
 	}
 
-	private void notifyUserAndPublish(User recipient, User actor, Workspace workspace, String message,
-	                                  NotificationType notifyType, String redisAction) {
+	private void notifyUserAndPublish(User recipient, User actor, Workspace workspace, String message, NotificationType notifyType, String redisAction) {
 		if (recipient == null) return;
 
-		notificationService.createNotification(recipient, notifyType, EntityType.WORKSPACE, workspace.getId(), message);
+		Notification notification = notificationService.createNotification(recipient, notifyType, EntityType.WORKSPACE, workspace.getId(), message);
 
 		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 				.eventId(UUID.randomUUID())
@@ -315,6 +308,7 @@ public class WorkspaceService {
 				.entityType(EntityType.WORKSPACE.name())
 				.entityId(workspace.getId().toString())
 				.payload(Map.of(
+						"notificationId", notification.getId().toString(),
 						"workspaceName", workspace.getName(),
 						"actorName", getSafeFullName(actor),
 						"message", message
@@ -322,7 +316,20 @@ public class WorkspaceService {
 				.timestamp(Instant.now())
 				.build();
 
-		redisEventPublisherService.publish(realTimeEvent);
+		publishAfterCommit(realTimeEvent);
+	}
+
+	private void publishAfterCommit(UnifiedEvent event) {
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					redisEventPublisherService.publish(event);
+				}
+			});
+		} else {
+			redisEventPublisherService.publish(event);
+		}
 	}
 
 	private String getSafeFullName(User user) {
@@ -330,8 +337,7 @@ public class WorkspaceService {
 		String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
 		String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
 		String fullName = (firstName + " " + lastName).trim();
-		if (!fullName.isEmpty()) return fullName;
-		return user.getEmail() != null ? user.getEmail() : "System";
+		return !fullName.isEmpty() ? fullName : (user.getEmail() != null ? user.getEmail() : "System");
 	}
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {
@@ -344,4 +350,3 @@ public class WorkspaceService {
 			throw new UnauthorizedAccessException("Only workspace ADMINs can perform this action!");
 	}
 }
-

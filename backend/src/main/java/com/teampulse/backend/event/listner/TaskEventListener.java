@@ -5,10 +5,10 @@ import com.teampulse.backend.enums.EntityType;
 import com.teampulse.backend.enums.NotificationType;
 import com.teampulse.backend.event.TaskAssignedEvent;
 import com.teampulse.backend.event.TaskCompletedEvent;
+import com.teampulse.backend.model.Notification;
 import com.teampulse.backend.model.Task;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.repository.TaskRepository;
-import com.teampulse.backend.service.ActivityLogService;
 import com.teampulse.backend.service.EmailService;
 import com.teampulse.backend.service.NotificationService;
 import com.teampulse.backend.service.RedisEventPublisherService;
@@ -26,24 +26,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class TaskEventListener {
 
 	private final NotificationService notificationService;
-	private final ActivityLogService activityLogService;
 	private final TaskRepository taskRepository;
 	private final EmailService emailService;
 	private final RedisEventPublisherService redisEventPublisherService;
-
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleTaskCompletedEvent(TaskCompletedEvent event) {
-
 		Task task = taskRepository.findById(event.getTask().getId()).orElse(null);
 
 		if (task == null) {
@@ -53,24 +49,10 @@ public class TaskEventListener {
 
 		User actor = event.getCompletedBy() != null ? event.getCompletedBy() : task.getCreator();
 		if (actor == null) {
-			log.warn("Actor (creator/completedBy) is null or deleted for completed task ID: {}. Skipping logging/notification.", task.getId());
 			return;
 		}
 
 		String actorName = getSafeFullName(actor);
-
-		try {
-			String logDescription = String.format("%s completed task '%s'", actorName, task.getTitle());
-
-			activityLogService.logActivity(
-					task.getWorkspace().getId(),
-					actor.getId(),
-					task.getId(),
-					"TASK_COMPLETED",
-					logDescription);
-		} catch (Exception e) {
-			log.error("Failed to create ActivityLog for completed task ID: {}. Error: {}", task.getId(), e.getMessage());
-		}
 
 		try {
 			User assignee = task.getAssignee();
@@ -81,17 +63,13 @@ public class TaskEventListener {
 			UUID actorId = actor.getId();
 
 			if (assignee != null && !Objects.equals(assigneeId, creatorId) && !Objects.equals(assigneeId, actorId)) {
-				String msgToAssignee = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s.",
-						task.getTitle(), actorName);
-
+				String msgToAssignee = String.format("The task '%s' assigned to you has been marked as COMPLETED by %s.", task.getTitle(), actorName);
 				notifyUserAndPublish(assignee, actor, task, msgToAssignee, NotificationType.TASK_COMPLETED, "COMPLETED");
 			}
 
 			if (creator != null && !Objects.equals(creatorId, actorId)) {
 				if (assignee == null || !Objects.equals(creatorId, assigneeId)) {
-					String msgToCreator = String.format("The task '%s' you created has been marked as COMPLETED by %s.",
-							task.getTitle(), actorName);
-
+					String msgToCreator = String.format("The task '%s' you created has been marked as COMPLETED by %s.", task.getTitle(), actorName);
 					notifyUserAndPublish(creator, actor, task, msgToCreator, NotificationType.TASK_COMPLETED, "COMPLETED");
 				}
 			}
@@ -112,24 +90,10 @@ public class TaskEventListener {
 		User assignee = event.getAssignee();
 
 		boolean isAssignerDeleted = (assigner == null);
-		UUID assignerId = isAssignerDeleted ? null : assigner.getId();
 		String assignerName = isAssignerDeleted ? "A deleted user" : getSafeFullName(assigner);
-
 		boolean isSelfAssignment = !isAssignerDeleted && Objects.equals(assignee.getId(), assigner.getId());
-		String targetName = isSelfAssignment ? "himself" : getSafeFullName(assignee);
 
-		String logType = event.isReassignment() ? "TASK_REASSIGNED" : "TASK_ASSIGNED";
 		String actionText = event.isReassignment() ? "reassigned task" : "assigned task";
-		String logDescription = String.format("%s %s '%s' to %s", assignerName, actionText, task.getTitle(), targetName);
-
-		if (assignerId != null) {
-			try {
-				activityLogService.logActivity(task.getWorkspace().getId(), assignerId,
-						task.getId(), logType, logDescription);
-			} catch (Exception e) {
-				log.error("Failed to log activity for assigned task ID: {}. Error: {}", task.getId(), e.getMessage());
-			}
-		}
 
 		if (!isSelfAssignment) {
 			try {
@@ -144,15 +108,12 @@ public class TaskEventListener {
 		}
 	}
 
-	private void notifyUserAndPublish(User recipient, User actor, Task task, String message,
-	                                  NotificationType notifyType, String redisAction) {
-
+	private void notifyUserAndPublish(User recipient, User actor, Task task, String message, NotificationType notifyType, String redisAction) {
 		if (recipient == null || recipient.getEmail() == null) {
-			log.warn("Cannot send notification/email. Recipient or email is null for task ID: {}", task.getId());
 			return;
 		}
 
-		notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
+		Notification notification = notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
 
 		if (!recipient.getEmail().endsWith("@teampulse.local")) {
 			emailService.sendEmail(recipient.getEmail(), "Task Update: " + task.getTitle(), message);
@@ -170,6 +131,7 @@ public class TaskEventListener {
 				.entityType(EntityType.TASK.name())
 				.entityId(task.getId().toString())
 				.payload(Map.of(
+						"notificationId", notification.getId().toString(),
 						"taskTitle", task.getTitle(),
 						"workspaceId", task.getWorkspace().getId().toString(),
 						"actorName", actorName,

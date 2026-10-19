@@ -25,6 +25,8 @@ import com.teampulse.backend.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -37,7 +39,7 @@ public class NotificationService {
 	private final NotificationMapper notificationMapper;
 	private final RedisEventPublisherService redisEventPublisherService;
 
-	public void createNotification(User recipient, NotificationType type, EntityType entityType, UUID entityId, String message) {
+	public Notification createNotification(User recipient, NotificationType type, EntityType entityType, UUID entityId, String message) {
 		log.info("Persisting new notification in DB for user: {}. Type: {}", EmailUtils.maskEmail(recipient.getEmail()), type);
 
 		Notification notification = new Notification();
@@ -48,7 +50,7 @@ public class NotificationService {
 		notification.setMessage(message);
 		notification.setRead(false);
 
-		notificationRepository.save(notification);
+		return notificationRepository.save(notification);
 	}
 
 	@Transactional(readOnly = true)
@@ -118,15 +120,7 @@ public class NotificationService {
 			UUID entityId,
 			String message) {
 
-		Notification notification = new Notification();
-		notification.setRecipient(recipient);
-		notification.setType(type);
-		notification.setEntityType(entityType);
-		notification.setEntityId(entityId);
-		notification.setMessage(message);
-		notification.setRead(false);
-
-		Notification savedNotification = notificationRepository.save(notification);
+		Notification savedNotification = createNotification(recipient, type, entityType, entityId, message);
 
 		UnifiedEvent event = UnifiedEvent.builder()
 				.eventId(UUID.randomUUID())
@@ -140,11 +134,24 @@ public class NotificationService {
 						"notificationId", savedNotification.getId().toString(),
 						"type", type.name(),
 						"message", message,
-						"createdAt", savedNotification.getCreatedAt().toString()
+						"createdAt", savedNotification.getCreatedAt() != null ? savedNotification.getCreatedAt().toString() : Instant.now().toString()
 				))
 				.timestamp(Instant.now())
 				.build();
 
-		redisEventPublisherService.publish(event);
+		publishAfterCommit(event);
+	}
+
+	private void publishAfterCommit(UnifiedEvent event) {
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					redisEventPublisherService.publish(event);
+				}
+			});
+		} else {
+			redisEventPublisherService.publish(event);
+		}
 	}
 }

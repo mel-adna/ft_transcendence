@@ -28,6 +28,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Map;
@@ -47,16 +49,11 @@ public class TaskService {
 	private final ActivityLogService activityLogService;
 	private final ApplicationEventPublisher eventPublisher;
 	private final NotificationService notificationService;
-
 	private final RedisEventPublisherService redisEventPublisherService;
-
 
 	public TaskResponse createTask(UUID workspaceId, String creatorEmail, TaskCreateRequest request) {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
-
-		log.info("Attempting to create task '{}' in workspace ID: {} by user: {}",
-				request.getTitle(), workspaceId, EmailUtils.maskEmail(creatorEmail));
 
 		Workspace workspace = workspaceRepository.findById(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
@@ -86,13 +83,16 @@ public class TaskService {
 		String logDescription = String.format("%s created task '%s'", getSafeFullName(creator), savedTask.getTitle());
 		activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(), "TASK_CREATED", logDescription);
 
-		if (savedTask.getAssignee() != null)
-			eventPublisher.publishEvent(new TaskAssignedEvent(this, savedTask, savedTask.getAssignee(), creator, false));
+		if (savedTask.getAssignee() != null) {
+			String assignLog = String.format("%s assigned task '%s' to %s",
+					getSafeFullName(creator), savedTask.getTitle(), getSafeFullName(savedTask.getAssignee()));
+			activityLogService.logActivity(workspaceId, creator.getId(), savedTask.getId(), "TASK_ASSIGNED", assignLog);
 
-		log.info("Task successfully created with ID: {} in workspace: {}", savedTask.getId(), workspaceId);
+			eventPublisher.publishEvent(new TaskAssignedEvent(this, savedTask, savedTask.getAssignee(), creator, false));
+		}
+
 		return taskMapper.toResponse(savedTask);
 	}
-
 
 	@Transactional(readOnly = true)
 	public Page<TaskResponse> getWorkspaceTasks(UUID workspaceId, String email, Pageable pageable) {
@@ -102,10 +102,8 @@ public class TaskService {
 				.map(taskMapper::toResponse);
 	}
 
-
 	@Transactional(readOnly = true)
 	public TaskResponse getTaskById(UUID taskId, String email) {
-
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
@@ -117,14 +115,16 @@ public class TaskService {
 		return taskMapper.toResponse(task);
 	}
 
-
 	public TaskResponse updateTask(UUID taskId, String email, TaskUpdateRequest request) {
-
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+
+		if (request.getVersion() != null && !task.getVersion().equals(request.getVersion())) {
+			throw new org.springframework.orm.ObjectOptimisticLockingFailureException(Task.class, taskId);
+		}
 
 		UUID workspaceId = task.getWorkspace().getId();
 		WorkspaceMember member = getWorkspaceMemberOrThrow(workspaceId, email);
@@ -133,19 +133,13 @@ public class TaskService {
 			throw new UnauthorizedAccessException("Viewer role not allowed to update tasks");
 
 		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
-		boolean isCreator = task.getCreator() != null
-				&& task.getCreator().getEmail() != null
-				&& task.getCreator().getEmail().equals(email);
-
-		boolean isAssignee = task.getAssignee() != null
-				&& task.getAssignee().getEmail() != null
-				&& task.getAssignee().getEmail().equals(email);
+		boolean isCreator = task.getCreator() != null && task.getCreator().getEmail() != null && task.getCreator().getEmail().equals(email);
+		boolean isAssignee = task.getAssignee() != null && task.getAssignee().getEmail() != null && task.getAssignee().getEmail().equals(email);
 
 		if (!isAdmin && !isCreator && !isAssignee)
 			throw new UnauthorizedAccessException("Only workspace ADMINs, the task creator, or the assignee can update this task!");
 
 		User currentUser = member.getUser();
-
 		final TaskStatus oldStatus = task.getStatus();
 		final User oldAssignee = task.getAssignee();
 
@@ -162,15 +156,15 @@ public class TaskService {
 		if (request.getAssigneeId() != null) {
 			User assignee = validateAndGetAssignee(workspaceId, request.getAssigneeId());
 			task.setAssignee(assignee);
-		} else
+		} else {
 			task.setAssignee(null);
+		}
 
 		Task updatedTask = taskRepository.save(task);
 
 		if (isDetailsChanged) {
 			String logDescription = String.format("%s updated details for task '%s'",
 					getSafeFullName(currentUser), updatedTask.getTitle());
-
 			activityLogService.logActivity(workspaceId, currentUser.getId(), updatedTask.getId(), "TASK_UPDATED", logDescription);
 
 			User creator = updatedTask.getCreator();
@@ -188,22 +182,20 @@ public class TaskService {
 
 		checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser);
 
-		if (updatedTask.getAssignee() != null
-				&& (oldAssignee == null || !oldAssignee.getId().equals(updatedTask.getAssignee().getId()))) {
-			eventPublisher.publishEvent(new TaskAssignedEvent(
-					this,
-					updatedTask,
-					updatedTask.getAssignee(),
-					currentUser,
-					true));
+		if (updatedTask.getAssignee() != null && (oldAssignee == null || !oldAssignee.getId().equals(updatedTask.getAssignee().getId()))) {
+			String logType = oldAssignee == null ? "TASK_ASSIGNED" : "TASK_REASSIGNED";
+			String actionText = oldAssignee == null ? "assigned task" : "reassigned task";
+			String logDesc = String.format("%s %s '%s' to %s",
+					getSafeFullName(currentUser), actionText, updatedTask.getTitle(), getSafeFullName(updatedTask.getAssignee()));
+			activityLogService.logActivity(workspaceId, currentUser.getId(), updatedTask.getId(), logType, logDesc);
+
+			eventPublisher.publishEvent(new TaskAssignedEvent(this, updatedTask, updatedTask.getAssignee(), currentUser, true));
 		}
 
 		return taskMapper.toResponse(updatedTask);
 	}
 
-
 	public TaskResponse updateTaskStatus(UUID taskId, String email, TaskStatusUpdateRequest request) {
-
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
@@ -216,19 +208,13 @@ public class TaskService {
 			throw new UnauthorizedAccessException("Viewer role not allowed to change task status");
 
 		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
-		boolean isCreator = task.getCreator() != null
-				&& task.getCreator().getEmail() != null
-				&& task.getCreator().getEmail().equals(email);
-
-		boolean isAssignee = task.getAssignee() != null
-				&& task.getAssignee().getEmail() != null
-				&& task.getAssignee().getEmail().equals(email);
+		boolean isCreator = task.getCreator() != null && task.getCreator().getEmail() != null && task.getCreator().getEmail().equals(email);
+		boolean isAssignee = task.getAssignee() != null && task.getAssignee().getEmail() != null && task.getAssignee().getEmail().equals(email);
 
 		if (!isAdmin && !isCreator && !isAssignee)
 			throw new UnauthorizedAccessException("Only workspace ADMINs, the task creator, or the assignee can update task status!");
 
 		User currentUser = member.getUser();
-
 		TaskStatus oldStatus = task.getStatus();
 		task.setStatus(request.getStatus());
 
@@ -239,9 +225,7 @@ public class TaskService {
 		return taskMapper.toResponse(updatedTask);
 	}
 
-
 	public void deleteTask(UUID taskId, String email) {
-
 		if (taskId == null)
 			throw new BadRequestException("Task ID cannot be null");
 
@@ -251,9 +235,7 @@ public class TaskService {
 		WorkspaceMember member = getWorkspaceMemberOrThrow(task.getWorkspace().getId(), email);
 
 		boolean isAdmin = member.getRole() == WorkspaceMemberRole.ADMIN;
-		boolean isCreator = task.getCreator() != null
-				&& task.getCreator().getEmail() != null
-				&& task.getCreator().getEmail().equals(email);
+		boolean isCreator = task.getCreator() != null && task.getCreator().getEmail() != null && task.getCreator().getEmail().equals(email);
 
 		if (!isAdmin && !isCreator)
 			throw new UnauthorizedAccessException("Only workspace ADMINs or the task creator can delete this task!");
@@ -277,10 +259,7 @@ public class TaskService {
 
 		String logDescription = String.format("%s deleted task '%s'", getSafeFullName(currentUser), task.getTitle());
 		activityLogService.logActivity(task.getWorkspace().getId(), currentUser.getId(), taskId, "TASK_DELETED", logDescription);
-
-		log.info("Task ID: {} was successfully deleted by user: {}", taskId, EmailUtils.maskEmail(email));
 	}
-
 
 	private void validateWorkspaceMembership(UUID workspaceId, String email, String exceptionMessage) {
 		boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
@@ -295,7 +274,6 @@ public class TaskService {
 	}
 
 	private User validateAndGetAssignee(UUID workspaceId, UUID assigneeId) {
-
 		if (assigneeId == null) {
 			throw new BadRequestException("Assignee ID cannot be null");
 		}
@@ -314,6 +292,9 @@ public class TaskService {
 	private void checkAndTriggerStatusEvents(Task task, TaskStatus oldStatus, User actor) {
 		if (task.getStatus() != oldStatus) {
 			if (task.getStatus() == TaskStatus.DONE) {
+				String logDescription = String.format("%s completed task '%s'", getSafeFullName(actor), task.getTitle());
+				activityLogService.logActivity(task.getWorkspace().getId(), actor.getId(), task.getId(), "TASK_COMPLETED", logDescription);
+
 				triggerTaskCompletedEvent(task, actor);
 			} else {
 				activityLogService.logActivity(
@@ -321,8 +302,7 @@ public class TaskService {
 						actor.getId(),
 						task.getId(),
 						"TASK_STATUS_CHANGED",
-						String.format("%s moved task '%s' from %s to %s",
-								getSafeFullName(actor), task.getTitle(), oldStatus, task.getStatus())
+						String.format("%s moved task '%s' from %s to %s", getSafeFullName(actor), task.getTitle(), oldStatus, task.getStatus())
 				);
 
 				User creator = task.getCreator();
@@ -341,17 +321,15 @@ public class TaskService {
 	}
 
 	private void triggerTaskCompletedEvent(Task completedTask, User actor) {
-		log.info("Event Trigger Block: Task ID {} has been moved to COMPLETED by user Id {}.", completedTask.getId(), actor.getId());
 		eventPublisher.publishEvent(new TaskCompletedEvent(this, completedTask, actor));
 	}
 
-	private void notifyUserAndPublish(User recipient, User actor, Task task, String message,
-	                                  NotificationType notifyType, String redisAction) {
+	private void notifyUserAndPublish(User recipient, User actor, Task task, String message, NotificationType notifyType, String redisAction) {
 		if (recipient == null || actor == null || recipient.getId().equals(actor.getId())) {
 			return;
 		}
 
-		notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
+		Notification notification = notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
 
 		UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 				.eventId(UUID.randomUUID())
@@ -362,6 +340,7 @@ public class TaskService {
 				.entityType(EntityType.TASK.name())
 				.entityId(task.getId().toString())
 				.payload(Map.of(
+						"notificationId", notification.getId().toString(),
 						"taskTitle", task.getTitle(),
 						"workspaceId", task.getWorkspace().getId().toString(),
 						"actorName", getSafeFullName(actor),
@@ -370,23 +349,27 @@ public class TaskService {
 				.timestamp(Instant.now())
 				.build();
 
-		redisEventPublisherService.publish(realTimeEvent);
+		publishAfterCommit(realTimeEvent);
+	}
+
+	private void publishAfterCommit(UnifiedEvent event) {
+		if (TransactionSynchronizationManager.isActualTransactionActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					redisEventPublisherService.publish(event);
+				}
+			});
+		} else {
+			redisEventPublisherService.publish(event);
+		}
 	}
 
 	private String getSafeFullName(User user) {
-		if (user == null) {
-			return "Unknown User";
-		}
-
+		if (user == null) return "Unknown User";
 		String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
 		String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
-
 		String fullName = (firstName + " " + lastName).trim();
-
-		if (!fullName.isEmpty()) {
-			return fullName;
-		}
-
-		return user.getEmail() != null ? user.getEmail() : "Unknown User";
+		return !fullName.isEmpty() ? fullName : (user.getEmail() != null ? user.getEmail() : "Unknown User");
 	}
 }
