@@ -194,9 +194,10 @@ function waitLabel(seconds) {
 }
 
 export function getErrorMessage(error) {
+  const status = error?.response?.status;
   const data = error?.response?.data;
 
-  if (error?.response?.status === 429) {
+  if (status === 429) {
     const seconds = Number(data?.errors?.retryAfterSeconds);
     if (Number.isFinite(seconds) && seconds > 0) {
       return `Too many attempts. Try again in ${waitLabel(seconds)}.`;
@@ -204,13 +205,14 @@ export function getErrorMessage(error) {
     return 'Too many attempts. Please wait a moment and try again.';
   }
 
-  if (typeof data === 'string' && data.trim()) return data;
+  const text = typeof data === 'string' ? data.trim() : '';
+  if (text && !text.startsWith('<')) return text;
   if (data?.message) return data.message;
   if (data?.errors && typeof data.errors === 'object') {
     const first = Object.values(data.errors)[0];
     if (first) return String(first);
   }
-  if (error?.message === 'Network Error') {
+  if (error?.message === 'Network Error' || [502, 503, 504].includes(status)) {
     return 'Cannot reach the server. Check that the backend is running.';
   }
   return 'Something went wrong. Please try again.';
