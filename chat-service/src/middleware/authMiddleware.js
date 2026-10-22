@@ -15,6 +15,9 @@ async function authMiddleware(req, res, next) {
     req.user.token = token;
     next();
   } catch (err) {
+    if (err.message === 'AUTH_AUTHORITY_UNAVAILABLE') {
+      return res.status(503).json({ error: 'AUTH_AUTHORITY_UNAVAILABLE' });
+    }
     if (err.message?.startsWith('AUTH_')) {
       return res.status(401).json({ error: `Unauthorized: ${err.message}` });
     }

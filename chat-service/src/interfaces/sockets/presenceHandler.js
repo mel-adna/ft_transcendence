@@ -30,7 +30,7 @@ function registerPresenceHandlers(io, socket) {
       await UpdatePresenceUseCase.execute({
         userId,
         status: PresenceStatus.ONLINE,
-        persist: false,
+        persist: true,
       });
     } catch (err) {
       console.error(`[presenceHandler] heartbeat failed userId=${userId}:`, err.message);

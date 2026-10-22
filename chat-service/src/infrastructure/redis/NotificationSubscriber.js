@@ -31,6 +31,9 @@ class NotificationSubscriber {
       return;
     }
 
+    if (!event || typeof event !== 'object' || Array.isArray(event)
+      || typeof event.type !== 'string' || typeof event.action !== 'string') return;
+
     if (event.type === 'USER' && event.action === 'DELETED') {
       this._handleUserDeleted(event);
       return;

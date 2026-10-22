@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { verifyCurrentIdentity } = require('../../infrastructure/http/JavaBackendClient');
 const UserRepository = require('../../infrastructure/repositories/UserRepository');
 
 const SIGNING_KEY = Buffer.from(process.env.JWT_SECRET ?? '', 'base64');
@@ -22,20 +23,27 @@ class SocketAuthUseCase {
       throw new Error('AUTH_TOKEN_INVALID');
     }
 
-    const id = payload.id ?? payload.userId ?? payload.sub;
+    if (!payload || typeof payload !== 'object'
+      || !Number.isInteger(payload.exp) || !Number.isInteger(payload.iat)
+      || !Number.isInteger(payload.sv) || payload.sv < 1
+      || typeof payload.sub !== 'string' || !payload.sub.trim()
+      || typeof payload.id !== 'string') throw new Error('AUTH_PAYLOAD_INVALID');
+
+    const id = payload.id;
     if (!id) {
       throw new Error('AUTH_PAYLOAD_INVALID');
     }
+
+    await verifyCurrentIdentity(token, id);
 
     const email = payload.email ?? payload.sub ?? null;
     const username = payload.name ?? payload.username ?? email ?? payload.sub ?? null;
 
     const sv = Number.isInteger(payload.sv) && payload.sv >= 0 ? payload.sv : 0;
-    const issuedAtMs = Number.isInteger(payload.iat) ? payload.iat * 1000 : 0;
-    const { revoked, raised } = await UserRepository.authenticate({ id: String(id), username, email, sv, issuedAtMs });
+    const { revoked, raised } = await UserRepository.authenticate({ id: String(id), username, email, sv });
     if (revoked) throw new Error('AUTH_TOKEN_REVOKED');
 
-    return { id: String(id), username, email, sv, svRaised: raised };
+    return { id: String(id), username, email, sv, svRaised: raised, expiresAt: payload.exp * 1000 };
   }
 }
 

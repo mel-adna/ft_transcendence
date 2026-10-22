@@ -23,7 +23,7 @@ const userController = {
       });
       return res.json({ users });
     } catch (err) {
-      return sendHttpError(res, err, { USERS_QUERY_TOO_LONG: 400 });
+      return sendHttpError(res, err, { USERS_QUERY_TOO_LONG: 400, ROOM_ACCESS_DENIED: 403 });
     }
   },
 };

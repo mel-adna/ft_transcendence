@@ -10,6 +10,10 @@ class SearchUsersUseCase {
     if (query.length > MAX_QUERY_LENGTH) throw new Error('USERS_QUERY_TOO_LONG');
     if (typeof excludeRoomId !== 'string') excludeRoomId = null;
 
+    if (excludeRoomId && !await RoomRepository.isMember(excludeRoomId, requesterId)) {
+      throw new Error('ROOM_ACCESS_DENIED');
+    }
+
     const localUsers = await UserRepository.searchByUsernameOrEmail(query, {
       excludeUserId: requesterId,
       excludeRoomId,

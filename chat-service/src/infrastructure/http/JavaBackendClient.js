@@ -11,7 +11,7 @@ async function searchUsersByEmail(email, callerToken) {
   try {
     const res = await fetch(
       `${JAVA_API_BASE}/users/search?email=${encodeURIComponent(email.trim())}`,
-      { headers: { Authorization: `Bearer ${callerToken}` } },
+      { headers: { Authorization: `Bearer ${callerToken}` }, signal: AbortSignal.timeout(5000) },
     );
     if (!res.ok) return [];
 
@@ -37,6 +37,7 @@ async function listWorkspaceMemberIds(workspaceId, callerToken) {
   try {
     const res = await fetch(`${JAVA_API_BASE}/workspaces/${workspaceId}/members`, {
       headers: { Authorization: `Bearer ${callerToken}` },
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
 
@@ -47,4 +48,22 @@ async function listWorkspaceMemberIds(workspaceId, callerToken) {
   }
 }
 
-module.exports = { searchUsersByEmail, listAllUsers, listWorkspaceMemberIds };
+async function verifyCurrentIdentity(token, expectedId) {
+  try {
+    const res = await fetch(`${JAVA_API_BASE}/users/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new Error('AUTH_TOKEN_REVOKED');
+      throw new Error('AUTH_AUTHORITY_UNAVAILABLE');
+    }
+    const user = await res.json();
+    if (user.id !== expectedId) throw new Error('AUTH_PAYLOAD_INVALID');
+  } catch (err) {
+    if (err.message?.startsWith('AUTH_')) throw err;
+    throw new Error('AUTH_AUTHORITY_UNAVAILABLE');
+  }
+}
+
+module.exports = { verifyCurrentIdentity, searchUsersByEmail, listAllUsers, listWorkspaceMemberIds };

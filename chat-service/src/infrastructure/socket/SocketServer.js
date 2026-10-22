@@ -4,6 +4,7 @@ const socketAuthUseCase = require('../../application/socket/SocketAuthUseCase');
 const socketConfig = require('../../config/socketConfig');
 const { createRedisClients } = require('../redis/redisClient');
 const registry = require('./SocketRegistry');
+const IdentityReconciler = require('./IdentityReconciler');
 const registerChatHandlers = require('../../interfaces/sockets/chatSocket');
 const registerMessageHandlers = require('../../interfaces/sockets/messageHandler');
 const registerPresenceHandlers = require('../../interfaces/sockets/presenceHandler');
@@ -24,6 +25,7 @@ class SocketServer {
     this.io = null;
     this._redis = null;
     this._connectionCount = 0;
+    this._identities = new IdentityReconciler();
   }
 
   async init(httpServer) {
@@ -40,6 +42,7 @@ class SocketServer {
     this._applyConnectionLimit(maxConnections);
     this._applyAuthMiddleware();
     this._registerConnectionHandler();
+    this._identities.start();
 
     return this.io;
   }
@@ -74,6 +77,21 @@ class SocketServer {
     this.io.on('connection', (socket) => {
       this._connectionCount += 1;
       const { id: userId } = socket.user;
+      this._identities.track(socket, socket.handshake?.auth?.token);
+
+      // Established connections must not outlive the access token used to open them.
+      // Closing the transport lets existing clients reconnect with their refreshed token.
+      const expiryTimer = setTimeout(() => socket.conn.close(),
+        Math.max(0, Math.min(socket.user.expiresAt - Date.now(), 2_147_483_647)));
+      expiryTimer.unref?.();
+      socket.use((_packet, next) => {
+        if (Date.now() >= socket.user.expiresAt) {
+          socket.conn.close();
+          return next(new Error('AUTH_TOKEN_EXPIRED'));
+        }
+        next();
+      });
+      socket.on('disconnect', () => clearTimeout(expiryTimer));
 
       socket.join(userRoom(userId));
       registry.register(userId, socket.id);
@@ -90,7 +108,6 @@ class SocketServer {
 
       socket.on('disconnect', () => {
         this._connectionCount = Math.max(0, this._connectionCount - 1);
-        registry.unregister(socket.id);
         const afterStats = registry.stats();
         socketConnectionsGauge.set(afterStats.totalSockets);
         onlineUsersGauge.set(afterStats.onlineUsers);
@@ -151,15 +168,21 @@ class SocketServer {
   }
 
   async shutdown() {
+    this._identities.stop();
     if (this.io) {
-      this.io.close();
+      const io = this.io;
+      await new Promise((resolve) => io.close(resolve));
       this.io = null;
     }
     if (this._redis) {
-      await Promise.all([
+      const results = await Promise.allSettled([
         this._redis.pubClient.quit(),
         this._redis.subClient.quit(),
       ]);
+      if (results.some((result) => result.status === 'rejected')) {
+        this._redis.pubClient.disconnect?.();
+        this._redis.subClient.disconnect?.();
+      }
       this._redis = null;
     }
   }

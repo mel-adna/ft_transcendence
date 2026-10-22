@@ -21,21 +21,13 @@ class CreateRoomUseCase {
   async _createGroupRoom(creatorId, name, memberIds = []) {
     if (memberIds.length > MAX_MEMBERS_PER_REQUEST) throw new Error('ROOM_TOO_MANY_MEMBERS');
     const roomEntity = Room.create(name, Room.TYPES.GROUP);
-    const created = await RoomRepository.create(roomEntity.toCreateInput());
-    await RoomRepository.addMember(created.id, creatorId, 'OWNER');
-
     const candidateIds = [...new Set(memberIds)].filter((id) => typeof id === 'string' && id && id !== creatorId);
-    let notifyUserIds = [];
-    if (candidateIds.length) {
-      const users = await UserRepository.findManyByIds(candidateIds);
-      for (const user of users) {
-        await RoomRepository.addMember(created.id, user.id, 'MEMBER');
-      }
-      notifyUserIds = users.map((u) => u.id);
-    }
-
-    const room = await RoomRepository.findById(created.id);
-    return { room: RoomService.buildRoomResponse(room, creatorId), notifyUserIds, requestSentTo: [] };
+    const users = candidateIds.length ? await UserRepository.findManyByIds(candidateIds) : [];
+    const room = await RoomRepository.createWithMembers(roomEntity.toCreateInput(), [
+      { userId: creatorId, role: 'OWNER', status: 'ACCEPTED' },
+      ...users.map((user) => ({ userId: user.id, role: 'MEMBER', status: 'ACCEPTED' })),
+    ]);
+    return { room: RoomService.buildRoomResponse(room, creatorId), notifyUserIds: users.map((u) => u.id), requestSentTo: [] };
   }
 
   async _createDirectRoom(creatorId, targetUserId) {
@@ -45,24 +37,18 @@ class CreateRoomUseCase {
     const targetUser = await UserRepository.findById(targetUserId);
     if (!targetUser) throw new Error('ROOM_DM_USER_NOT_FOUND');
 
-    const existing = await RoomRepository.findDMRoom(creatorId, targetUserId);
-    if (existing) {
-      return { room: RoomService.buildRoomResponse(existing, creatorId), notifyUserIds: [], requestSentTo: [] };
-    }
-
-    const dmName = RoomService.getDMRoomName(creatorId, targetUserId);
-    const roomEntity = Room.create(dmName, Room.TYPES.DIRECT);
-    const created = await RoomRepository.create(roomEntity.toCreateInput());
-
-    await RoomRepository.addMember(created.id, creatorId, 'MEMBER', 'ACCEPTED');
-    await RoomRepository.addMember(created.id, targetUserId, 'MEMBER', 'PENDING');
-
-    const room = await RoomRepository.findById(created.id);
-    return {
-      room: RoomService.buildRoomResponse(room, creatorId),
-      notifyUserIds: [],
-      requestSentTo: [targetUserId],
-    };
+    return RoomRepository.withDirectPairLock(creatorId, targetUserId, async (db) => {
+      const existing = await RoomRepository.findDMRoom(creatorId, targetUserId, db);
+      if (existing) {
+        return { room: RoomService.buildRoomResponse(existing, creatorId), notifyUserIds: [], requestSentTo: [] };
+      }
+      const entity = Room.create(RoomService.getDMRoomName(creatorId, targetUserId), Room.TYPES.DIRECT);
+      const room = await RoomRepository.createWithMembers(entity.toCreateInput(), [
+        { userId: creatorId, role: 'MEMBER', status: 'ACCEPTED' },
+        { userId: targetUserId, role: 'MEMBER', status: 'PENDING' },
+      ], db);
+      return { room: RoomService.buildRoomResponse(room, creatorId), notifyUserIds: [], requestSentTo: [targetUserId] };
+    });
   }
 }
 

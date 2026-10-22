@@ -24,8 +24,8 @@ const ROOM_SELECT = {
 };
 
 const RoomRepository = {
-  async findById(id) {
-    return prisma.room.findUnique({
+  async findById(id, db = prisma) {
+    return db.room.findUnique({
       where: { id },
       select: ROOM_SELECT,
     });
@@ -56,8 +56,8 @@ const RoomRepository = {
     return this.findAllForUser(userId);
   },
 
-  async findDMRoom(userId1, userId2) {
-    const candidates = await prisma.room.findMany({
+  async findDMRoom(userId1, userId2, db = prisma) {
+    const candidates = await db.room.findMany({
       where: {
         type: 'DIRECT',
         AND: [
@@ -71,8 +71,8 @@ const RoomRepository = {
     return candidates.find((room) => room.members.length === 2) ?? null;
   },
 
-  async create(data) {
-    return prisma.room.create({
+  async create(data, db = prisma) {
+    return db.room.create({
       data: {
         name: data.name,
         type: data.type,
@@ -86,8 +86,8 @@ const RoomRepository = {
     });
   },
 
-  async addMember(roomId, userId, role = 'MEMBER', status = 'ACCEPTED') {
-    return prisma.roomMember.upsert({
+  async addMember(roomId, userId, role = 'MEMBER', status = 'ACCEPTED', db = prisma) {
+    return db.roomMember.upsert({
       where: { roomId_userId: { roomId, userId } },
       update: { role, status },
       create: { roomId, userId, role, status },
@@ -101,9 +101,37 @@ const RoomRepository = {
     });
   },
 
+  async withRoomLock(roomId, action) {
+    return prisma.$transaction(async (db) => {
+      await db.$queryRaw`SELECT id FROM "Room" WHERE id = ${roomId} FOR UPDATE`;
+      return action(db);
+    });
+  },
+
+  async withDirectPairLock(first, second, action) {
+    const pair = `teampulse:dm:${[first, second].sort().join(':')}`;
+    return prisma.$transaction(async (db) => {
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${pair}, 0))`;
+      return action(db);
+    });
+  },
+
+  async createWithMembers(data, members, db = prisma) {
+    return db.room.create({
+      data: { name: data.name, type: data.type, members: { create: members } },
+      select: ROOM_SELECT,
+    });
+  },
+
   async removeMember(roomId, userId) {
-    return prisma.roomMember.delete({
-      where: { roomId_userId: { roomId, userId } },
+    return this.withRoomLock(roomId, async (db) => {
+      const member = await db.roomMember.findUnique({ where: { roomId_userId: { roomId, userId } } });
+      if (!member || member.status !== 'ACCEPTED') throw new Error('ROOM_NOT_MEMBER');
+      if (member.role === 'OWNER') {
+        const owners = await db.roomMember.count({ where: { roomId, role: 'OWNER', status: 'ACCEPTED' } });
+        if (owners <= 1) throw new Error('ROOM_LAST_OWNER');
+      }
+      return db.roomMember.delete({ where: { roomId_userId: { roomId, userId } } });
     });
   },
 
@@ -145,9 +173,9 @@ const RoomRepository = {
     });
   },
 
-  async isMember(roomId, userId) {
+  async isMember(roomId, userId, db = prisma) {
     if (typeof roomId !== 'string' || typeof userId !== 'string') return false;
-    const member = await prisma.roomMember.findUnique({
+    const member = await db.roomMember.findUnique({
       where: { roomId_userId: { roomId, userId } },
       select: { status: true },
     });
