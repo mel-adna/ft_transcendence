@@ -14,6 +14,7 @@ CREATE TABLE users
     enabled          BOOLEAN      NOT NULL DEFAULT FALSE,
     deleted          BOOLEAN      NOT NULL DEFAULT FALSE,
     security_version BIGINT       NOT NULL DEFAULT 1,
+    row_version      BIGINT       NOT NULL DEFAULT 0,
     created_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

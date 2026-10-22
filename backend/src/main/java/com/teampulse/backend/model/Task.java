@@ -6,6 +6,7 @@ import java.util.UUID;
 import jakarta.persistence.*;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.*;
+import org.hibernate.jdbc.Expectation;
 
 import com.teampulse.backend.enums.TaskPriority;
 import com.teampulse.backend.enums.TaskStatus;
@@ -23,55 +24,55 @@ import javax.annotation.Nullable;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@SQLDelete(sql = "UPDATE tasks SET deleted = true WHERE id = ? AND version = ?")
+@SQLDelete(sql = "UPDATE tasks SET deleted = true, version = version + 1 WHERE id = ? AND version = ?", verify = Expectation.RowCount.class)
 @SQLRestriction("deleted = false")
 public class Task {
-	@Id
-	@GeneratedValue(strategy=GenerationType.UUID)
-	private UUID id;
+    @Id
+    @GeneratedValue(strategy=GenerationType.UUID)
+    private UUID id;
 
-	@ManyToOne(fetch=FetchType.LAZY)
-	@JoinColumn(name="workspace_id", nullable=false)
-	private Workspace workspace;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="workspace_id", nullable=false)
+    private Workspace workspace;
 
-	@Column(name="title", nullable=false, length=150)
-	private String title;
+    @Column(name="title", nullable=false, length=150)
+    private String title;
 
-	@Column(name="description", length=40000)
-	private String description;
+    @Column(name="description", length=40000)
+    private String description;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name="status", nullable=false, length=50)
-	private TaskStatus status = TaskStatus.TODO;
+    @Enumerated(EnumType.STRING)
+    @Column(name="status", nullable=false, length=50)
+    private TaskStatus status = TaskStatus.TODO;
 
-	@Enumerated(EnumType.STRING)
-	@Column(name="priority", nullable=false, length=50)
-	private TaskPriority priority = TaskPriority.MEDIUM;
+    @Enumerated(EnumType.STRING)
+    @Column(name="priority", nullable=false, length=50)
+    private TaskPriority priority = TaskPriority.MEDIUM;
 
-	@NotFound(action = NotFoundAction.IGNORE)
-	@Nullable
-	@ManyToOne(fetch=FetchType.LAZY)
-	@JoinColumn(name="assignee_id")
-	private User assignee;
+    @NotFound(action = NotFoundAction.IGNORE)
+    @Nullable
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="assignee_id")
+    private User assignee;
 
-	@NotFound(action = NotFoundAction.IGNORE)
-	@Nullable
-	@ManyToOne(fetch=FetchType.LAZY)
-	@JoinColumn(name="creator_id", updatable = false)
-	private User creator;
+    @NotFound(action = NotFoundAction.IGNORE)
+    @Nullable
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="creator_id", updatable = false)
+    private User creator;
 
-	@Column(name="deleted", nullable=false)
-	private boolean deleted = false;
+    @Column(name="deleted", nullable=false)
+    private boolean deleted = false;
 
-	@Version
-	@Column(name = "version", nullable = false)
-	private Long version = 0L;
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
-	@CreationTimestamp
-	@Column(name="created_at", nullable=false, updatable=false)
-	private Instant createdAt;
+    @CreationTimestamp
+    @Column(name="created_at", nullable=false, updatable=false)
+    private Instant createdAt;
 
-	@UpdateTimestamp
-	@Column(name="updated_at", nullable=false)
-	private Instant updatedAt;
+    @UpdateTimestamp
+    @Column(name="updated_at", nullable=false)
+    private Instant updatedAt;
 }
