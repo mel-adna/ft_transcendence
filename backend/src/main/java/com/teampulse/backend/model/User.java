@@ -18,12 +18,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import org.hibernate.jdbc.Expectation;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
 
 @Entity
 @Table(name = "users")
@@ -32,53 +33,58 @@ import lombok.Setter;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@SQLDelete(sql = "UPDATE users SET deleted = true WHERE id = ?")
+@SQLDelete(sql = "UPDATE users SET deleted = true, row_version = row_version + 1 WHERE id = ? AND row_version = ?", verify = Expectation.RowCount.class)
 @SQLRestriction("deleted = false")
 public class User {
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-	@Column(name="email", nullable=false, length=100)
-	private String email;
+    @Column(name="email", nullable=false, length=100)
+    private String email;
 
-	@Column(name="password_hash")
-	private String passwordHashed;
+    @Column(name="password_hash")
+    private String passwordHashed;
 
-	@Column(name="first_name", length=50)
-	private String firstName;
+    @Column(name="first_name", length=50)
+    private String firstName;
 
-	@Column(name="last_name", length=50)
-	private String lastName;
+    @Column(name="last_name", length=50)
+    private String lastName;
 
-	@Column(name="avatar_url")
-	private String avatarUrl;
+    @Column(name="avatar_url")
+    private String avatarUrl;
 
-	@Builder.Default
-	@Enumerated(EnumType.STRING)
-	@Column(name="provider", nullable=false, length=20)
-	private AuthProvider provider = AuthProvider.LOCAL;
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name="provider", nullable=false, length=20)
+    private AuthProvider provider = AuthProvider.LOCAL;
 
-	@Column(name="provider_id")
-	private String providerId;
+    @Column(name="provider_id")
+    private String providerId;
 
-	@Builder.Default
-	@Column(nullable=false)
-	private boolean enabled = false;
+    @Builder.Default
+    @Column(nullable=false)
+    private boolean enabled = false;
 
-	@Builder.Default
-	@Column(name="deleted", nullable=false)
-	private boolean deleted = false;
+    @Builder.Default
+    @Column(name="deleted", nullable=false)
+    private boolean deleted = false;
 
-	@Builder.Default
-	@Column(name = "security_version", nullable = false)
-	private Long securityVersion = 1L;
+    @Builder.Default
+    @Column(name = "security_version", nullable = false)
+    private Long securityVersion = 1L;
 
-	@CreationTimestamp
-	@Column(name="created_at", nullable=false, updatable=false)
-	private LocalDateTime createdAt;
+    @Builder.Default
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private Long rowVersion = 0L;
 
-	@UpdateTimestamp
-	@Column(name="updated_at", nullable=false, updatable=true)
-	private LocalDateTime updatedAt;
+    @CreationTimestamp
+    @Column(name="created_at", nullable=false, updatable=false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name="updated_at", nullable=false, updatable=true)
+    private LocalDateTime updatedAt;
 }

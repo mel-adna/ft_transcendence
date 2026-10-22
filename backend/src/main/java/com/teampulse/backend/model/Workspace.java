@@ -7,6 +7,7 @@ import java.util.UUID;
 import jakarta.persistence.*;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.*;
+import org.hibernate.jdbc.Expectation;
 
 import com.teampulse.backend.enums.WorkspaceType;
 
@@ -23,7 +24,7 @@ import javax.annotation.Nullable;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@SQLDelete(sql = "UPDATE workspaces SET deleted = true WHERE id = ? AND version = ?")
+@SQLDelete(sql = "UPDATE workspaces SET deleted = true, version = version + 1 WHERE id = ? AND version = ?", verify = Expectation.RowCount.class)
 @SQLRestriction("deleted = false")
 public class Workspace {
     @Id
@@ -33,7 +34,7 @@ public class Workspace {
     @Column(name="name", nullable=false, length=100)
     private String name;
 
-	@Column(name="description", length=500) 
+    @Column(name="description", length=500) 
     private String description;
 
     @Enumerated(EnumType.STRING)
