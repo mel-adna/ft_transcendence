@@ -52,7 +52,7 @@ app.get('/metrics', async (req, res) => {
 
 app.use((err, req, res, next) => {
   const status = err.status || 500;
-  if (status >= 500) console.error('Server error:', err.stack);
+  if (status >= 500) console.error('Server error:', err.name);
   const byStatus = { 400: 'BAD_REQUEST', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN', 404: 'NOT_FOUND', 413: 'PAYLOAD_TOO_LARGE', 415: 'UNSUPPORTED_MEDIA_TYPE' };
   const code = err.type === 'entity.parse.failed' ? 'INVALID_JSON'
     : status >= 500 ? 'INTERNAL_ERROR'
@@ -73,7 +73,7 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error('[Server] Bootstrap failed:', err);
+  console.error('[Server] Bootstrap failed:', err.name);
   process.exit(1);
 });
 
@@ -83,7 +83,7 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[Server] Unhandled rejection:', reason);
+  console.error('[Server] Unhandled rejection:', reason?.name ?? 'Error');
 });
 
 module.exports = { app, server };

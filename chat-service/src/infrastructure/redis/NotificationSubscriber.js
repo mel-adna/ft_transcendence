@@ -1,6 +1,7 @@
 const { createClient } = require('redis');
 const socketServer = require('../socket/SocketServer');
 const UserRepository = require('../repositories/UserRepository');
+const { forgetVerifiedUser } = require('../http/JavaBackendClient');
 
 class NotificationSubscriber {
   constructor() {
@@ -31,6 +32,9 @@ class NotificationSubscriber {
       return;
     }
 
+    if (!event || typeof event !== 'object' || Array.isArray(event)
+      || typeof event.type !== 'string' || typeof event.action !== 'string') return;
+
     if (event.type === 'USER' && event.action === 'DELETED') {
       this._handleUserDeleted(event);
       return;
@@ -60,6 +64,7 @@ class NotificationSubscriber {
     const sv = Number(event.payload?.securityVersion);
     if (!userId || !Number.isInteger(sv)) return;
     try {
+      forgetVerifiedUser(String(userId));
       await UserRepository.raiseSecurityVersion(String(userId), sv);
       socketServer.disconnectStaleSessions(String(userId), sv);
     } catch (err) {
@@ -71,6 +76,7 @@ class NotificationSubscriber {
     const userId = event.payload?.userId ?? event.entityId;
     if (!userId) return;
     try {
+      forgetVerifiedUser(String(userId));
       await UserRepository.releaseEmail(String(userId));
       socketServer.disconnectUser(String(userId));
     } catch (err) {

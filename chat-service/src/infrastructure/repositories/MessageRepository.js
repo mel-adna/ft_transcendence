@@ -24,8 +24,8 @@ const MESSAGE_SELECT = {
 };
 
 const MessageRepository = {
-  async create(data) {
-    return prisma.message.create({
+  async create(data, db = prisma) {
+    return db.message.create({
       data: {
         senderId: data.senderId,
         roomId: data.roomId,
@@ -47,7 +47,7 @@ const MessageRepository = {
         parentId: null,
       },
       select: MESSAGE_SELECT,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
@@ -69,7 +69,7 @@ const MessageRepository = {
         deletedAt: null,
       },
       select: MESSAGE_SELECT,
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take,
     });
   },
@@ -86,28 +86,28 @@ const MessageRepository = {
         content: { contains: trimmed, mode: 'insensitive' },
       },
       select: MESSAGE_SELECT,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take,
     });
   },
 
-  async findById(id) {
-    return prisma.message.findUnique({
+  async findById(id, db = prisma) {
+    return db.message.findUnique({
       where: { id },
       select: MESSAGE_SELECT,
     });
   },
 
-  async updateContent(id, content) {
-    return prisma.message.update({
+  async updateContent(id, content, db = prisma) {
+    return db.message.update({
       where: { id },
       data: { content, isEdited: true },
       select: MESSAGE_SELECT,
     });
   },
 
-  async softDelete(id) {
-    await prisma.message.update({
+  async softDelete(id, db = prisma) {
+    await db.message.update({
       where: { id },
       data: { deletedAt: new Date() },
     });

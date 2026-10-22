@@ -6,9 +6,10 @@ function toClientCode(err) {
 }
 
 function sendHttpError(res, err, statusMap = {}) {
-  const code = toClientCode(err);
-  const status = statusMap[code] ?? 500;
-  if (status >= 500) console.error('[http] server error:', err);
+  const candidate = toClientCode(err);
+  const status = statusMap[candidate] ?? 500;
+  const code = status >= 500 ? 'INTERNAL_ERROR' : candidate;
+  if (status >= 500) console.error('[http] server error:', err?.name ?? 'Error');
   return res.status(status).json({ error: code });
 }
 

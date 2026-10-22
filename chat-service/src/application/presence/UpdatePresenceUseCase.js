@@ -8,12 +8,13 @@ class UpdatePresenceUseCase {
       throw new Error('INVALID_STATUS');
     }
 
-    const lastSeen = status === PresenceStatus.OFFLINE ? new Date() : null;
+    const seenAt = new Date();
+    const lastSeen = status === PresenceStatus.OFFLINE ? seenAt : null;
 
     if (persist) {
       await UserRepository.updatePresence(userId, {
         presenceStatus: status,
-        ...(lastSeen ? { lastSeenAt: lastSeen } : {}),
+        lastSeenAt: seenAt,
       });
     }
 

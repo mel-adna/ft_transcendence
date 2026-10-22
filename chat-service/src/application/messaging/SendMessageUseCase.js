@@ -8,18 +8,20 @@ class SendMessageUseCase {
     if (!Message.CLIENT_TYPES.includes(type)) throw new Error('MESSAGE_INVALID_TYPE');
     const message = new Message({ senderId, roomId, content, type, parentId });
 
-    const room = await RoomRepository.findById(roomId);
-    if (!room) throw new Error('ROOM_NOT_FOUND');
-    MessageService.assertSenderIsMember(senderId, room);
+    return RoomRepository.withRoomLock(roomId, async (db) => {
+      const room = await RoomRepository.findById(roomId, db);
+      if (!room) throw new Error('ROOM_NOT_FOUND');
+      MessageService.assertSenderIsMember(senderId, room);
 
-    if (message.parentId) {
-      const parent = await MessageRepository.findById(message.parentId);
-      if (!parent || parent.roomId !== roomId) throw new Error('MESSAGE_PARENT_INVALID');
-    }
+      if (message.parentId) {
+        const parent = await MessageRepository.findById(message.parentId, db);
+        if (!parent || parent.roomId !== roomId) throw new Error('MESSAGE_PARENT_INVALID');
+      }
 
-    const persisted = await MessageRepository.create(message.toCreateInput());
+      const persisted = await MessageRepository.create(message.toCreateInput(), db);
 
-    return MessageService.buildBroadcastPayload(persisted);
+      return MessageService.buildBroadcastPayload(persisted);
+    });
   }
 }
 

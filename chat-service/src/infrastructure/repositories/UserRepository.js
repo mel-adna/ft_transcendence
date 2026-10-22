@@ -41,7 +41,7 @@ const UserRepository = {
     });
   },
 
-  async authenticate({ id, username, email, sv, issuedAtMs }) {
+  async authenticate({ id, username, email, sv }) {
     const row = await prisma.user.findUnique({
       where: { id },
       select: { username: true, email: true, securityVersion: true, svSeenAt: true },
@@ -58,16 +58,12 @@ const UserRepository = {
         where: { id, securityVersion: { lt: sv } },
         data: { securityVersion: sv, svSeenAt: new Date() },
       });
-      return { revoked: false, raised: count > 0 };
+      if (count > 0) return { revoked: false, raised: true };
+      // Another security event may have raised the version after our first read.
+      const current = await prisma.user.findUnique({ where: { id }, select: { securityVersion: true } });
+      return { revoked: !current || current.securityVersion > sv, raised: false };
     }
 
-    if (issuedAtMs > (row?.svSeenAt?.getTime() ?? 0)) {
-      await prisma.user.updateMany({
-        where: { id, securityVersion: stored },
-        data: { securityVersion: sv, svSeenAt: new Date() },
-      });
-      return { revoked: false, raised: false };
-    }
     return { revoked: true, raised: false };
   },
 
