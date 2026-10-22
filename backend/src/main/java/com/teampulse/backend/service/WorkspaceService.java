@@ -232,8 +232,8 @@ public class WorkspaceService {
 		User admin = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		workspaceRepository.delete(workspace);
-		workspaceRepository.flush();
+		workspace.setDeleted(true);
+		workspaceRepository.save(workspace);
 
 		eventPublisher.publishEvent(new WorkspaceDeletedEvent(this, workspaceId, workspaceName, admin, memberIds));
 	}
