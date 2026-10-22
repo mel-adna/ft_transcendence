@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.teampulse.backend.model.User;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface VerificationCodeRepository extends JpaRepository<VerificationCode, UUID> {
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<VerificationCode> findByCodeAndUser(String code, User user);
 
 	@Modifying

@@ -67,13 +67,7 @@ public class FileStorageService {
 		if (file == null || file.isEmpty())
 			throw new BadRequestException("File cannot be empty");
 
-		String contentType = file.getContentType();
-		if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
-			throw new BadRequestException("Only image files are allowed.");
-		}
-
-		if (!hasValidImageMagicBytes(file))
-			throw new BadRequestException("Invalid file content. Uploaded file is not a valid image format.");
+		AvatarImageValidator.validate(file);
 
 		try {
 			String originalFileName = file.getOriginalFilename();
@@ -96,8 +90,8 @@ public class FileStorageService {
 			return String.format("%s/%s/%s", publicUrl, bucketName, objectKey);
 
 		} catch (Exception e) {
-			log.error("Error uploading image to MinIO: {}", e.getMessage(), e);
-			throw new RuntimeException("Failed to upload image to MinIO: " + e.getMessage(), e);
+			log.error("Avatar upload failed: {}", e.getClass().getSimpleName());
+			throw new IllegalStateException("Failed to upload image to object storage.", e);
 		}
 	}
 
@@ -130,33 +124,8 @@ public class FileStorageService {
 			);
 			log.info("Successfully deleted avatar object [{}] from MinIO.", objectKey);
 		} catch (Exception e) {
-			log.warn("Failed to delete avatar object from MinIO: {}", e.getMessage());
+			log.warn("Failed to delete avatar object from MinIO: {}", e.getClass().getSimpleName());
 		}
 	}
 
-	private boolean hasValidImageMagicBytes(MultipartFile file) {
-		try (InputStream is = file.getInputStream()) {
-			byte[] header = new byte[12];
-			int bytesRead = is.read(header);
-			if (bytesRead < 4) {
-				return false;
-			}
-
-			boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF;
-
-			boolean isPng = (header[0] & 0xFF) == 0x89 && (header[1] & 0xFF) == 0x50 &&
-					(header[2] & 0xFF) == 0x4E && (header[3] & 0xFF) == 0x47;
-
-			boolean isWebp = bytesRead >= 12 &&
-					header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F' &&
-					header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P';
-
-			boolean isGif = header[0] == 'G' && header[1] == 'I' && header[2] == 'F';
-
-			return isJpeg || isPng || isWebp || isGif;
-		} catch (Exception e) {
-			log.warn("Failed to read file magic bytes: {}", e.getMessage());
-			return false;
-		}
-	}
 }

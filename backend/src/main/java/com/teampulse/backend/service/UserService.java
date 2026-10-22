@@ -43,6 +43,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import org.apache.commons.codec.digest.DigestUtils;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
@@ -136,7 +138,7 @@ public class UserService {
 	public AuthResponse verifyEmail(VerifyEmailRequest request) {
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
-		User user = userRepository.findByEmail(cleanEmail)
+		User user = userRepository.findForCredentialChangeByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + cleanEmail));
 
 		verificationService.validateAndConsumeCode(user, request.getCode());
@@ -316,7 +318,7 @@ public class UserService {
 
 		String cleanEmail = EmailUtils.normalize(request.getEmail());
 
-		Optional<User> userOptional = userRepository.findByEmail(cleanEmail);
+		Optional<User> userOptional = userRepository.findForCredentialChangeByEmail(cleanEmail);
 		if (userOptional.isEmpty()) {
 			log.warn("Password reset initiated for non-existing email: {}", EmailUtils.maskEmail(request.getEmail()));
 			return;
@@ -329,7 +331,7 @@ public class UserService {
 		String token = UUID.randomUUID().toString();
 		Instant expiryDate = Instant.now().plusSeconds(15 * 60);
 
-		PasswordResetToken resetToken = new PasswordResetToken(token, user, expiryDate);
+		PasswordResetToken resetToken = new PasswordResetToken(DigestUtils.sha256Hex(token), user, expiryDate);
 		passwordResetTokenRepository.save(resetToken);
 
 		String resetLink = frontendUrl + "/reset-password?token=" + token;
@@ -347,7 +349,17 @@ public class UserService {
 	public void processResetPassword(ResetPasswordRequest request) {
 		log.info("Attempting to execute password reset via token.");
 
-		PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(request.getToken())
+		String tokenHash = DigestUtils.sha256Hex(request.getToken());
+		Optional<UUID> owner = passwordResetTokenRepository.findUserIdByToken(tokenHash);
+		if (owner.isEmpty() && request.getToken().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
+			owner = passwordResetTokenRepository.findUserIdByToken(request.getToken());
+		}
+		userRepository.findForCredentialChangeById(owner.orElseThrow(() -> new ResourceNotFoundException("Invalid or non-existing reset token.")))
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(DigestUtils.sha256Hex(request.getToken()))
+				.or(() -> request.getToken().matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+						? passwordResetTokenRepository.findByToken(request.getToken()) : Optional.empty())
 				.orElseThrow(() -> new ResourceNotFoundException("Invalid or non-existing reset token."));
 
 		if (resetToken.isExpired()) {
@@ -373,7 +385,7 @@ public class UserService {
 	public void softDeleteUser(String email) {
 		String cleanEmail = EmailUtils.normalize(email);
 
-		User user = userRepository.findByEmail(cleanEmail)
+		User user = userRepository.findForCredentialChangeByEmail(cleanEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
 		UUID userId = user.getId();
@@ -381,6 +393,15 @@ public class UserService {
 		String originalEmail = user.getEmail();
 		String originalName = (user.getFirstName() != null && !user.getFirstName().isBlank()) ? user.getFirstName() : "there";
 
+		// Membership creation locks the same user first. Lock all affected workspaces
+		// in UUID order before inspecting ownership/admin counts or removing memberships.
+		Set<UUID> affected = new TreeSet<>();
+		affected.addAll(workspaceMemberRepository.findWorkspaceIdsByUserEmail(cleanEmail));
+		affected.addAll(workspaceRepository.findIdsByOwnerId(userId));
+		for (UUID workspaceId : affected) {
+			workspaceRepository.findForMembershipChange(workspaceId)
+					.orElseThrow(() -> new BadRequestException("Workspace changed. Please retry account deletion."));
+		}
 		List<Workspace> ownedWorkspaces = workspaceRepository.findByOwnerId(userId);
 		List<String> blockingWorkspaces = new ArrayList<>();
 		List<Workspace> workspacesToDelete = new ArrayList<>();
@@ -402,6 +423,15 @@ public class UserService {
 			}
 		}
 
+		Set<UUID> ownedIds = ownedWorkspaces.stream().map(Workspace::getId).collect(Collectors.toSet());
+		for (WorkspaceMember membership : workspaceMemberRepository.findByUserEmail(cleanEmail)) {
+			UUID workspaceId = membership.getWorkspace().getId();
+			if (!ownedIds.contains(workspaceId) && membership.getRole() == WorkspaceMemberRole.ADMIN
+					&& !workspaceMemberRepository.existsByWorkspaceIdAndUserIdNotAndRole(workspaceId, userId, WorkspaceMemberRole.ADMIN)) {
+				blockingWorkspaces.add(membership.getWorkspace().getName());
+			}
+		}
+
 		if (!blockingWorkspaces.isEmpty()) {
 			String message = String.format(
 					"You must add another admin to your workspace(s) [%s] or delete them before deleting your account.",
@@ -416,7 +446,10 @@ public class UserService {
 					.toList();
 			workspaceInvitationRepository.deleteByWorkspaceIdIn(workspaceIdsToDelete);
 
-			workspaceRepository.deleteAll(workspacesToDelete);
+			// Keep these entities managed while cleaning their @MapsId memberships.
+			// A versioned UPDATE avoids cascade-persist cancelling a scheduled remove.
+			workspacesToDelete.forEach(ws -> ws.setDeleted(true));
+			workspaceRepository.saveAllAndFlush(workspacesToDelete);
 		}
 
 		for (Workspace ws : workspacesToTransfer) {
@@ -450,8 +483,7 @@ public class UserService {
 		user.setEnabled(false);
 		user.setDeleted(true);
 
-		if (user.getAvatarUrl() != null)
-			fileStorageService.deleteAvatar(userId, user.getAvatarUrl());
+		scheduleAvatarCleanup(userId, user.getAvatarUrl(), null);
 
 		user.setAvatarUrl(null);
 		userRepository.save(user);
@@ -476,35 +508,26 @@ public class UserService {
 
 		log.info("User account with email {} has been successfully soft-deleted in DB.", EmailUtils.maskEmail(email));
 
-		if (TransactionSynchronizationManager.isActualTransactionActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					try {
-						String subject = "Account Deletion Confirmation - Team-Pulse";
-						String body = String.format(
-								"Hello %s,\n\n" +
-										"Your Team-Pulse account (%s) has been successfully deleted.\n" +
-										"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
-										"Best regards,\nThe Team-Pulse Team",
-								originalName, originalEmail
-						);
-
-						emailService.sendEmail(originalEmail, subject, body);
-						log.info("Account deletion confirmation email sent to: {}", EmailUtils.maskEmail(originalEmail));
-
-					} catch (Exception ex) {
-						log.warn("Account deleted for [{}], but failed to send confirmation email: {}", EmailUtils.maskEmail(originalEmail), ex.getMessage());
-					}
-				}
-			});
-		}
+		String subject = "Account Deletion Confirmation - Team-Pulse";
+		String body = String.format(
+				"Hello %s,\n\n" +
+						"Your Team-Pulse account (%s) has been successfully deleted.\n" +
+						"All associated personal sessions have been terminated. If you did not request this deletion, please contact support immediately.\n\n" +
+						"Best regards,\nThe Team-Pulse Team", originalName, originalEmail);
+		emailService.sendEmail(originalEmail, subject, body);
 	}
 
 	public void hardDeleteUnverifiedAccounts(int expirationHours) {
 		LocalDateTime cutoffDate = LocalDateTime.now().minusHours(expirationHours);
 
-		List<UUID> unverifiedUserIds = userRepository.findUnverifiedUserIdsOlderThan(cutoffDate);
+		List<UUID> candidates = userRepository.findUnverifiedUserIdsOlderThan(cutoffDate);
+		List<UUID> unverifiedUserIds = new ArrayList<>();
+		for (UUID id : candidates.stream().sorted().toList()) {
+			userRepository.findForCredentialChangeById(id).ifPresent(current -> {
+				// Verification uses this same mutex. Recheck after waiting for it.
+				if (!current.isEnabled() && current.getCreatedAt().isBefore(cutoffDate)) unverifiedUserIds.add(id);
+			});
+		}
 
 		if (unverifiedUserIds.isEmpty()) {
 			log.info("No unverified accounts found for hard deletion.");
@@ -528,15 +551,9 @@ public class UserService {
 		User user = userRepository.findById(userId)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		if (user.getAvatarUrl() != null && user.getAvatarUrl().contains("/avatars/")) {
-			try {
-				fileStorageService.deleteAvatar(userId, user.getAvatarUrl());
-			} catch (Exception e) {
-				log.warn("Failed to delete old avatar for user [{}]: {}", userId, e.getMessage());
-			}
-		}
-
+		String previousAvatar = user.getAvatarUrl();
 		String avatarUrl = fileStorageService.uploadAvatar(userId, file);
+		scheduleAvatarCleanup(userId, previousAvatar, avatarUrl);
 		user.setAvatarUrl(avatarUrl);
 		User updatedUser = userRepository.save(user);
 
@@ -627,7 +644,7 @@ public class UserService {
 		} catch (BadCredentialsException | BadRequestException | DisabledException e) {
 			throw e;
 		} catch (Exception e) {
-			log.error("Google authentication failed: {}", e.getMessage(), e);
+			log.error("Google authentication failed: {}", e.getClass().getSimpleName());
 			throw new BadCredentialsException("Failed to authenticate with Google. Please try again later.");
 		}
 	}
@@ -691,7 +708,12 @@ public class UserService {
 		Set<Task> allUserTasks = new HashSet<>(createdTasks);
 		allUserTasks.addAll(assignedTasks);
 
+		Set<UUID> authorizedWorkspaceIds = memberships.stream()
+				.map(m -> m.getWorkspace().getId()).collect(Collectors.toSet());
+
 		Map<String, List<UserDataExportDTO.TaskExportDTO>> tasksByWorkspace = allUserTasks.stream()
+				.filter(task -> task.getWorkspace() != null
+						&& authorizedWorkspaceIds.contains(task.getWorkspace().getId()))
 				.collect(Collectors.groupingBy(
 						t -> {
 							try {
@@ -841,6 +863,18 @@ public class UserService {
 				.build();
 	}
 
+	private void scheduleAvatarCleanup(UUID userId, String previous, String replacement) {
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override public void afterCompletion(int status) {
+				if (status == STATUS_COMMITTED) {
+					if (previous != null && !previous.equals(replacement)) fileStorageService.deleteAvatar(userId, previous);
+				} else if (replacement != null) {
+					fileStorageService.deleteAvatar(userId, replacement);
+				}
+			}
+		});
+	}
+
 	private String getFileExtension(String filename) {
 		if (filename == null || !filename.contains(".")) {
 			throw new BadRequestException("Invalid file name or extension.");
@@ -890,15 +924,6 @@ public class UserService {
 				.timestamp(Instant.now())
 				.build();
 
-		if (TransactionSynchronizationManager.isActualTransactionActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					redisEventPublisherService.publish(event);
-				}
-			});
-		} else {
-			redisEventPublisherService.publish(event);
-		}
+		redisEventPublisherService.publish(event);
 	}
 }

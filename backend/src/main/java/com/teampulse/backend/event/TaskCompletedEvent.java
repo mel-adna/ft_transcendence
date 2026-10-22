@@ -12,18 +12,18 @@ import lombok.Getter;
 
 @Getter
 public class TaskCompletedEvent extends ApplicationEvent {
-	private final Task task;
-	private final User completedBy;
+	private final EventSnapshots.TaskValue task;
+	private final EventSnapshots.UserValue completedBy;
 	private final Instant timeAt;
 
 	public TaskCompletedEvent(Object source, Task task, User completedBy) {
 		super(source);
 
 		if (task == null)
-            throw new IllegalArgumentException("Task payload inside TaskCompletedEvent cannot be null");
+			throw new IllegalArgumentException("Task payload inside TaskCompletedEvent cannot be null");
 
-		this.task = task;
-		this.completedBy = completedBy;
-        this.timeAt = Instant.now(Clock.systemUTC());
+		this.task = EventSnapshots.TaskValue.of(task);
+		this.completedBy = EventSnapshots.UserValue.of(completedBy);
+		this.timeAt = Instant.now(Clock.systemUTC());
 	}
 }

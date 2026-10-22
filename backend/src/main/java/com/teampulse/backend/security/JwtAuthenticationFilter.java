@@ -22,7 +22,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@RequiredArgsConstructor 
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
@@ -80,7 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (JwtException ex) {
             log.warn("Invalid JWT Token | Path: {}", request.getRequestURI());
         } catch (Exception ex) {
-            log.error("Authentication filter error: ", ex);
+            log.error("Authentication filter failed: {}", ex.getClass().getSimpleName());
         }
 
         filterChain.doFilter(request, response);

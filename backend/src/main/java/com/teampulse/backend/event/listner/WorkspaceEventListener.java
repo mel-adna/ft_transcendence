@@ -38,13 +38,13 @@ public class WorkspaceEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceUpdatedEvent(WorkspaceUpdatedEvent event) {
-		UUID adminId = event.getUser() != null ? event.getUser().getId() : null;
+		UUID adminId = event.getUser() != null ? event.getUser().id() : null;
 		String adminName = getSafeAdminName(event.getUser());
 
 		String msg = String.format("Workspace name has been updated to '%s' by %s.",
-				event.getWorkspace().getName(), adminName);
+				event.getWorkspace().name(), adminName);
 
-		UUID workspaceId = event.getWorkspace().getId();
+		UUID workspaceId = event.getWorkspace().id();
 		List<WorkspaceMember> members = workspaceMemberRepository.findByWorkspaceId(workspaceId);
 
 		members.forEach(member -> {
@@ -68,7 +68,7 @@ public class WorkspaceEventListener {
 					.entityId(workspaceId.toString())
 					.payload(Map.of(
 							"notificationId", notification.getId().toString(),
-							"workspaceName", event.getWorkspace().getName(),
+							"workspaceName", event.getWorkspace().name(),
 							"adminName", adminName,
 							"message", msg
 					))
@@ -83,7 +83,7 @@ public class WorkspaceEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceDeletedEvent(WorkspaceDeletedEvent event) {
-		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;
+		UUID adminId = event.getAdmin() != null ? event.getAdmin().id() : null;
 		String adminName = getSafeAdminName(event.getAdmin());
 
 		String msg = String.format("The workspace '%s' has been deleted by %s.",
@@ -128,30 +128,31 @@ public class WorkspaceEventListener {
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceMemberRemovedEvent(WorkspaceMemberRemovedEvent event) {
 		String adminName = getSafeAdminName(event.getAdmin());
-		UUID adminId = event.getAdmin() != null ? event.getAdmin().getId() : null;
+		UUID adminId = event.getAdmin() != null ? event.getAdmin().id() : null;
 
 		String msg = String.format("You have been removed from workspace '%s' by %s.",
-				event.getWorkspace().getName(), adminName);
+				event.getWorkspace().name(), adminName);
 
-		if (event.getRemovedUser() != null) {
+		User removed = event.getRemovedUser() == null ? null : userRepository.findById(event.getRemovedUser().id()).orElse(null);
+		if (removed != null) {
 			Notification notification = notificationService.createNotification(
-					event.getRemovedUser(),
+					removed,
 					NotificationType.WORKSPACE_MEMBER_REMOVED,
 					EntityType.WORKSPACE,
-					event.getWorkspace().getId(),
+					event.getWorkspace().id(),
 					msg);
 
 			UnifiedEvent realTimeEvent = UnifiedEvent.builder()
 					.eventId(UUID.randomUUID())
 					.type("WORKSPACE")
 					.action("MEMBER_REMOVED")
-					.recipientId(event.getRemovedUser().getId())
+					.recipientId(event.getRemovedUser().id())
 					.senderId(adminId)
 					.entityType(EntityType.WORKSPACE.name())
-					.entityId(event.getWorkspace().getId().toString())
+					.entityId(event.getWorkspace().id().toString())
 					.payload(Map.of(
 							"notificationId", notification.getId().toString(),
-							"workspaceName", event.getWorkspace().getName(),
+							"workspaceName", event.getWorkspace().name(),
 							"adminName", adminName,
 							"message", msg
 					))
@@ -162,10 +163,10 @@ public class WorkspaceEventListener {
 		}
 	}
 
-	private String getSafeAdminName(User user) {
+	private String getSafeAdminName(com.teampulse.backend.event.EventSnapshots.UserValue user) {
 		if (user == null) return "Admin";
-		String first = user.getFirstName() != null ? user.getFirstName().trim() : "";
-		String last = user.getLastName() != null ? user.getLastName().trim() : "";
+		String first = user.firstName() != null ? user.firstName().trim() : "";
+		String last = user.lastName() != null ? user.lastName().trim() : "";
 		String full = (first + " " + last).trim();
 		return full.isEmpty() ? "Admin" : full;
 	}

@@ -9,14 +9,14 @@ import java.time.Instant;
 
 @Getter
 public class WorkspaceUpdatedEvent extends ApplicationEvent {
-	private final Workspace workspace;
-	private final User user;
+	private final EventSnapshots.WorkspaceValue workspace;
+	private final EventSnapshots.UserValue user;
 	private final Instant timeAt;
 
 	public WorkspaceUpdatedEvent(Object source, Workspace workspace, User admin) {
 		super(source);
-		this.workspace = workspace;
-		this.user = admin;
+		this.workspace = EventSnapshots.WorkspaceValue.of(workspace);
+		this.user = EventSnapshots.UserValue.of(admin);
 		this.timeAt = Instant.now();
 	}
 }

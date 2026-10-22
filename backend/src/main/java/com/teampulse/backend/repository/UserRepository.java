@@ -18,6 +18,14 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {
 	Optional<User> findByEmail(String email);
+
+	@org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT u FROM User u WHERE u.email = :email")
+	Optional<User> findForCredentialChangeByEmail(@Param("email") String email);
+
+	@org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT u FROM User u WHERE u.id = :id")
+	Optional<User> findForCredentialChangeById(@Param("id") UUID id);
 	List<User> findByEmailContainingIgnoreCase(String email);
 	List<User> findTop10ByEmailContainingIgnoreCase(String email);
 

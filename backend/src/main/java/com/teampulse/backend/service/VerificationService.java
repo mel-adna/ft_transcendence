@@ -24,12 +24,14 @@ public class VerificationService {
 
 	@Transactional
 	public void generateAndSendCodeForUser(User user) {
-		sendCode(user);
+		User locked = userRepository.findForCredentialChangeById(user.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		sendCode(locked);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void generateAndSendCodeInNewTrasactional(String email) {
-		User user = userRepository.findByEmail(email)
+		User user = userRepository.findForCredentialChangeByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
 
 		sendCode(user);
@@ -59,8 +61,10 @@ public class VerificationService {
 		emailService.sendEmail(user.getEmail(), "Verify Your Team-Pulse Account", emailBody);
 	}
 
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@Transactional
 	public void validateAndConsumeCode(User user, String rawCode) {
+		userRepository.findForCredentialChangeById(user.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 		String hashCode = DigestUtils.sha256Hex(rawCode);
 
 		VerificationCode verificationCode = verificationCodeRepository.findByCodeAndUser(hashCode, user)

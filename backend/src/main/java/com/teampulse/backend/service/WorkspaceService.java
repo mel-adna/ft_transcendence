@@ -16,8 +16,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.teampulse.backend.dto.request.WorkspaceCreateRequest;
 import com.teampulse.backend.dto.request.WorkspaceMemberRoleUpdateRequest;
@@ -51,6 +49,7 @@ import lombok.extern.slf4j.Slf4j;
 @Transactional(rollbackFor = Exception.class)
 public class WorkspaceService {
 	private final WorkspaceRepository workspaceRepository;
+	private final com.teampulse.backend.repository.TaskRepository taskRepository;
 	private final WorkspaceMemberRepository workspaceMemberRepository;
 	private final UserRepository userRepository;
 	private final WorkspaceMapper workspaceMapper;
@@ -59,7 +58,7 @@ public class WorkspaceService {
 	private final RedisEventPublisherService redisEventPublisherService;
 
 	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
-		User creator = userRepository.findByEmail(creatorEmail)
+		User creator = userRepository.findForCredentialChangeByEmail(creatorEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
 		boolean nameExits = workspaceRepository.existsByUserIdAndWorkspaceName(creator.getId(), request.getName());
@@ -233,7 +232,8 @@ public class WorkspaceService {
 		User admin = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		workspaceRepository.softDeleteById(workspaceId);
+		workspaceRepository.delete(workspace);
+		workspaceRepository.flush();
 
 		eventPublisher.publishEvent(new WorkspaceDeletedEvent(this, workspaceId, workspaceName, admin, memberIds));
 	}
@@ -289,6 +289,7 @@ public class WorkspaceService {
 		User removedUser = memberShip.getUser();
 		User admin = userRepository.findByEmail(cleanAdminEmail).orElse(null);
 
+		taskRepository.unassignMemberTasks(workspaceId, removedUser.getId());
 		workspaceMemberRepository.delete(Objects.requireNonNull(memberShip));
 
 		eventPublisher.publishEvent(new WorkspaceMemberRemovedEvent(this, workspace, removedUser, admin));
@@ -316,20 +317,7 @@ public class WorkspaceService {
 				.timestamp(Instant.now())
 				.build();
 
-		publishAfterCommit(realTimeEvent);
-	}
-
-	private void publishAfterCommit(UnifiedEvent event) {
-		if (TransactionSynchronizationManager.isActualTransactionActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					redisEventPublisherService.publish(event);
-				}
-			});
-		} else {
-			redisEventPublisherService.publish(event);
-		}
+		redisEventPublisherService.publish(realTimeEvent);
 	}
 
 	private String getSafeFullName(User user) {
@@ -341,6 +329,8 @@ public class WorkspaceService {
 	}
 
 	private void verifyUserIsAdmin(UUID workspaceId, String email) {
+		workspaceRepository.findForMembershipChange(workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 		String cleanEmail = EmailUtils.normalize(email);
 
 		WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, cleanEmail)

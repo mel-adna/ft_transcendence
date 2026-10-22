@@ -81,10 +81,16 @@ public interface TaskRepository extends JpaRepository<Task, UUID> {
 			@Param("assigneeId") UUID assigneeId);
 
 	@Modifying
-	@Query("UPDATE Task t SET t.assignee = NULL WHERE t.assignee.id = :userId")
+	@Query("UPDATE Task t SET t.assignee = NULL, t.version = t.version + 1, t.updatedAt = CURRENT_TIMESTAMP WHERE t.assignee.id = :userId")
 	void unassignTasksByUserId(@Param("userId") UUID userId);
 
+	@Modifying(flushAutomatically = true)
+	@Query("UPDATE Task t SET t.assignee = NULL, t.version = t.version + 1, t.updatedAt = CURRENT_TIMESTAMP WHERE t.workspace.id = :workspaceId AND t.assignee.id = :userId")
+	int unassignMemberTasks(@Param("workspaceId") UUID workspaceId, @Param("userId") UUID userId);
+
+	@org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"workspace", "workspace.owner", "creator", "assignee"})
 	List<Task> findByCreatorId(UUID creatorId);
 
+	@org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"workspace", "workspace.owner", "creator", "assignee"})
 	List<Task> findByAssigneeId(UUID assigneeId);
 }

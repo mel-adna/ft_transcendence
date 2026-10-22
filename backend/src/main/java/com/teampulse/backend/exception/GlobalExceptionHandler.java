@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.teampulse.backend.dto.response.ErrorResponse;
 
@@ -186,13 +187,13 @@ public class GlobalExceptionHandler {
 				.body(errorResponse);
 	}
 
-	@ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
-	public ResponseEntity<ErrorResponse> handleIllegalStateAndArgument(RuntimeException ex, HttpServletRequest request) {
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<ErrorResponse> handleIllegalArgument(RuntimeException ex, HttpServletRequest request) {
 		log.warn("Business rule violation: {} | Path: {}", sanitizeForLog(ex.getMessage()), request.getRequestURI());
 
 		return buildResponseEntity(
-				HttpStatus.CONFLICT,
-				ex.getMessage(),
+				HttpStatus.BAD_REQUEST,
+				"Invalid request argument.",
 				request,
 				null
 		);
@@ -277,9 +278,14 @@ public class GlobalExceptionHandler {
 		return buildResponseEntity(status, message, request, null);
 	}
 
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ErrorResponse> handleOversizedUpload(Exception ex, HttpServletRequest request) {
+		return buildResponseEntity(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file exceeds the allowed size.", request, null);
+	}
+
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, HttpServletRequest request) {
-		log.error("CRITICAL ERROR internal server crash at path: {}", request.getRequestURI(), ex);
+		log.error("Internal server error at path: {} | Type: {}", request.getRequestURI(), ex.getClass().getSimpleName());
 		return buildResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR,
 				"An unexpected server error occurred. Please try again later.", request, null);
 	}

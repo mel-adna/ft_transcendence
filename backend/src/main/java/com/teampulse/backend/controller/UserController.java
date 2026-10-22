@@ -49,6 +49,7 @@ public class UserController {
 			@ApiResponse(responseCode = "401", description = "Unauthorized - Missing or invalid token", content = @Content),
 			@ApiResponse(responseCode = "404", description = "User not found", content = @Content)
 	})
+	@RateLimit(capacity = 300, durationInMinutes = 1, keyType = RateLimitKeyType.EMAIL)
 	@GetMapping("/me")
 	public ResponseEntity<UserResponse> getCurrentUser(@Parameter(hidden = true) Principal principal) {
 		UserResponse userResponse = userService.getCurrentUserByEmail(principal.getName());

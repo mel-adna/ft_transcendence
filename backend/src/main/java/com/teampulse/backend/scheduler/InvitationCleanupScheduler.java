@@ -18,6 +18,12 @@ import java.util.List;
 public class InvitationCleanupScheduler {
 	private final WorkspaceInvitationRepository workspaceInvitationRepository;
 
+	@Scheduled(cron = "0 */15 * * * *")
+	@Transactional
+	public void expirePendingInvitations() {
+		workspaceInvitationRepository.expirePending(Instant.now());
+	}
+
 	@Scheduled(cron = "0 0 3 * * SUN")
 	@Transactional
 	public void purgeOldInvitations() {

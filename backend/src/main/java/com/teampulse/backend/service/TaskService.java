@@ -28,8 +28,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.Map;
@@ -55,7 +53,7 @@ public class TaskService {
 		if (workspaceId == null)
 			throw new BadRequestException("Workspace ID cannot be null");
 
-		Workspace workspace = workspaceRepository.findById(workspaceId)
+		Workspace workspace = workspaceRepository.findForMembershipChange(workspaceId)
 				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found with ID: " + workspaceId));
 
 		WorkspaceMember member = getWorkspaceMemberOrThrow(workspaceId, creatorEmail);
@@ -122,6 +120,9 @@ public class TaskService {
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
+		workspaceRepository.findForMembershipChange(task.getWorkspace().getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
 		if (request.getVersion() != null && !task.getVersion().equals(request.getVersion())) {
 			throw new org.springframework.orm.ObjectOptimisticLockingFailureException(Task.class, taskId);
 		}
@@ -160,7 +161,7 @@ public class TaskService {
 			task.setAssignee(null);
 		}
 
-		Task updatedTask = taskRepository.save(task);
+		Task updatedTask = taskRepository.saveAndFlush(task);
 
 		if (isDetailsChanged) {
 			String logDescription = String.format("%s updated details for task '%s'",
@@ -202,6 +203,9 @@ public class TaskService {
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
 
+		workspaceRepository.findForMembershipChange(task.getWorkspace().getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+
 		WorkspaceMember member = getWorkspaceMemberOrThrow(task.getWorkspace().getId(), email);
 
 		if (member.getRole() == WorkspaceMemberRole.VIEWER)
@@ -218,7 +222,7 @@ public class TaskService {
 		TaskStatus oldStatus = task.getStatus();
 		task.setStatus(request.getStatus());
 
-		Task updatedTask = taskRepository.save(task);
+		Task updatedTask = taskRepository.saveAndFlush(task);
 
 		checkAndTriggerStatusEvents(updatedTask, oldStatus, currentUser);
 
@@ -231,6 +235,9 @@ public class TaskService {
 
 		Task task = taskRepository.findById(taskId)
 				.orElseThrow(() -> new ResourceNotFoundException("Task not found with ID: " + taskId));
+
+		workspaceRepository.findForMembershipChange(task.getWorkspace().getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
 
 		WorkspaceMember member = getWorkspaceMemberOrThrow(task.getWorkspace().getId(), email);
 
@@ -328,6 +335,9 @@ public class TaskService {
 		if (recipient == null || actor == null || recipient.getId().equals(actor.getId())) {
 			return;
 		}
+		if (!workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(task.getWorkspace().getId(), recipient.getEmail())) {
+			return;
+		}
 
 		Notification notification = notificationService.createNotification(recipient, notifyType, EntityType.TASK, task.getId(), message);
 
@@ -349,20 +359,7 @@ public class TaskService {
 				.timestamp(Instant.now())
 				.build();
 
-		publishAfterCommit(realTimeEvent);
-	}
-
-	private void publishAfterCommit(UnifiedEvent event) {
-		if (TransactionSynchronizationManager.isActualTransactionActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					redisEventPublisherService.publish(event);
-				}
-			});
-		} else {
-			redisEventPublisherService.publish(event);
-		}
+		redisEventPublisherService.publish(realTimeEvent);
 	}
 
 	private String getSafeFullName(User user) {
