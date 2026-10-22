@@ -13,8 +13,8 @@ class IdentityReconciler {
     this.timer = setInterval(() => this.reconcile(), intervalMs);
     this.timer.unref?.();
   }
-  track(socket, token) {
-    this.sessions.set(socket.id, { socket, token, userId: socket.user.id });
+  track(socket, token, clientIp = null) {
+    this.sessions.set(socket.id, { socket, token, userId: socket.user.id, clientIp });
     socket.on('disconnect', () => this.sessions.delete(socket.id));
   }
   async reconcile() {
@@ -30,7 +30,7 @@ class IdentityReconciler {
       const worker = async () => {
         while (queue.length) {
           const sessions = queue.shift();
-          try { await this.verify(sessions[0].token, sessions[0].userId); }
+          try { await this.verify(sessions[0].token, sessions[0].userId, { clientIp: sessions[0].clientIp, fresh: true }); }
           catch (error) {
             if (['AUTH_TOKEN_REVOKED', 'AUTH_PAYLOAD_INVALID'].includes(error.message)) {
               for (const value of sessions) {

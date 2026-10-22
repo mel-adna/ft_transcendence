@@ -9,7 +9,7 @@ if (SIGNING_KEY.length < 32) {
 const VERIFY_OPTIONS = { algorithms: ['HS256', 'HS384', 'HS512'] };
 
 class SocketAuthUseCase {
-  async execute(handshakeAuth) {
+  async execute(handshakeAuth, { clientIp = null } = {}) {
     const token = handshakeAuth?.token;
     if (!token || typeof token !== 'string') {
       throw new Error('AUTH_MISSING_TOKEN');
@@ -34,7 +34,7 @@ class SocketAuthUseCase {
       throw new Error('AUTH_PAYLOAD_INVALID');
     }
 
-    await verifyCurrentIdentity(token, id);
+    await verifyCurrentIdentity(token, id, { clientIp });
 
     const email = payload.email ?? payload.sub ?? null;
     const username = payload.name ?? payload.username ?? email ?? payload.sub ?? null;

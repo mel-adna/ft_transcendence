@@ -10,7 +10,7 @@ async function authMiddleware(req, res, next) {
   }
 
   try {
-    req.user = await socketAuthUseCase.execute({ token });
+    req.user = await socketAuthUseCase.execute({ token }, { clientIp: req.headers['x-real-ip'] ?? req.ip });
     if (req.user.svRaised) socketServer.disconnectStaleSessions(req.user.id, req.user.sv);
     req.user.token = token;
     next();

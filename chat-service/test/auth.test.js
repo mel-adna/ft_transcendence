@@ -9,14 +9,17 @@ require.cache[repoPath] = { id: repoPath, filename: repoPath, loaded: true,
   exports: { authenticate: async (identity) => { calls.push(identity); return { revoked: false, raised: false }; } } };
 const originalFetch = global.fetch;
 let status, identity;
+const fetches = [];
 beforeEach(() => {
   calls.length = 0; status = 200; identity = { id: 'user-id' };
-  global.fetch = async () => ({ ok: status === 200, status, json: async () => identity });
+  fetches.length = 0;
+  global.fetch = async (url, init) => { fetches.push(init); return { ok: status === 200, status, json: async () => identity }; };
 });
 after(() => { global.fetch = originalFetch; });
 const auth = require('../src/application/socket/SocketAuthUseCase');
 const key = Buffer.from(process.env.JWT_SECRET, 'base64');
-const sign = (claims = {}, options = {}) => jwt.sign({ id: 'user-id', sub: 'audit@example.test', sv: 1, ...claims }, key, { expiresIn: 60, ...options });
+let nonce = 0;
+const sign = (claims = {}, options = {}) => jwt.sign({ id: 'user-id', sub: 'audit@example.test', sv: 1, n: nonce++, ...claims }, key, { expiresIn: 60, ...options });
 test('valid token checks authoritative backend and returns expiry', async () => {
   const result = await auth.execute({ token: sign() });
   assert.equal(result.id, 'user-id'); assert.ok(result.expiresAt > Date.now()); assert.equal(calls.length, 1);
@@ -45,4 +48,25 @@ test('wrong signature is rejected', async () => {
 test('missing security version is rejected', async () => {
   const token = jwt.sign({ id: 'user-id', sub: 'audit@example.test' }, key, { expiresIn: 60 });
   await assert.rejects(auth.execute({ token }), /AUTH_PAYLOAD_INVALID/);
+});
+test('a recent ok is reused for the same token, so java is not called on every request', async () => {
+  const token = sign();
+  await auth.execute({ token }); await auth.execute({ token });
+  assert.equal(fetches.length, 1); assert.equal(calls.length, 2);
+});
+test('the user ip is forwarded to java so rate limits stay per user', async () => {
+  await auth.execute({ token: sign() }, { clientIp: '203.0.113.7' });
+  assert.equal(fetches[0].headers['X-Real-IP'], '203.0.113.7');
+  await auth.execute({ token: sign() }, { clientIp: 'not an ip' });
+  assert.equal(fetches[1].headers['X-Real-IP'], undefined);
+});
+test('fresh checks skip the cache and forgetting a user drops it', async () => {
+  const { verifyCurrentIdentity, forgetVerifiedUser } = require('../src/infrastructure/http/JavaBackendClient');
+  const token = sign();
+  await verifyCurrentIdentity(token, 'user-id');
+  await verifyCurrentIdentity(token, 'user-id', { fresh: true });
+  assert.equal(fetches.length, 2);
+  forgetVerifiedUser('user-id');
+  status = 401;
+  await assert.rejects(verifyCurrentIdentity(token, 'user-id'), /AUTH_TOKEN_REVOKED/);
 });

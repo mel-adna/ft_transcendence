@@ -19,6 +19,7 @@ const {
 } = require('../metrics/metrics');
 
 const userRoom = (userId) => `user:${userId}`;
+const clientIpOf = (socket) => socket.handshake?.headers?.['x-real-ip'] ?? socket.handshake?.address ?? null;
 
 class SocketServer {
   constructor() {
@@ -59,7 +60,7 @@ class SocketServer {
   _applyAuthMiddleware() {
     this.io.use(async (socket, next) => {
       try {
-        const user = await socketAuthUseCase.execute(socket.handshake.auth);
+        const user = await socketAuthUseCase.execute(socket.handshake.auth, { clientIp: clientIpOf(socket) });
         if (user.svRaised) this.disconnectStaleSessions(user.id, user.sv);
         socket.user = user;
         socket.data.sv = user.sv;
@@ -77,7 +78,7 @@ class SocketServer {
     this.io.on('connection', (socket) => {
       this._connectionCount += 1;
       const { id: userId } = socket.user;
-      this._identities.track(socket, socket.handshake?.auth?.token);
+      this._identities.track(socket, socket.handshake?.auth?.token, clientIpOf(socket));
 
       // Established connections must not outlive the access token used to open them.
       // Closing the transport lets existing clients reconnect with their refreshed token.

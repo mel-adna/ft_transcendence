@@ -11,7 +11,7 @@ test('missed revocation is reconciled once per token, without adapter-visible to
   const checks = []; const reconciler = new IdentityReconciler(async (...args) => { checks.push(args); throw new Error('AUTH_TOKEN_REVOKED'); });
   const first = socket('one','user'), second = socket('two','user');
   reconciler.track(first,'token'); reconciler.track(second,'token');
-  await reconciler.reconcile(); assert.deepEqual(checks, [['token','user']]);
+  await reconciler.reconcile(); assert.deepEqual(checks, [['token','user',{ clientIp: null, fresh: true }]]);
   assert.equal(first.disconnected,1); assert.equal(second.disconnected,1); assert.equal(reconciler.sessions.size,0);
   assert.equal(first.data,undefined); reconciler.stop();
 });
