@@ -23,6 +23,8 @@ public class DatabaseCleanupScheduler {
 	public void dailyDatabaseCleanup() {
 		log.info("[Database Cleanup] Starting daily maintenance job...");
 
+		userService.hardDeleteUnverifiedAccounts(24);
+
 		int deletedRefreshTokens = refreshTokenRepository.deleteExpiredOrRevokedTokens(Instant.now());
 		if (deletedRefreshTokens > 0) {
 			log.info("[Database Cleanup] Purged {} expired refresh tokens.", deletedRefreshTokens);
@@ -32,8 +34,6 @@ public class DatabaseCleanupScheduler {
 		if (deletedResetTokens > 0) {
 			log.info("[Database Cleanup] Purged {} expired password reset tokens.", deletedResetTokens);
 		}
-
-		userService.hardDeleteUnverifiedAccounts(24);
 
 		log.info("[Database Cleanup] Daily maintenance job completed successfully.");
 	}

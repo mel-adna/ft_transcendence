@@ -33,6 +33,8 @@ public class TaskEventListener {
 
 	private final NotificationService notificationService;
 	private final TaskRepository taskRepository;
+	private final com.teampulse.backend.repository.UserRepository userRepository;
+	private final com.teampulse.backend.repository.WorkspaceMemberRepository workspaceMemberRepository;
 	private final EmailService emailService;
 	private final RedisEventPublisherService redisEventPublisherService;
 
@@ -40,14 +42,15 @@ public class TaskEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleTaskCompletedEvent(TaskCompletedEvent event) {
-		Task task = taskRepository.findById(event.getTask().getId()).orElse(null);
+		Task task = taskRepository.findById(event.getTask().id()).orElse(null);
 
 		if (task == null) {
-			log.warn("Task not found for event logging: {}", event.getTask().getId());
+			log.warn("Task not found for event logging: {}", event.getTask().id());
 			return;
 		}
 
-		User actor = event.getCompletedBy() != null ? event.getCompletedBy() : task.getCreator();
+		if (!Objects.equals(task.getVersion(), event.getTask().version()) || task.getStatus() != event.getTask().status()) return;
+		User actor = event.getCompletedBy() != null ? userRepository.findById(event.getCompletedBy().id()).orElse(null) : task.getCreator();
 		if (actor == null) {
 			return;
 		}
@@ -74,7 +77,7 @@ public class TaskEventListener {
 				}
 			}
 		} catch (Exception e) {
-			log.error("Failed to send notifications for completed task ID: {}. Error: {}", task.getId(), e.getMessage());
+			log.error("Failed to send notifications for completed task ID: {}. Error: {}", task.getId(), e.getClass().getSimpleName());
 		}
 	}
 
@@ -82,12 +85,13 @@ public class TaskEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleTaskAssignedEvent(TaskAssignedEvent event) {
-		Task task = taskRepository.findById(event.getTask().getId()).orElse(null);
+		Task task = taskRepository.findById(event.getTask().id()).orElse(null);
 		if (task == null || task.getAssignee() == null || event.getAssignee() == null)
 			return;
 
-		User assigner = event.getAssigner();
-		User assignee = event.getAssignee();
+		if (!Objects.equals(task.getVersion(), event.getTask().version()) || !Objects.equals(task.getAssignee().getId(), event.getAssignee().id())) return;
+		User assigner = event.getAssigner() == null ? null : userRepository.findById(event.getAssigner().id()).orElse(null);
+		User assignee = task.getAssignee();
 
 		boolean isAssignerDeleted = (assigner == null);
 		String assignerName = isAssignerDeleted ? "A deleted user" : getSafeFullName(assigner);
@@ -103,13 +107,16 @@ public class TaskEventListener {
 
 				notifyUserAndPublish(assignee, assigner, task, alertMsg, notifType, redisAction);
 			} catch (Exception e) {
-				log.error("Failed to send notification for assigned task ID: {}. Error: {}", task.getId(), e.getMessage());
+				log.error("Failed to send notification for assigned task ID: {}. Error: {}", task.getId(), e.getClass().getSimpleName());
 			}
 		}
 	}
 
 	private void notifyUserAndPublish(User recipient, User actor, Task task, String message, NotificationType notifyType, String redisAction) {
 		if (recipient == null || recipient.getEmail() == null) {
+			return;
+		}
+		if (!workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(task.getWorkspace().getId(), recipient.getEmail())) {
 			return;
 		}
 

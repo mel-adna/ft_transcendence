@@ -196,6 +196,7 @@ services:
       - DB_PASSWORD_FILE=/run/secrets/db_password
       - DB_SCHEMA=chat
       - REDIS_URL=redis://redis:6379
+      - REDIS_CHANNEL=${REDIS_CHANNEL:-teampulse-realtime-events}
       - REDIS_PASSWORD_FILE=/run/secrets/redis_password
     secrets:
       - db_password

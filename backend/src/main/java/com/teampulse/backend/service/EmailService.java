@@ -8,6 +8,10 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +22,29 @@ import lombok.extern.slf4j.Slf4j;
 public class EmailService {
 
 	private final JavaMailSender mailSender;
+	private final ApplicationEventPublisher eventPublisher;
+	public record MailDispatch(String to, String subject, String body) {}
 
 	@Value("${spring.mail.username}")
 	private String fromEmail;
 
 
-	@Async
 	public void sendEmail(String to, String subject, String body) {
+		MailDispatch mail = new MailDispatch(to, subject, body);
+		if (TransactionSynchronizationManager.isActualTransactionActive()
+				&& TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override public void afterCommit() { eventPublisher.publishEvent(mail); }
+			});
+		} else {
+			eventPublisher.publishEvent(mail);
+		}
+	}
+
+	@Async
+	@EventListener
+	public void dispatch(MailDispatch mail) {
+		String to = mail.to(); String subject = mail.subject(); String body = mail.body();
 		log.info("Initiating email dispatch sequence to: {}", EmailUtils.maskEmail(to));
 
 		try {
@@ -48,7 +68,6 @@ public class EmailService {
 	}
 
 
-	@Async
 	public void sendWelcomeEmail(String to, String firstName) {
 		String name = (firstName != null && !firstName.isBlank()) ? firstName : "there";
 		String subject = "Welcome to Team-Pulse! 👋";
@@ -58,25 +77,9 @@ public class EmailService {
 						"You can now log in and start collaborating with your team.\n\n" +
 						"Best regards,\nThe Team-Pulse Team", name
 		);
-		sendEmailDirect(to, subject, body);
+		sendEmail(to, subject, body);
 	}
 
-	private void sendEmailDirect(String to, String subject, String body) {
-		try {
-			SimpleMailMessage message = new SimpleMailMessage();
-			message.setFrom(fromEmail);
-			message.setTo(to);
-			message.setSubject(subject);
-			message.setText(body);
-
-			mailSender.send(message);
-			log.info("Email successfully sent to: {}", EmailUtils.maskEmail(to));
-		} catch (Exception ex) {
-			log.error("Failed to send email to [{}]: {}", EmailUtils.maskEmail(to), ex.getMessage());
-		}
-	}
-
-	@Async
 	public void sendGdprExportEmail(String to, String firstName, String exportedAtFormatted) {
 		String name = (firstName != null && !firstName.isBlank()) ? firstName : "there";
 		String subject = "TeamPulse - GDPR Personal Data Export Confirmation 📦";
@@ -88,6 +91,6 @@ public class EmailService {
 						"Best regards,\nThe TeamPulse Security & Privacy Team",
 				name, exportedAtFormatted
 		);
-		sendEmailDirect(to, subject, body);
+		sendEmail(to, subject, body);
 	}
 }

@@ -1,5 +1,6 @@
 package com.teampulse.backend.controller;
 
+import com.teampulse.backend.exception.BadRequestException;
 import com.teampulse.backend.dto.request.TaskCreateRequest;
 import com.teampulse.backend.dto.request.TaskUpdateRequest;
 import com.teampulse.backend.dto.response.TaskResponse;
@@ -116,6 +117,9 @@ public class PublicApiController {
 			@RequestParam(name = "size", defaultValue = "20") int size,
 			@Parameter(hidden = true) Principal principal) {
 
+		if (page < 0 || size < 1 || size > 100) {
+			throw new BadRequestException("page must be non-negative and size must be between 1 and 100");
+		}
 		Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 		Page<TaskResponse> tasks = taskService.getWorkspaceTasks(workspaceId, principal.getName(), pageable);
 		return ResponseEntity.ok(tasks);

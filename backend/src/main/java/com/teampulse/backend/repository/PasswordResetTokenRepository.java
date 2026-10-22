@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import com.teampulse.backend.model.PasswordResetToken;
 import com.teampulse.backend.model.User;
@@ -17,7 +19,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, UUID> {
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<PasswordResetToken> findByToken(String token);
+
+    @Query("SELECT p.user.id FROM PasswordResetToken p WHERE p.token = :token")
+    Optional<UUID> findUserIdByToken(@Param("token") String token);
 
     @Modifying
     void deleteByUser(User user);

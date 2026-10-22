@@ -9,16 +9,16 @@ import java.time.Instant;
 
 @Getter
 public class WorkspaceMemberRemovedEvent extends ApplicationEvent {
-	private final Workspace workspace;
-	private final User removedUser;
-	private final User admin;
+	private final EventSnapshots.WorkspaceValue workspace;
+	private final EventSnapshots.UserValue removedUser;
+	private final EventSnapshots.UserValue admin;
 	private final Instant timeAt;
 
 	public WorkspaceMemberRemovedEvent(Object source, Workspace workspace, User removedUser, User admin) {
 		super(source);
-		this.workspace = workspace;
-		this.removedUser = removedUser;
-		this.admin = admin;
+		this.workspace = EventSnapshots.WorkspaceValue.of(workspace);
+		this.removedUser = EventSnapshots.UserValue.of(removedUser);
+		this.admin = EventSnapshots.UserValue.of(admin);
 		this.timeAt = Instant.now();
 	}
 }

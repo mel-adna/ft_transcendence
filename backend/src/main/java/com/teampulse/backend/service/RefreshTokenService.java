@@ -5,6 +5,7 @@ import com.teampulse.backend.model.RefreshToken;
 import com.teampulse.backend.model.User;
 import com.teampulse.backend.repository.RefreshTokenRepository;
 import com.teampulse.backend.security.utils.EmailUtils;
+import jakarta.annotation.PostConstruct;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,13 @@ public class RefreshTokenService {
 
 	@Value("${app.jwt.refresh-expiration-ms}")
 	private Long refreshExpirationMs;
+
+	@PostConstruct
+	public void validateConfiguration() {
+		if (refreshExpirationMs == null || refreshExpirationMs <= 0) {
+			throw new IllegalStateException("Refresh token expiration must be positive.");
+		}
+	}
 
 	@Getter
 	@AllArgsConstructor
@@ -61,7 +69,7 @@ public class RefreshTokenService {
 		return new RefreshTokenResult(rawToken, savedToken);
 	}
 
-	@Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = UnauthorizedAccessException.class)
+	@Transactional(propagation = Propagation.REQUIRED, noRollbackFor = UnauthorizedAccessException.class)
 	public RefreshToken verifyAndRotateToken(String rawTokenStr, String currentClientIp, String currentUserAgent) {
 		if (rawTokenStr == null || rawTokenStr.isBlank()) {
 			throw new UnauthorizedAccessException("Refresh token is required.");
@@ -82,10 +90,15 @@ public class RefreshTokenService {
 			refreshTokenRepository.deleteByUserId(token.getUser().getId());
 			refreshTokenRepository.flush();
 
-			throw new UnauthorizedAccessException("Security violation: Token was already used. All sessions terminated.");
+			throw new UnauthorizedAccessException("Security violation: Token was already used. All refresh sessions revoked. Please log in again.");
 		}
 
-		if (token.getExpiryDate().isBefore(Instant.now())) {
+		if (!token.getUser().isEnabled() || token.getUser().isDeleted()) {
+			refreshTokenRepository.deleteByUserId(token.getUser().getId());
+			throw new UnauthorizedAccessException("Account is unavailable. Please log in again.");
+		}
+
+		if (!token.getExpiryDate().isAfter(Instant.now())) {
 			refreshTokenRepository.delete(token);
 			refreshTokenRepository.flush();
 			throw new UnauthorizedAccessException("Refresh token has expired. Please log in again.");

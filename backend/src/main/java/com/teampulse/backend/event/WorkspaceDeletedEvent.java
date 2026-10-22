@@ -13,7 +13,7 @@ import java.util.UUID;
 public class WorkspaceDeletedEvent extends ApplicationEvent {
 	private final UUID workspaceId;
 	private final String workspaceName;
-	private final User admin;
+	private final EventSnapshots.UserValue admin;
 	private final List<UUID> memberIds;
 	private final Instant timeAt;
 
@@ -21,8 +21,8 @@ public class WorkspaceDeletedEvent extends ApplicationEvent {
 		super(source);
 		this.workspaceId = workspaceId;
 		this.workspaceName = workspaceName;
-		this.admin = admin;
-		this.memberIds = memberIds;
+		this.admin = EventSnapshots.UserValue.of(admin);
+		this.memberIds = List.copyOf(memberIds);
 		this.timeAt = Instant.now();
 	}
 }

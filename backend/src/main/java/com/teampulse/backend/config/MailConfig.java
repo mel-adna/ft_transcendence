@@ -25,7 +25,7 @@ public class MailConfig {
     @Bean
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-        
+
         mailSender.setHost(mailHost);
         mailSender.setPort(mailPort);
         mailSender.setUsername(mailUsername);
@@ -36,6 +36,7 @@ public class MailConfig {
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.starttls.required", "true");
+        props.put("mail.smtp.ssl.checkserveridentity", "true");
         props.put("mail.smtp.connectiontimeout", "5000");
         props.put("mail.smtp.timeout", "10000");
         props.put("mail.smtp.writetimeout", "10000");

@@ -32,6 +32,7 @@ import java.util.UUID;
 public class WorkspaceInvitationEventListener {
 
 	private final NotificationService notificationService;
+	private final com.teampulse.backend.repository.UserRepository userRepository;
 	private final EmailService emailService;
 	private final RedisEventPublisherService redisEventPublisherService;
 
@@ -42,13 +43,14 @@ public class WorkspaceInvitationEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceInvitationSentEvent(WorkspaceInvitationSentEvent event) {
-		User inviter = event.getInviter();
+		var inviter = event.getInviter();
 		String inviterName = getSafeFullName(inviter);
-		UUID inviterId = inviter != null ? inviter.getId() : null;
-		String workspaceName = event.getWorkspace().getName();
-		String inviteeEmail = event.getInvitation().getInviteeEmail();
+		UUID inviterId = inviter != null ? inviter.id() : null;
+		String workspaceName = event.getWorkspace().name();
+		String inviteeEmail = event.getInvitation().inviteeEmail();
 
-		boolean isRegisteredUser = event.getInvitee() != null;
+		User recipient = event.getInvitee() == null ? null : userRepository.findById(event.getInvitee().id()).orElse(null);
+		boolean isRegisteredUser = recipient != null;
 		String actionUrl;
 		String emailBody;
 
@@ -76,17 +78,17 @@ public class WorkspaceInvitationEventListener {
 		try {
 			emailService.sendEmail(inviteeEmail, "Invitation to Workspace: " + workspaceName, emailBody);
 		} catch (Exception ex) {
-			log.error("Failed to dispatch invitation email to [{}]: {}", inviteeEmail, ex.getMessage());
+			log.error("Failed to queue invitation email: {}", ex.getClass().getSimpleName());
 		}
 
 		if (isRegisteredUser) {
 			String notificationMsg = String.format("You have been invited to join workspace '%s' by %s.", workspaceName, inviterName);
 
 			Notification notification = notificationService.createNotification(
-					event.getInvitee(),
+					recipient,
 					NotificationType.WORKSPACE_INVITATION_SENT,
 					EntityType.WORKSPACE,
-					event.getWorkspace().getId(),
+					event.getWorkspace().id(),
 					notificationMsg
 			);
 
@@ -94,10 +96,10 @@ public class WorkspaceInvitationEventListener {
 					.eventId(UUID.randomUUID())
 					.type("WORKSPACE")
 					.action("INVITATION_SENT")
-					.recipientId(event.getInvitee().getId())
+					.recipientId(event.getInvitee().id())
 					.senderId(inviterId)
 					.entityType(EntityType.WORKSPACE.name())
-					.entityId(event.getWorkspace().getId().toString())
+					.entityId(event.getWorkspace().id().toString())
 					.payload(Map.of(
 							"notificationId", notification.getId().toString(),
 							"workspaceName", workspaceName,
@@ -116,18 +118,19 @@ public class WorkspaceInvitationEventListener {
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void handleWorkspaceInvitationAcceptedEvent(WorkspaceInvitationAcceptedEvent event) {
 		String inviteeName = getSafeFullName(event.getInvitee());
-		String workspaceName = event.getWorkspace().getName();
-		User inviter = event.getInvitation().getInviter();
-		UUID inviterId = inviter != null ? inviter.getId() : null;
+		String workspaceName = event.getWorkspace().name();
+		var inviter = event.getInvitation().inviter();
+		UUID inviterId = inviter != null ? inviter.id() : null;
 
 		String msg = String.format("%s accepted your invitation and joined workspace '%s'.", inviteeName, workspaceName);
 
-		if (inviter != null) {
+		User recipient = inviter == null ? null : userRepository.findById(inviter.id()).orElse(null);
+		if (recipient != null) {
 			Notification notification = notificationService.createNotification(
-					inviter,
+					recipient,
 					NotificationType.WORKSPACE_MEMBER_ADDED,
 					EntityType.WORKSPACE,
-					event.getWorkspace().getId(),
+					event.getWorkspace().id(),
 					msg
 			);
 
@@ -136,9 +139,9 @@ public class WorkspaceInvitationEventListener {
 					.type("WORKSPACE")
 					.action("MEMBER_ADDED")
 					.recipientId(inviterId)
-					.senderId(event.getInvitee().getId())
+					.senderId(event.getInvitee().id())
 					.entityType(EntityType.WORKSPACE.name())
-					.entityId(event.getWorkspace().getId().toString())
+					.entityId(event.getWorkspace().id().toString())
 					.payload(Map.of(
 							"notificationId", notification.getId().toString(),
 							"workspaceName", workspaceName,
@@ -152,11 +155,11 @@ public class WorkspaceInvitationEventListener {
 		}
 	}
 
-	private String getSafeFullName(User user) {
+	private String getSafeFullName(com.teampulse.backend.event.EventSnapshots.UserValue user) {
 		if (user == null) return "Deleted User";
-		String first = user.getFirstName() != null ? user.getFirstName().trim() : "";
-		String last = user.getLastName() != null ? user.getLastName().trim() : "";
+		String first = user.firstName() != null ? user.firstName().trim() : "";
+		String last = user.lastName() != null ? user.lastName().trim() : "";
 		String full = (first + " " + last).trim();
-		return full.isEmpty() ? (user.getEmail() != null ? user.getEmail() : "Unknown User") : full;
+		return full.isEmpty() ? (user.email() != null ? user.email() : "Unknown User") : full;
 	}
 }

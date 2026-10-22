@@ -95,11 +95,16 @@ public class JwtUtils {
 	}
 
 	private Claims extractAllClaims(String token) {
-		return Jwts.parser()
+		Claims claims = Jwts.parser()
 				.verifyWith(getSignInKey())
 				.build()
 				.parseSignedClaims(token)
 				.getPayload();
+		if (claims.getSubject() == null || claims.getSubject().isBlank()
+				|| claims.getExpiration() == null || claims.getIssuedAt() == null) {
+			throw new io.jsonwebtoken.MalformedJwtException("Missing required access token claims");
+		}
+		return claims;
 	}
 
 	private SecretKey getSignInKey() {

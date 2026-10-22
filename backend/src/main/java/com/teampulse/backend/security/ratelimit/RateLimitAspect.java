@@ -18,7 +18,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Aspect
@@ -51,11 +50,22 @@ public class RateLimitAspect {
 
 		String key = buildCacheKey(rateLimit.keyType(), clientIp, email, signature.toShortString());
 
+		// An attacker must not reset an account's guessing budget by changing source IP.
+		if (rateLimit.keyType() == RateLimitKeyType.IP_AND_EMAIL && email != null) {
+			String accountKey = buildCacheKey(RateLimitKeyType.EMAIL, clientIp, email, signature.toShortString());
+			enforceLimit(accountKey, email, rateLimit);
+			// Also bound password spraying across many accounts from one source.
+			enforceLimit(buildCacheKey(RateLimitKeyType.IP, clientIp, email, signature.toShortString()), email, rateLimit);
+		}
+		enforceLimit(key, email, rateLimit);
+	}
+
+	private void enforceLimit(String key, String email, RateLimit rateLimit) {
 		Bucket bucket = rateLimitingService.resolveBucket(key, rateLimit.capacity(), rateLimit.durationInMinutes());
 		ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
 		if (!probe.isConsumed()) {
-			long waitForRefillSeconds = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill());
+			long waitForRefillSeconds = Math.max(1, (long) Math.ceil(probe.getNanosToWaitForRefill() / 1_000_000_000.0));
 			String maskedKey = maskKeyForLogging(key, email);
 			log.warn("[Rate Limit Exceeded] Key: {} | Retry after: {}s", maskedKey, waitForRefillSeconds);
 			throw new RateLimitExceededException("Too many requests. Please try again later.", waitForRefillSeconds);
@@ -80,6 +90,7 @@ public class RateLimitAspect {
 
 
 	private String extractEmailFromArgs(JoinPoint joinPoint) {
+
 		for (Object arg : joinPoint.getArgs()) {
 			if (arg == null) {
 				continue;
@@ -93,6 +104,11 @@ public class RateLimitAspect {
 				}
 			} catch (Exception ignored) {
 			}
+		}
+		var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+		if (authentication != null && authentication.isAuthenticated()
+				&& !(authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
+			return EmailUtils.normalize(authentication.getName());
 		}
 		return null;
 	}

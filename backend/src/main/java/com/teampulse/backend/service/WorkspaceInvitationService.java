@@ -27,8 +27,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -66,6 +64,9 @@ public class WorkspaceInvitationService {
 		String targetEmail = EmailUtils.normalize(request.getEmail());
 		String cleanInviterEmail = EmailUtils.normalize(inviterEmail);
 
+		workspaceRepository.findForMembershipChange(workspaceId)
+				.orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+		invitationRepository.expirePendingForWorkspace(Instant.now(), workspaceId);
 		verifyUserIsAdmin(workspaceId, cleanInviterEmail);
 
 		Workspace workspace = workspaceRepository.findById(workspaceId)
@@ -140,13 +141,22 @@ public class WorkspaceInvitationService {
 	public void acceptInvitation(UUID invitationId, String userEmail) {
 		String cleanEmail = EmailUtils.normalize(userEmail);
 
+		User invitee = userRepository.findForCredentialChangeByEmail(cleanEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User account not found"));
+
 		WorkspaceInvitation invitation = getValidPendingInvitation(invitationId, cleanEmail);
 
-		Workspace workspace = workspaceRepository.findById(invitation.getWorkspace().getId())
+		Workspace workspace = workspaceRepository.findForMembershipChange(invitation.getWorkspace().getId())
 				.orElseThrow(() -> new BadRequestException("The workspace associated with this invitation no longer exists or has been deleted."));
 
-		User invitee = userRepository.findByEmail(cleanEmail)
-				.orElseThrow(() -> new ResourceNotFoundException("User account not found"));
+		if (workspace.getType() == WorkspaceType.PERSONAL) {
+			throw new BadRequestException("Cannot join a personal workspace.");
+		}
+		if (workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspace.getId(), cleanEmail)) {
+			throw new BadRequestException("User is already a member of this workspace.");
+		}
+
+
 
 		invitation.setStatus(InvitationStatus.ACCEPTED);
 		invitationRepository.save(invitation);
@@ -229,8 +239,6 @@ public class WorkspaceInvitationService {
 		}
 
 		if (invitation.getExpiresAt().isBefore(Instant.now())) {
-			invitation.setStatus(InvitationStatus.EXPIRED);
-			invitationRepository.save(invitation);
 			throw new BadRequestException("Invitation has expired.");
 		}
 
@@ -259,20 +267,7 @@ public class WorkspaceInvitationService {
 				.timestamp(Instant.now())
 				.build();
 
-		publishAfterCommit(realTimeEvent);
-	}
-
-	private void publishAfterCommit(UnifiedEvent event) {
-		if (TransactionSynchronizationManager.isActualTransactionActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					redisEventPublisherService.publish(event);
-				}
-			});
-		} else {
-			redisEventPublisherService.publish(event);
-		}
+		redisEventPublisherService.publish(realTimeEvent);
 	}
 
 	private String getSafeFullName(User user) {

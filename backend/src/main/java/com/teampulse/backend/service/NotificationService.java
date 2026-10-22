@@ -25,8 +25,6 @@ import com.teampulse.backend.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -139,19 +137,7 @@ public class NotificationService {
 				.timestamp(Instant.now())
 				.build();
 
-		publishAfterCommit(event);
+		redisEventPublisherService.publish(event);
 	}
 
-	private void publishAfterCommit(UnifiedEvent event) {
-		if (TransactionSynchronizationManager.isActualTransactionActive()) {
-			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-				@Override
-				public void afterCommit() {
-					redisEventPublisherService.publish(event);
-				}
-			});
-		} else {
-			redisEventPublisherService.publish(event);
-		}
-	}
 }

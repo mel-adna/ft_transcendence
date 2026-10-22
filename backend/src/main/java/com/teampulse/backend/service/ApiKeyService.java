@@ -31,7 +31,7 @@ public class ApiKeyService {
 	private static final String PREFIX = "tp_live_";
 
 	public String generateOrRotateApiKey(String userEmail) {
-		User user = userRepository.findByEmail(userEmail)
+		User user = userRepository.findForCredentialChangeByEmail(userEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
 		apiKeyRepository.deleteByUser(user);
@@ -83,18 +83,11 @@ public class ApiKeyService {
 	}
 
 	public void revokeApiKey(String userEmail) {
-		User user = userRepository.findByEmail(userEmail)
+		User user = userRepository.findForCredentialChangeByEmail(userEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
 
 		apiKeyRepository.deleteByUser(user);
 		apiKeyRepository.flush();
-	}
-
-	@Transactional(readOnly = true)
-	public Optional<ApiKeyResponse> getApiKeyInfo(String userEmail) {
-		User user = userRepository.findByEmail(userEmail)
-				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
-
 		notificationService.createAndSendNotification(
 				user,
 				NotificationType.SECURITY_ALERT,
@@ -102,6 +95,13 @@ public class ApiKeyService {
 				null,
 				String.format("The API key has been revoked.")
 		);
+	}
+
+	@Transactional(readOnly = true)
+	public Optional<ApiKeyResponse> getApiKeyInfo(String userEmail) {
+		User user = userRepository.findByEmail(userEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + userEmail));
+
 
 		return apiKeyRepository.findByUser(user)
 				.map(apiKey -> ApiKeyResponse.builder()

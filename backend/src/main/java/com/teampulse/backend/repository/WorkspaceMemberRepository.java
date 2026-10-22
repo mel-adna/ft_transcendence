@@ -40,4 +40,7 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 
 	@Query("SELECT m FROM WorkspaceMember m WHERE LOWER(m.user.email) = LOWER(:userEmail) AND m.workspace.deleted = false")
 	List<WorkspaceMember> findByUserEmail(@Param("userEmail") String userEmail);
+
+	@Query("SELECT m.workspace.id FROM WorkspaceMember m WHERE LOWER(m.user.email) = LOWER(:email) AND m.workspace.deleted = false")
+	List<UUID> findWorkspaceIdsByUserEmail(@Param("email") String email);
 }

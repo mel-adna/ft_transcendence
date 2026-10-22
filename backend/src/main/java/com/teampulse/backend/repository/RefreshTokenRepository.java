@@ -35,7 +35,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 	void deleteByTokenHash(String tokenHash);
 
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
-	@Query("DELETE FROM RefreshToken r WHERE r.expiryDate < :now OR r.consumed = true OR r.revoked = true")
+	@Query("DELETE FROM RefreshToken r WHERE r.expiryDate <= :now")
 	int deleteExpiredOrRevokedTokens(@Param("now") Instant now);
 
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
