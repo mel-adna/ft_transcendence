@@ -120,6 +120,7 @@ public class WorkspaceInvitationService {
 
 		return invitationRepository.findByInviteeEmailAndStatus(cleanEmail, InvitationStatus.PENDING)
 				.stream()
+				.filter(invitation -> invitation.getWorkspace() != null && !invitation.getWorkspace().isDeleted())
 				.filter(invitation -> invitation.getExpiresAt().isAfter(Instant.now()))
 				.map(invitationMapper::toResponse)
 				.collect(Collectors.toList());

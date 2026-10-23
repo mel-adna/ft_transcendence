@@ -7,7 +7,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-/** Bounded structural validation; WebP container checks do not replace a full codec. */
+
 final class AvatarImageValidator {
 	private static final long MAX_PIXELS = 25_000_000;
 	private AvatarImageValidator() {}
