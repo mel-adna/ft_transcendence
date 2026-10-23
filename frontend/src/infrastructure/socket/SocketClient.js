@@ -1,5 +1,7 @@
 import { io } from 'socket.io-client';
 
+const FATAL_REFUSALS = new Set(['AUTH_TOKEN_REVOKED', 'AUTH_PAYLOAD_INVALID']);
+
 class SocketClient {
   constructor() {
     this._socket = null;
@@ -66,6 +68,7 @@ class SocketClient {
   _forceDisconnect() {
     this._stopHeartbeat();
     this._stopGiveUpRecovery();
+    this._stopRefusedRetry();
     if (this._socket) {
       this._socket.disconnect();
       this._socket = null;
@@ -89,12 +92,35 @@ class SocketClient {
     const s = this._socket;
 
     s.on('connect', () => {
+      this._stopRefusedRetry();
       this._startHeartbeat();
     });
 
     s.on('disconnect', () => {
       this._stopHeartbeat();
     });
+
+    s.on('connect_error', (err) => {
+      if (s.active || this._socket !== s) return;
+      if (FATAL_REFUSALS.has(err?.message)) return;
+      this._scheduleRefusedRetry(s);
+    });
+  }
+
+  _scheduleRefusedRetry(s) {
+    if (this._retryTimer) return;
+    const delay = this._retryDelay ?? 1000;
+    this._retryDelay = Math.min(delay * 2, 30_000);
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      if (this._socket === s && !s.active) s.connect();
+    }, delay);
+  }
+
+  _stopRefusedRetry() {
+    if (this._retryTimer) clearTimeout(this._retryTimer);
+    this._retryTimer = null;
+    this._retryDelay = null;
   }
 
   _bindGiveUpRecovery() {
