@@ -32,7 +32,7 @@ Ensure your host system meets the following software requirements:
 | **Java JDK** | `21` | Only for local backend development |
 | **Node.js** | `v20.0.0+` | Only for local frontend and chat service development |
 
-Running the project needs only Docker, Docker Compose, make and OpenSSL: Java, Node.js and PostgreSQL run inside the containers. Ports 80 and 443 must be free.
+Running the project needs only Docker, Docker Compose, make and OpenSSL: Java, Node.js and PostgreSQL run inside the containers. **Ports 8080 and 8443 must be free on the host machine.**
 
 ---
 
@@ -49,8 +49,8 @@ Sign-up codes and system notifications are dispatched via SMTP:
 5. Copy the generated **16-character passcode** (without spaces).
 
 #### 2. Configuring Secrets
-1. Run `make env secrets`. It creates `.env` from `.env.example`, and the `secrets/` folder with a generated JWT secret and generated passwords for the database, Redis, MinIO and Grafana.
-2. `.env` comes with the team's `MAIL_USERNAME`, `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. Change them there to use your own Google account. If `VITE_GOOGLE_CLIENT_ID` is empty, the Google sign-in button is hidden.
+1. Run `make`. It creates `.env` from `.env.example`, and the `secrets/` folder with a generated JWT secret and generated passwords for the database, Redis, MinIO and Grafana.
+2. `.env.example` comes with the team's `MAIL_USERNAME`, `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. Change them there to use your own Google account. If `VITE_GOOGLE_CLIENT_ID` is empty, the Google sign-in button is hidden.
 3. Put the 16-character App Password of `MAIL_USERNAME` in `secrets/mail_password.txt`, and the OAuth 2.0 client secret of `GOOGLE_CLIENT_ID` in `secrets/google_client_secret.txt`.
 
 ---
@@ -59,30 +59,34 @@ Sign-up codes and system notifications are dispatched via SMTP:
 
 Run the entire application stack (Frontend, Backend, Chat, PostgreSQL, Redis, MinIO, Nginx, Prometheus, Grafana) with a single command:
 
-- Clone the repository
+1. Clone the repository
 ```bash
-  git clone https://github.com/mel-adna/ft_transcendence.git
+   git clone https://github.com/mel-adna/ft_transcendence.git
 ```
 
-- Enter the project directory
+2. Enter the project directory
 ```bash
   cd ft_transcendence
 ```
 
-- Build and launch all services
+
+3. Build and launch all services
 ```bash
   make
 ```
 
-> **Note:** Executing `make` automatically runs `generate_certs.sh` to generate self-signed TLS certificates, creates required environment configurations from `.env.example`, generates secure random credentials (JWT secret, DB, Grafana admin, MinIO, and Redis passwords), and executes `docker compose up --build -d`. The frontend is built for production and served by nginx.
+
+
+
+> **Note:** Executing `make` automatically runs `generate_certs.sh` to generate self-signed TLS certificates, creates required environment configurations from `.env.example`, generates secure random credentials (JWT secret, DB, Grafana admin, MinIO, and Redis passwords), and executes `docker compose up -d --build`. The frontend is built for production and served by Nginx.
 
 #### 🌐 Accessing Endpoints
 
 Once the stack is initialized:
 
-* **Web Application:** Access [https://localhost](https://localhost) *(accept the self-signed SSL certificate in your browser)*.
-* **API Documentation (Swagger):** Access [https://localhost/api/v1/swagger-ui/index.html](https://localhost/api/v1/swagger-ui/index.html)
-* **Grafana Monitoring:** Access [https://localhost/grafana](https://localhost/grafana)
+* **Web Application:** Access [https://localhost:8443](https://localhost:8443) *(accept the self-signed SSL certificate in your browser)*.
+* **API Documentation (Swagger):** Access [https://localhost:8443/api/v1/swagger-ui/index.html](https://localhost:8443/api/v1/swagger-ui/index.html)
+* **Grafana Monitoring:** Access [https://localhost:8443/grafana](https://localhost:8443/grafana)
 * **Username:** Value of `GRAFANA_ADMIN_USER` in `.env`.
 * **Password:** Stored in `secrets/grafana_admin_password.txt`.
 
@@ -94,7 +98,6 @@ Once the stack is initialized:
 | --- | --- |
 | `make` | Generates TLS certificates, creates configuration files, and starts all containers in detached mode. |
 | `make ps` | Displays the current running status of all containers in the stack. |
-| `make backend` | Rebuilds and restarts the backend container only. |
 | `make clean` | Stops all containers and removes active networks and volume data. |
 | `make fclean` | Complete wipe: Stops containers, deletes Docker images, `secrets/` directory, certificates, and `.env`. |
 | `make re` | Executes `make fclean` followed by `make` for a clean rebuild from scratch. |
@@ -230,7 +233,7 @@ Why we chose each module, and how it works:
 
 - The Spring Boot backend: accounts (email codes, Google sign-in, password reset, rotating refresh tokens), teams, roles and invitations, tasks, notifications, the public API and GDPR.
 - Security: fixes for stored XSS and a timing attack, upload checks, rate limits, a CSP, Docker secrets, only nginx published, and secrets generated by `make`.
-- Monitoring with Prometheus and Grafana, and the merge of every branch into main on 8 October.
+- Monitoring with Prometheus and Grafana, and the merge of every branch into main.
 - Challenges: the 8 October merge had to reconcile branches written in parallel, including two versions of the entities and the schema. The dashboard counts loaded whole task lists into memory, so they became SQL group-by queries.
 
 ### ouzouini

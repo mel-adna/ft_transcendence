@@ -393,8 +393,6 @@ public class UserService {
 		String originalEmail = user.getEmail();
 		String originalName = (user.getFirstName() != null && !user.getFirstName().isBlank()) ? user.getFirstName() : "there";
 
-		// Membership creation locks the same user first. Lock all affected workspaces
-		// in UUID order before inspecting ownership/admin counts or removing memberships.
 		Set<UUID> affected = new TreeSet<>();
 		affected.addAll(workspaceMemberRepository.findWorkspaceIdsByUserEmail(cleanEmail));
 		affected.addAll(workspaceRepository.findIdsByOwnerId(userId));
@@ -446,8 +444,6 @@ public class UserService {
 					.toList();
 			workspaceInvitationRepository.deleteByWorkspaceIdIn(workspaceIdsToDelete);
 
-			// Keep these entities managed while cleaning their @MapsId memberships.
-			// A versioned UPDATE avoids cascade-persist cancelling a scheduled remove.
 			workspacesToDelete.forEach(ws -> ws.setDeleted(true));
 			workspaceRepository.saveAllAndFlush(workspacesToDelete);
 		}
@@ -457,7 +453,17 @@ public class UserService {
 					.findFirstByWorkspaceIdAndUserIdNotAndRoleOrderByCreatedAtAsc(ws.getId(), userId, WorkspaceMemberRole.ADMIN)
 					.orElseThrow(() -> new IllegalStateException("Admin not found despite exists check"));
 
-			ws.setOwner(nextAdmin.getUser());
+			User newOwner = nextAdmin.getUser();
+
+			String targetName = ws.getName();
+			int counter = 1;
+			while (workspaceRepository.existsByUserIdAndWorkspaceName(newOwner.getId(), targetName)) {
+				counter++;
+				targetName = ws.getName() + " (" + counter + ")";
+			}
+
+			ws.setName(targetName);
+			ws.setOwner(newOwner);
 			workspaceRepository.save(ws);
 		}
 
@@ -524,7 +530,6 @@ public class UserService {
 		List<UUID> unverifiedUserIds = new ArrayList<>();
 		for (UUID id : candidates.stream().sorted().toList()) {
 			userRepository.findForCredentialChangeById(id).ifPresent(current -> {
-				// Verification uses this same mutex. Recheck after waiting for it.
 				if (!current.isEnabled() && current.getCreatedAt().isBefore(cutoffDate)) unverifiedUserIds.add(id);
 			});
 		}

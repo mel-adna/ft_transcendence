@@ -50,11 +50,9 @@ public class RateLimitAspect {
 
 		String key = buildCacheKey(rateLimit.keyType(), clientIp, email, signature.toShortString());
 
-		// An attacker must not reset an account's guessing budget by changing source IP.
 		if (rateLimit.keyType() == RateLimitKeyType.IP_AND_EMAIL && email != null) {
 			String accountKey = buildCacheKey(RateLimitKeyType.EMAIL, clientIp, email, signature.toShortString());
 			enforceLimit(accountKey, email, rateLimit);
-			// Also bound password spraying across many accounts from one source.
 			enforceLimit(buildCacheKey(RateLimitKeyType.IP, clientIp, email, signature.toShortString()), email, rateLimit);
 		}
 		enforceLimit(key, email, rateLimit);
