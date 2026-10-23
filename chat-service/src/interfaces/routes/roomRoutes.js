@@ -23,6 +23,7 @@ router.post('/notify', notifyLimiter, notifyController.notify);
 
 router.get('/users', userController.listUsers);
 router.get('/users/search', userController.searchUsers);
+router.get('/me/export', userController.exportMyChatData);
 
 router.post('/rooms/dm', roomController.createDM);
 router.get('/dm-requests', roomController.listPendingDMRequests);
