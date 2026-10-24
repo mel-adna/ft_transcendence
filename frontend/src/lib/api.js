@@ -5,6 +5,7 @@ const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const RENEW_BEFORE_EXPIRY_MS = 60 * 1000;
 const RENEW_SPREAD_MS = 30 * 1000;
+const RENEW_RETRY_MS = 15 * 1000;
 
 let renewTimer = null;
 
@@ -66,10 +67,23 @@ function scheduleRenewal() {
   const expiry = tokenExpiry(token);
   if (expiry === null || !getRefreshToken()) return;
   const delay = expiry - Date.now() - RENEW_BEFORE_EXPIRY_MS - Math.random() * RENEW_SPREAD_MS;
-  renewTimer = setTimeout(() => {
-    if (getToken() === token) refreshAccessToken().catch(() => {});
-    else scheduleRenewal();
-  }, Math.max(delay, 0));
+  renewTimer = setTimeout(() => renew(token), Math.max(delay, 0));
+}
+
+function canRetryRenewal(error) {
+  const status = error?.response?.status;
+  return !status || status === 429 || status >= 500;
+}
+
+function renew(token) {
+  if (getToken() !== token) {
+    scheduleRenewal();
+    return;
+  }
+  refreshAccessToken().catch((error) => {
+    if (getToken() !== token || !canRetryRenewal(error)) return;
+    renewTimer = setTimeout(() => renew(token), RENEW_RETRY_MS + Math.random() * RENEW_RETRY_MS);
+  });
 }
 
 export function postWithoutSession(path, body) {
