@@ -318,19 +318,27 @@ services:
       - teampulse_net
     restart: unless-stopped
 
-    # ======================= cAdvisor =======================
+  # ======================= cAdvisor =======================
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    image: ghcr.io/google/cadvisor:0.55.1
     container_name: teampulse-cadvisor
+    user: root
     privileged: true
+    security_opt:
+      - apparmor:unconfined
+    devices:
+      - /dev/kmsg:/dev/kmsg
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
       - /sys:/sys:ro
+      - /etc/machine-id:/etc/machine-id:ro
       - ${DOCKER_ROOT_DIR:-/var/lib/docker}:${DOCKER_ROOT_DIR:-/var/lib/docker}:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
+      - ${CONTAINERD_SOCK:-/run/containerd/containerd.sock}:/run/containerd/containerd.sock:ro
     command:
       - "-docker_only=true"
+      - "-housekeeping_interval=10s"
+      - "-whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project"
     networks:
       - teampulse_net
     restart: unless-stopped
