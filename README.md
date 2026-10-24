@@ -116,7 +116,13 @@ References:
 
 How AI was used:
 
-All members used AI assistants as helpers: to explain concepts and error messages, to review code and suggest fixes, and to draft documentation and test scripts. Each member kept only what they understood, tested and can explain.
+All members used AI assistants as helpers: to explain concepts and error messages, to review code, and to draft documentation and test scripts. Each member kept only what they understood, tested and can explain. What each member used it for:
+
+- **moben-ta:**
+- **ouzouini:**
+- **szemmour:** Used Claude Code to review the frontend and pull requests, identify the root causes of bugs, and draft the Privacy Policy, Terms of Service, and status page. Used ChatGPT to understand frontend concepts.
+- **ayaarab:**
+- **mel-adna:**
 
 ## Team Information
 
@@ -131,6 +137,7 @@ All members used AI assistants as helpers: to explain concepts and error message
 ## Project Management
 
 - **Organization:** the June plan split the project into five parts, one per member: backend core, database, frontend core, real-time chat, and analytics with Export/Import. Each member works on their own branch, merged into main. Since 12 October, changes also go through GitHub pull requests.
+- **Meetings:** the team met in person at school to plan and work together, and talked on Discord when there was no need to meet.
 - **Tools:** GitHub for branches and pull requests, and a shared status page with the module points and each member's next tasks.
 - **Communication:** Discord, for questions, planning and bug reports, which go straight to the owner of the code.
 
@@ -244,6 +251,7 @@ Why we chose each module, and how it works:
 - Defined the enumerations used by the entities, such as roles, task statuses and priorities.
 - Created the DTOs that carry data between the API and its clients.
 - Implemented the custom exceptions used for consistent error handling across the backend.
+- Challenges:
 
 ### szemmour
 
