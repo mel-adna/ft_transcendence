@@ -2,6 +2,8 @@
 
 
 ENV_FILE := $(shell if [ -f .env ]; then echo ".env"; else echo ".env.example"; fi)
+DOCKER_ROOT_DIR := $(shell docker info --format '{{.DockerRootDir}}' 2>/dev/null)
+export DOCKER_ROOT_DIR
 
 
 all: env secrets certs
