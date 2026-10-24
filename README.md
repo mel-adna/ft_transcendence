@@ -121,7 +121,7 @@ All members used AI assistants as helpers: to explain concepts and error message
 - **moben-ta:**
 - **ouzouini:** AI was used to research technical concepts, explore possible solutions to development challenges, and improve documentation. All implementations were reviewed and adapted to the project's needs.
 - **szemmour:** Used Claude Code to review the frontend and pull requests, identify the root causes of bugs, and draft the Privacy Policy, Terms of Service, and status page. Used ChatGPT to understand frontend concepts.
-- **ayaarab:**
+- **ayaarab:** Used Claude Code to review and audit the chat service, find the root causes of socket, token and security bugs, and write the live test scripts (Socket.IO clients and Playwright) used to check each fix against the running stack. Used it to draft commit messages and the chat documentation.
 - **mel-adna:** Used AI assistants to review code, understand some technical issues, and help with documentation and debugging.
 
 ## Team Information
@@ -131,7 +131,7 @@ All members used AI assistants as helpers: to explain concepts and error message
 | moben-ta | Technical Lead / Architect, Developer | The backend architecture and main technical choices. Builds the Spring Boot API, its security, the Docker secrets and the monitoring, and merges the branches into main. |
 | ouzouini | Developer | Builds the data layer: the PostgreSQL database tables, the JPA models (entities), the enums, the DTOs and the custom exceptions. |
 | szemmour | Project Manager / Scrum Master, Developer | Tracks progress, module points and next tasks, reviews and merges pull requests, and sends each bug to its owner. Builds the frontend core. |
-| ayaarab | Developer | The real-time chat service and the live updates it relays. |
+| ayaarab | Developer | The real-time chat service (Node.js, Socket.IO, Prisma), the chat screens, and the live updates it relays. |
 | mel-adna | Product Owner, Developer | Keeps the project scope and priorities, and builds the analytics dashboards and the notification bell. |
 
 ## Project Management
@@ -166,7 +166,7 @@ The Java API owns the main schema, created by Flyway in `backend/src/main/resour
 | `refresh_tokens` | `token_hash` VARCHAR(64) (unique), `expiry_date`, `revoked`, `consumed` BOOLEAN | → users |
 | `verification_codes`, `password_reset_tokens` | `code` or `token`, `expiry_date` | → users |
 
-The chat service keeps its own tables in the `chat` schema, through Prisma: `User` (the same id as in the Java API, `username`, `email`), `Room` (GROUP or DIRECT), `RoomMember` (role, PENDING or ACCEPTED), `Message` (`content` VARCHAR(4000), `type`) and `ReadReceipt`.
+The chat service keeps its own tables in the `chat` schema, through Prisma: `User` (the same id as in the Java API, `username`, `email`, `securityVersion`), `Room` (GROUP or DIRECT), `RoomMember` (role, PENDING or ACCEPTED), `Message` (`content` VARCHAR(4000), `type`) and `ReadReceipt`.
 
 ## Features List
 
@@ -264,9 +264,12 @@ Why we chose each module, and how it works:
 ### ayaarab
 
 - The chat service in Node.js, Express, Socket.IO and Prisma: group rooms, direct messages with requests, invitations, typing, read receipts, presence, and editing, deleting and searching messages.
-- The chat screens (`features/chat`), and a socket that reconnects by itself after an outage or a refused token.
-- The `data:changed` relay for live updates, the chat service's place in Docker Compose and nginx, and Prometheus metrics at `/metrics`.
-- Challenges: chat rejected every Java token until the JWT secret was decoded as base64, the way Java does. Users keyed on the email prefix collided, so they are keyed on the Java id. The reconnect loop dropped every live update listener until it was fixed.
+- The chat screens (`features/chat`), and a socket that reconnects by itself after an outage, an expired token or a refused handshake.
+- The `data:changed` relay for live updates, sent only to members of the team, and the chat service's place in Docker Compose and nginx, with Prometheus metrics at `/metrics`.
+- Security: the Java API decides who is signed in, old tokens stop working after a password change, rate limits on every socket event, size and type checks on every input, and error codes instead of internal messages. A pending DM request cannot read the room.
+- Accounts and GDPR: a deleted account becomes Deleted User, its messages are blanked, and the same email can sign up again. Download my data includes your chat rooms and messages.
+- Several chat instances: users are reached through Socket.IO rooms over the Redis adapter, so live updates and revoked sessions work across instances.
+- Challenges: chat rejected every Java token until the JWT secret was decoded as base64, the way Java does. One `null` sent over a socket crashed the service for everyone, so every handler now checks its input. A refused reconnect left the bell and the board listening to a dead socket until the same socket was revived. All users shared one Java rate limit until each user's IP was passed on.
 
 ### mel-adna
 
