@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 	private final UserService userService;
 
-	@RateLimit(capacity = 3, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+	@RateLimit(capacity = 4, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 	@Operation(summary = "Register a new user", description = "Creates an inactive user account and sends a 6-digit verification code to email.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "201", description = "User registered successfully, verification code sent"),
@@ -42,7 +42,7 @@ public class AuthController {
 	}
 
 
-	@RateLimit(capacity = 5, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
+	@RateLimit(capacity = 6, durationInMinutes = 15, keyType = RateLimitKeyType.IP_AND_EMAIL)
 	@Operation(summary = "Verify account email", description = "Validates the 6-digit code sent via email and activates the user account.")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "Account verified successfully, returns JWT tokens"),

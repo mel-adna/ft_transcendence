@@ -4,7 +4,7 @@ import com.teampulse.backend.model.*;
 import com.teampulse.backend.enums.TaskStatus;
 import java.util.UUID;
 
-/** Immutable internal event values, captured while the publishing transaction is active. */
+
 public final class EventSnapshots {
 	private EventSnapshots() {}
 	public record UserValue(UUID id, String firstName, String lastName, String email) {

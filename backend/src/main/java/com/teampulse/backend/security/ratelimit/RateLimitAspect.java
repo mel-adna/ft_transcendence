@@ -48,20 +48,21 @@ public class RateLimitAspect {
 		String clientIp = ClientIpUtils.getClientIp(request);
 		String email = extractEmailFromArgs(joinPoint);
 
-		String key = buildCacheKey(rateLimit.keyType(), clientIp, email, signature.toShortString());
-
-		// An attacker must not reset an account's guessing budget by changing source IP.
 		if (rateLimit.keyType() == RateLimitKeyType.IP_AND_EMAIL && email != null) {
 			String accountKey = buildCacheKey(RateLimitKeyType.EMAIL, clientIp, email, signature.toShortString());
-			enforceLimit(accountKey, email, rateLimit);
-			// Also bound password spraying across many accounts from one source.
-			enforceLimit(buildCacheKey(RateLimitKeyType.IP, clientIp, email, signature.toShortString()), email, rateLimit);
+			enforceLimit(accountKey, email, rateLimit.capacity(), rateLimit.durationInMinutes());
+
+			int globalIpCapacity = Math.max(rateLimit.capacity() * 4, 30);
+			String ipKey = buildCacheKey(RateLimitKeyType.IP, clientIp, email, signature.toShortString());
+			enforceLimit(ipKey, email, globalIpCapacity, rateLimit.durationInMinutes());
+		} else {
+			String key = buildCacheKey(rateLimit.keyType(), clientIp, email, signature.toShortString());
+			enforceLimit(key, email, rateLimit.capacity(), rateLimit.durationInMinutes());
 		}
-		enforceLimit(key, email, rateLimit);
 	}
 
-	private void enforceLimit(String key, String email, RateLimit rateLimit) {
-		Bucket bucket = rateLimitingService.resolveBucket(key, rateLimit.capacity(), rateLimit.durationInMinutes());
+	private void enforceLimit(String key, String email, int capacity, int durationInMinutes) {
+		Bucket bucket = rateLimitingService.resolveBucket(key, capacity, durationInMinutes);
 		ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
 
 		if (!probe.isConsumed()) {
@@ -71,7 +72,6 @@ public class RateLimitAspect {
 			throw new RateLimitExceededException("Too many requests. Please try again later.", waitForRefillSeconds);
 		}
 	}
-
 
 	private String buildCacheKey(RateLimitKeyType keyType, String ip, String email, String methodSignature) {
 		return switch (keyType) {
@@ -88,9 +88,7 @@ public class RateLimitAspect {
 		return key;
 	}
 
-
 	private String extractEmailFromArgs(JoinPoint joinPoint) {
-
 		for (Object arg : joinPoint.getArgs()) {
 			if (arg == null) {
 				continue;

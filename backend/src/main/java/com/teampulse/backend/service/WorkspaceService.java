@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import com.teampulse.backend.dto.messaging.UnifiedEvent;
 import com.teampulse.backend.enums.EntityType;
 import com.teampulse.backend.enums.NotificationType;
+import com.teampulse.backend.repository.WorkspaceInvitationRepository;
 import com.teampulse.backend.security.utils.EmailUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -56,6 +57,7 @@ public class WorkspaceService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final NotificationService notificationService;
 	private final RedisEventPublisherService redisEventPublisherService;
+	private final WorkspaceInvitationRepository workspaceInvitationRepository;
 
 	public WorkspaceResponse createWorkspace(String creatorEmail, WorkspaceCreateRequest request) {
 		User creator = userRepository.findForCredentialChangeByEmail(creatorEmail)
@@ -231,6 +233,8 @@ public class WorkspaceService {
 
 		User admin = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		workspaceInvitationRepository.deleteByWorkspaceId(workspaceId);
 
 		workspace.setDeleted(true);
 		workspaceRepository.save(workspace);

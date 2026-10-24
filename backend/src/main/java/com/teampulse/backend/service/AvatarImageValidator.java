@@ -7,7 +7,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-/** Bounded structural validation; WebP container checks do not replace a full codec. */
+
 final class AvatarImageValidator {
 	private static final long MAX_PIXELS = 25_000_000;
 	private AvatarImageValidator() {}
@@ -38,7 +38,6 @@ final class AvatarImageValidator {
 						if (size < 29) throw invalid();
 						checkDimensions(unsigned(bytes,index+14,3)+1, unsigned(bytes,index+17,3)+1);
 						int nested=index+24;
-						// Animated frames contain their own VP8/VP8L bitstream chunk.
 						while (nested+8 <= end) {
 							long nestedSize=unsigned(bytes,nested+4,4);
 							long next=nested+8L+nestedSize+(nestedSize&1);

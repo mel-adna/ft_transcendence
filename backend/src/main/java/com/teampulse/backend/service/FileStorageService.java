@@ -87,7 +87,8 @@ public class FileStorageService {
 								.build());
 			}
 
-			return String.format("%s/%s/%s", publicUrl, bucketName, objectKey);
+			String baseUrl = publicUrl.endsWith("/") ? publicUrl.substring(0, publicUrl.length() - 1) : publicUrl;
+			return String.format("%s/%s/%s", baseUrl, bucketName, objectKey);
 
 		} catch (Exception e) {
 			log.error("Avatar upload failed: {}", e.getClass().getSimpleName());
@@ -101,20 +102,15 @@ public class FileStorageService {
 		}
 
 		try {
-			String prefix = publicUrl + "/" + bucketName + "/";
-			String objectKey;
-
-			if (avatarUrl.startsWith(prefix)) {
-				objectKey = avatarUrl.substring(prefix.length());
-			} else {
-				objectKey = avatarUrl.substring(avatarUrl.lastIndexOf('/') + 1);
-			}
-
 			String expectedPrefix = "users/" + userId + "/avatars/";
-			if (!objectKey.startsWith(expectedPrefix)) {
-				log.warn("Security rejection: Attempted to delete unowned avatar object [{}] for user [{}]", objectKey, userId);
+			int index = avatarUrl.indexOf(expectedPrefix);
+
+			if (index == -1) {
+				log.warn("Security rejection: Attempted to delete unowned avatar object [{}] for user [{}]", avatarUrl, userId);
 				return;
 			}
+
+			String objectKey = avatarUrl.substring(index);
 
 			minioClient.removeObject(
 					RemoveObjectArgs.builder()
