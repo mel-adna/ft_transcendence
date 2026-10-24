@@ -22,7 +22,7 @@ const UserRepository = {
 
     if (email) {
       const holder = await prisma.user.findUnique({ where: { email }, select: { id: true } });
-      if (holder && holder.id !== id) await UserRepository.releaseEmail(holder.id);
+      if (holder && holder.id !== id) await UserRepository.anonymizeDeletedAccount(holder.id);
     }
 
     return prisma.user.upsert({
@@ -75,11 +75,36 @@ const UserRepository = {
     return count > 0;
   },
 
-  async releaseEmail(id) {
-    await prisma.user.updateMany({
-      where: { id },
-      data: { email: `deleted_${id}@teampulse.local`, username: 'Deleted User' },
-    });
+  async anonymizeDeletedAccount(id) {
+    await prisma.$transaction([
+      prisma.user.updateMany({
+        where: { id },
+        data: { email: `deleted_${id}@teampulse.local`, username: 'Deleted User' },
+      }),
+      prisma.message.updateMany({
+        where: { senderId: id, deletedAt: null },
+        data: { content: '', deletedAt: new Date() },
+      }),
+    ]);
+  },
+
+  async exportChatData(id) {
+    const [memberships, messages] = await Promise.all([
+      prisma.roomMember.findMany({
+        where: { userId: id },
+        select: { role: true, status: true, joinedAt: true, room: { select: { id: true, name: true, type: true } } },
+        orderBy: { joinedAt: 'asc' },
+      }),
+      prisma.message.findMany({
+        where: { senderId: id, deletedAt: null },
+        select: {
+          id: true, content: true, type: true, parentId: true, isEdited: true, createdAt: true, updatedAt: true,
+          room: { select: { id: true, name: true, type: true } },
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      }),
+    ]);
+    return { memberships, messages };
   },
 
   async findById(id) {

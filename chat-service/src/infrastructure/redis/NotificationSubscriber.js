@@ -77,7 +77,7 @@ class NotificationSubscriber {
     if (!userId) return;
     try {
       forgetVerifiedUser(String(userId));
-      await UserRepository.releaseEmail(String(userId));
+      await UserRepository.anonymizeDeletedAccount(String(userId));
       socketServer.disconnectUser(String(userId));
     } catch (err) {
       console.error('[NotificationSubscriber] USER_DELETED sync failed:', err.message);
