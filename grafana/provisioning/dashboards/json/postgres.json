@@ -182,7 +182,7 @@
         "label": "Instance",
         "multi": false,
         "name": "instance",
-        "query": "label_values(pg_up, instance)",
+        "query": "label_values(pg_settings_max_connections, instance)",
         "refresh": 1,
         "type": "query"
       },
@@ -193,7 +193,7 @@
         "label": "Database",
         "multi": true,
         "name": "datname",
-        "query": "label_values(pg_stat_database, datname)",
+        "query": "label_values(pg_stat_database_tup_inserted, datname)",
         "refresh": 1,
         "type": "query"
       }

@@ -318,17 +318,20 @@ services:
       - teampulse_net
     restart: unless-stopped
 
-  # ======================= cAdvisor =======================
+    # ======================= cAdvisor =======================
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    image: ghcr.io/google/cadvisor:0.55.1
     container_name: teampulse-cadvisor
+    user: root
     privileged: true
     volumes:
       - /:/rootfs:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
+      - /goinfre/moben-ta/docker:/goinfre/moben-ta/docker:ro
+      - /dev/disk/:/dev/disk:ro
+      - /etc/machine-id:/etc/machine-id:ro
     command:
       - "-docker_only=true"
     networks:
