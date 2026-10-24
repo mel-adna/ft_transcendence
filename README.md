@@ -119,7 +119,7 @@ How AI was used:
 All members used AI assistants as helpers: to explain concepts and error messages, to review code, and to draft documentation and test scripts. Each member kept only what they understood, tested and can explain. What each member used it for:
 
 - **moben-ta:**
-- **ouzouini:**
+- **ouzouini:** AI was used to research technical concepts, explore possible solutions to development challenges, and improve documentation. All implementations were reviewed and adapted to the project's needs.
 - **szemmour:** Used Claude Code to review the frontend and pull requests, identify the root causes of bugs, and draft the Privacy Policy, Terms of Service, and status page. Used ChatGPT to understand frontend concepts.
 - **ayaarab:**
 - **mel-adna:** Used AI assistants to review code, understand some technical issues, and help with documentation and debugging.
@@ -251,7 +251,7 @@ Why we chose each module, and how it works:
 - Defined the enumerations used by the entities, such as roles, task statuses and priorities.
 - Created the DTOs that carry data between the API and its clients.
 - Implemented the custom exceptions used for consistent error handling across the backend.
-- Challenges:
+- Challenges: Managing multiple Flyway versions during development can make database changes more complex. Since the application is not deployed yet, I kept only `V1__init_schema.sql`. After deployment, I will use new versions to update the database without losing existing data.
 
 ### szemmour
 
