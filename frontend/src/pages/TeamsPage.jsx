@@ -7,6 +7,7 @@ import { useWorkspace } from '../context/useWorkspace';
 import { personName } from '../lib/people';
 import Spinner from '../components/Spinner';
 import Avatar from '../components/Avatar';
+import Badge from '../components/Badge';
 import ConfirmModal from '../components/ConfirmModal';
 import EditTeamModal from '../features/teams/EditTeamModal';
 import InvitationsPanel from '../features/teams/InvitationsPanel';
@@ -23,15 +24,9 @@ function TeamCard({ workspace, canManage, onOpen, onEdit, onDelete }) {
       <div>
         <div className="flex items-start justify-between gap-3">
           <h3 className="min-w-0 break-words text-base font-bold text-white">{workspace.name}</h3>
-          <span
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-              isOrganization
-                ? 'border-primary/30 bg-primary/10 text-primary'
-                : 'border-muted/30 bg-muted/10 text-muted'
-            }`}
-          >
+          <Badge tone={isOrganization ? 'primary' : 'neutral'} className="shrink-0">
             {TYPE_LABEL[workspace.type] ?? workspace.type}
-          </span>
+          </Badge>
         </div>
 
         <div className="mt-5 flex items-center gap-2.5 border-t border-card pt-4">

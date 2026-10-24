@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Copy, Download, KeyRound, LogOut, Trash2, Upload } from 'lucide-react';
-import api, { getErrorMessage } from '../lib/api';
+import api, { CHAT_API_BASE, getErrorMessage } from '../lib/api';
 import { downloadFile } from '../lib/csv';
 import { formatDay } from '../lib/dates';
 import { PASSWORD_HINT, validatePassword, validateRequired } from '../lib/validation';
@@ -303,8 +303,10 @@ function DataExportCard({ user }) {
     setError(null);
     setDownloaded(false);
     try {
+      const { data: chat } = await api.get('/chat/me/export', { baseURL: CHAT_API_BASE });
       const { data } = await api.get('/users/me/export');
-      downloadFile(EXPORT_FILENAME, JSON.stringify(data, null, 2), 'application/json');
+      const file = { ...data, chat: { rooms: chat.rooms, messages: chat.messages } };
+      downloadFile(EXPORT_FILENAME, JSON.stringify(file, null, 2), 'application/json');
       setDownloaded(true);
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -318,7 +320,7 @@ function DataExportCard({ user }) {
       <h2 className="text-base font-bold text-white">Your data</h2>
       <p className="mt-1 text-sm text-muted">
         Download a copy of everything Team Pulse stores about you: your profile, teams, tasks,
-        notifications, activity, invitations and API key details.
+        notifications, activity, invitations, chat messages and API key details.
       </p>
 
       <div className="mt-5 flex flex-col gap-3 border-t border-card pt-5 sm:flex-row sm:items-center sm:justify-between">

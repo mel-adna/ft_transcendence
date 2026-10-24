@@ -183,7 +183,7 @@ The chat service keeps its own tables in the `chat` schema, through Prisma: `Use
 | Public API | moben-ta, szemmour | Workspaces and tasks over REST with an `X-API-Key` header, rate limits and Swagger |
 | Monitoring | moben-ta, ayaarab | Metrics from every service in Prometheus, shown on Grafana dashboards |
 | Security | moben-ta | HTTPS only, through nginx. Docker secrets, rate limits and input validation |
-| Design system | szemmour | One set of colour tokens and shared components for every screen |
+| Design system | szemmour | One set of colour tokens and shared components, used on every screen except the chat |
 
 ## Modules
 
@@ -214,16 +214,16 @@ Why we chose each module, and how it works:
 - **Real-time features:** chat needs the server to push. Socket.IO behind nginx delivers messages, typing, presence and read receipts live. Sockets sign in with the Java token and reconnect by themselves.
 - **Organization system:** the app is built around teams. The backend enforces the roles (admin, member, viewer) and the invitations, and the Teams and Colleagues screens show each control only to those allowed to use it.
 - **Public API:** other tools can work with the tasks. `/public/workspaces`, and GET, POST, PUT and DELETE on `/public/tasks`, take an `X-API-Key` header, are rate limited and are listed in Swagger. The key is stored as a SHA-256 hash, and Settings creates, replaces and revokes it.
-- **Monitoring:** to see that every service is up. Prometheus scrapes the Java API, the chat service, the PostgreSQL and NGINX exporters and cAdvisor, and Grafana (`/grafana`) has five dashboards.
+- **Monitoring:** to see that every service is up. Prometheus scrapes the Java API, the chat service, the PostgreSQL and NGINX exporters and cAdvisor, and Grafana (`/grafana`) has six dashboards: two built for Team-Pulse and four imported from grafana.com.
 - **Advanced analytics dashboard:** a team sees its progress at a glance. `/workspaces/{id}/stats` counts with SQL queries, and the dashboard adds filters, a custom date range, PDF export and live reloads.
 - **ORM:** objects instead of raw SQL. JPA entities and Spring Data repositories over the Flyway schema in the Java API, and Prisma in the chat service.
 - **Notification system:** people learn what concerns them. The backend saves a notification for every create, update and delete and publishes it on Redis, and the chat service pushes it to the bell.
 - **OAuth 2.0:** sign in without a new password. The frontend gets an ID token from Google, and the backend checks it and answers with the app's own tokens.
-- **Custom-made design system:** one look, and one place to change a colour: 12 tokens in `frontend/src/index.css`, and shared components (Button, Badge, Field, Modal, PageHeader and others) on every screen.
+- **Custom-made design system:** one look, and one place to change a colour: 12 tokens in `frontend/src/index.css`, and shared components (Button, Badge, Field, Modal, PageHeader and others) on every screen except the chat, which keeps its own styles.
 - **Support for additional browsers:** evaluators do not all use Chrome. The main flows pass in Chrome, Safari 26.6 and Firefox 156, driven by `safaridriver` and `geckodriver`, with a clean console. Only the date formats differ.
 - **Data export and import:** tasks move in and out as CSV or JSON. An import is limited to 2 MB and 500 rows, every field is validated, and spreadsheet formulas are neutralised.
 - **User activity analytics dashboard:** what each person does: the assigned, done, in progress and to do tasks and the completion rate of each member.
-- **GDPR compliance:** people own their data. Download my data saves everything stored about you (`GET /users/me/export`), deleting an account anonymizes it, and both send an email. The Privacy Policy says what is stored.
+- **GDPR compliance:** people own their data. Download my data saves everything stored about you in one file: the backend's export (`GET /users/me/export`) and your chat rooms and messages from the chat service (`GET /api/chat/me/export`). Deleting an account anonymizes it and blanks its chat messages, and both send an email. The Privacy Policy says what is stored.
 - **Backend as microservices:** chat has different needs from the API, so the Java API and the Node chat service run as separate containers that talk over REST and Redis events.
 - **Real-time collaborative features:** a team works on the same board at the same time. After a change, the chat service pushes `data:changed` to the people affected, and their pages refetch quietly, without closing an open form.
 

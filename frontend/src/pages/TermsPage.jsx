@@ -18,7 +18,7 @@ export default function TermsPage() {
           <li>Use your real name and an email address you control.</li>
           <li>
             Do not use the app to harass, threaten or abuse anyone, including in chat messages or
-            task comments.
+            task descriptions.
           </li>
           <li>
             Do not attempt to gain unauthorized access to other accounts, workspaces or the server

@@ -2,7 +2,7 @@ import LegalPage, { LegalSection } from '../components/LegalPage';
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="October 18, 2026">
+    <LegalPage title="Privacy Policy" updated="October 24, 2026">
       <p className="text-sm leading-relaxed text-muted">
         Team Pulse is a student software project built to manage tasks and communication inside
         small teams. This page explains, in plain terms, what information the application stores
@@ -23,22 +23,23 @@ export default function PrivacyPage() {
             If you create an API key, its first characters and a hash of it. The key itself is
             never stored.
           </li>
-          <li>The chat messages you send inside a workspace.</li>
+          <li>The chat messages you send, and the chat rooms you are in.</li>
         </ul>
       </LegalSection>
 
       <LegalSection title="Why we collect it">
         Your name, email and avatar are used to identify you to your teammates and to let you sign
         in to your account. Your tasks power the task board, dashboard and reporting features. Your
-        chat messages exist so the chat feature can deliver them to the right workspace. None of
+        chat messages exist so the chat feature can deliver them to the right room. None of
         this information is used for advertising, and none of it is sold or shared with third
         parties.
       </LegalSection>
 
       <LegalSection title="Where your data lives">
-        Everything described above is stored in this project's own PostgreSQL database, run as
-        part of the application's backend. There is no external analytics service and no
-        third-party data broker involved in running Team Pulse.
+        Everything described above is stored in this project's own PostgreSQL database, except
+        avatar images, which are kept in the project's own MinIO storage. Both run as part of the
+        application. There is no external analytics service and no third-party data broker
+        involved in running Team Pulse.
       </LegalSection>
 
       <LegalSection title="Third-Party Services">
@@ -64,10 +65,10 @@ export default function PrivacyPage() {
 
       <LegalSection title="Your choices">
         From the Settings page, signed-in users can download a copy of everything stored about
-        them (profile, teams, tasks, notifications, activity, invitations and API key details) as a
-        single file, at any time, and each download is confirmed by email. From the same page, you can
-        also permanently delete your account. Deleting your account removes your access immediately
-        and cannot be undone.
+        them (profile, teams, tasks, notifications, activity, invitations, chat messages and API
+        key details) as a single file, at any time, and each download is confirmed by email. From
+        the same page, you can also permanently delete your account. Deleting your account removes
+        your access immediately, blanks the chat messages you sent, and cannot be undone.
       </LegalSection>
 
       <LegalSection title="Contact">

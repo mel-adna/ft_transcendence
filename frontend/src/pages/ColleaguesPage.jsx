@@ -13,6 +13,7 @@ import { formatDay } from '../lib/dates';
 import InviteMemberModal from '../features/colleagues/InviteMemberModal';
 import Button from '../components/Button';
 import Avatar from '../components/Avatar';
+import Badge from '../components/Badge';
 import ConfirmModal from '../components/ConfirmModal';
 import Spinner from '../components/Spinner';
 import EmptyState from '../components/EmptyState';
@@ -25,6 +26,11 @@ const ROLE_STYLE = {
   ADMIN: 'border-warning/30 bg-warning/10 text-warning',
   MEMBER: 'border-muted/30 bg-muted/10 text-muted',
   VIEWER: 'border-muted/30 bg-muted/10 text-muted',
+};
+
+const ROLE_TONE = {
+  OWNER: 'primary',
+  ADMIN: 'warning',
 };
 
 const ROLE_OPTIONS = ['ADMIN', 'MEMBER', 'VIEWER'];
@@ -59,13 +65,9 @@ function MemberCard({ member, isSelf, onRemove, onRoleChange, roleSaving }) {
             ))}
           </select>
         ) : (
-          <span
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-              ROLE_STYLE[role] ?? ROLE_STYLE.MEMBER
-            }`}
-          >
+          <Badge tone={ROLE_TONE[role] ?? 'neutral'} className="shrink-0">
             {role}
-          </span>
+          </Badge>
         )}
       </div>
 
