@@ -202,6 +202,7 @@ The chat service keeps its own tables in the `chat` schema, through Prisma: `Use
 | Public API | Web, Major | 2 | moben-ta, szemmour |
 | Monitoring with Prometheus and Grafana | DevOps, Major | 2 | moben-ta |
 | Advanced analytics dashboard | Data and analytics, Major | 2 | mel-adna |
+| Backend as microservices | DevOps, Major | 2 | ayaarab, moben-ta |
 | ORM for the database | Web, Minor | 1 | ouzouini, ayaarab |
 | Notification system | Web, Minor | 1 | moben-ta, mel-adna |
 | Remote authentication with OAuth 2.0 | User management, Minor | 1 | moben-ta, szemmour |
@@ -210,10 +211,9 @@ The chat service keeps its own tables in the `chat` schema, through Prisma: `Use
 | Data export and import | Data and analytics, Minor | 1 | szemmour, mel-adna |
 | User activity analytics dashboard | User management, Minor | 1 | mel-adna |
 | GDPR compliance | Data and analytics, Minor | 1 | moben-ta, szemmour |
+| Real-time collaborative features | Web, Minor | 1 | ayaarab, szemmour |
 
-Point calculation: 6 Major modules make 12 points and 8 Minor modules make 8, so 20 in total. The subject requires 14 and counts at most 5 more as bonus, so 19 count.
-
-Also built, and counted if the evaluator agrees they meet the module: **Backend as microservices** (DevOps, Major, 2 points, ayaarab and moben-ta) and **Real-time collaborative features** (Web, Minor, 1 point, ayaarab and szemmour).
+Point calculation: 7 Major modules make 14 points and 9 Minor modules make 9, so 23 in total. The subject requires 14 and counts at most 5 more as bonus, so 19 count.
 
 Why we chose each module, and how it works:
 
