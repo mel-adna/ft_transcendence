@@ -118,7 +118,7 @@ How AI was used:
 
 All members used AI assistants as helpers: to explain concepts and error messages, to review code, and to draft documentation and test scripts. Each member kept only what they understood, tested and can explain. What each member used it for:
 
-- **moben-ta:**
+- **moben-ta:** Used AI to troubleshoot Docker container orchestration, Nginx SSL/TLS reverse proxy configurations, and file permission issues for automated secret mounts. Used it to optimize Grafana PromQL dashboard queries and configure dynamic cAdvisor metric scraping for 42 Network environment compatibility.
 - **ouzouini:** AI was used to research technical concepts, explore possible solutions to development challenges, and improve documentation. All implementations were reviewed and adapted to the project's needs.
 - **szemmour:** Used Claude Code to review the frontend and pull requests, identify the root causes of bugs, and draft the Privacy Policy, Terms of Service, and status page. Used ChatGPT to understand frontend concepts.
 - **ayaarab:** Used Claude Code to review and audit the chat service, find the root causes of socket, token and security bugs, and write the live test scripts (Socket.IO clients and Playwright) used to check each fix against the running stack. Used it to draft commit messages and the chat documentation.
