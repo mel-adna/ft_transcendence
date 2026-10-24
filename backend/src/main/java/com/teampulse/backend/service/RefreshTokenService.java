@@ -105,12 +105,11 @@ public class RefreshTokenService {
 		}
 
 		String truncatedUserAgent = truncateUserAgent(currentUserAgent);
-		boolean ipMismatch = token.getClientIp() != null && !token.getClientIp().equals(currentClientIp);
 		boolean agentMismatch = token.getUserAgent() != null && !token.getUserAgent().equals(truncatedUserAgent);
 
-		if (ipMismatch || agentMismatch) {
-			log.warn("Client mismatch for user: {}. IP mismatch: {}, Agent mismatch: {}",
-					EmailUtils.maskEmail(token.getUser().getEmail()), ipMismatch, agentMismatch);
+		if (agentMismatch) {
+			log.warn("Client mismatch for user: {}. Agent mismatch: {}",
+					EmailUtils.maskEmail(token.getUser().getEmail()), agentMismatch);
 			refreshTokenRepository.delete(token);
 			refreshTokenRepository.flush();
 			throw new UnauthorizedAccessException("Security alert: Client context mismatch. Session invalidated.");
