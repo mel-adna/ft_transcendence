@@ -122,7 +122,7 @@ All members used AI assistants as helpers: to explain concepts and error message
 - **ouzouini:**
 - **szemmour:** Used Claude Code to review the frontend and pull requests, identify the root causes of bugs, and draft the Privacy Policy, Terms of Service, and status page. Used ChatGPT to understand frontend concepts.
 - **ayaarab:**
-- **mel-adna:**
+- **mel-adna:** Used AI assistants to review code, understand some technical issues, and help with documentation and debugging.
 
 ## Team Information
 
