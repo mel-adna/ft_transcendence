@@ -97,13 +97,11 @@ test('Actual Java/Node/Redis/MinIO and browser Socket.IO protocol compatibility'
       const disconnected=once(ownerSocket,'disconnect',45000);
       await execFile('docker',['stop','-t','1','teampulse-remediation-redis']);
       try {
-        // Deliberately change authority without an event while Redis is unavailable.
         await prisma.$executeRaw`UPDATE public.users SET security_version=security_version+1,row_version=row_version+1 WHERE id=${first.id}::uuid`;
         assert.equal(await disconnected,'io server disconnect');
       } finally { await execFile('docker',['start','teampulse-remediation-redis']); }
       await assert.rejects(connect(first.accessToken),/AUTH_TOKEN_REVOKED/);
       while(!redis.isReady) await new Promise((resolve) => setTimeout(resolve,50));
-      // Wait for the subscriber acknowledgement, not an arbitrary reconnect sleep.
       let allSubscribed=false;
       for(let attempt=0;attempt<200;attempt++) {
         const counts=await redis.pubSubNumSub('teampulse-audit-events'); if(counts['teampulse-audit-events']>=expectedSubscribers) {allSubscribed=true;break;}

@@ -11,7 +11,6 @@ const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
 
 const SOCKET_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-// the caller's other tabs need it too, just not the tab that made the change
 function deliver(resource, workspaceId, targets, callerId, callerSocketId) {
   const payload = { resource, workspaceId };
   for (const userId of targets) {

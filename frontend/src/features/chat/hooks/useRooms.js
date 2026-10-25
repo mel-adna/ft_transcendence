@@ -26,7 +26,6 @@ export function useRooms(currentUserId) {
       const { requests } = await chatApi.listPendingDMRequests();
       setPendingRequests(requests ?? []);
     } catch {
-      // Non-critical — the badge just won't update until the next refresh.
     }
   }, []);
 

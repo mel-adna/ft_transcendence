@@ -1,7 +1,5 @@
 const { verifyCurrentIdentity } = require('../http/JavaBackendClient');
 
-// Pub/Sub is best effort. Recheck established local sockets against the existing
-// authority, without copying bearer tokens into adapter-visible socket.data.
 class IdentityReconciler {
   constructor(verify = verifyCurrentIdentity) {
     this.verify = verify;
@@ -40,8 +38,6 @@ class IdentityReconciler {
                 }
               }
             }
-            // An authority outage must not be mistaken for a definitive revocation.
-            // Existing JWT expiry timers still impose the original maximum lifetime.
           }
         }
       };

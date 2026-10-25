@@ -59,7 +59,6 @@ const UserRepository = {
         data: { securityVersion: sv, svSeenAt: new Date() },
       });
       if (count > 0) return { revoked: false, raised: true };
-      // Another security event may have raised the version after our first read.
       const current = await prisma.user.findUnique({ where: { id }, select: { securityVersion: true } });
       return { revoked: !current || current.securityVersion > sv, raised: false };
     }

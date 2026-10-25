@@ -80,8 +80,6 @@ class SocketServer {
       const { id: userId } = socket.user;
       this._identities.track(socket, socket.handshake?.auth?.token, clientIpOf(socket));
 
-      // Established connections must not outlive the access token used to open them.
-      // Closing the transport lets existing clients reconnect with their refreshed token.
       const expiryTimer = setTimeout(() => socket.conn.close(),
         Math.max(0, Math.min(socket.user.expiresAt - Date.now(), 2_147_483_647)));
       expiryTimer.unref?.();
@@ -123,7 +121,6 @@ class SocketServer {
   emitToUser(userId, event, payload, { local = false, exceptSocketId = null } = {}) {
     if (!this.io) return;
     let target = (local ? this.io.local : this.io).to(userRoom(userId));
-    // only skips the socket if it sits in this user's room, so a foreign id is a no-op
     if (exceptSocketId) target = target.except(exceptSocketId);
     target.emit(event, payload);
   }

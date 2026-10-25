@@ -24,7 +24,6 @@ function buildBody(resource, userIds, workspaceId) {
 export function notifyDataChanged(resource, userIds, { workspaceId } = {}) {
   const body = buildBody(resource, userIds, workspaceId);
   if (!body) return;
-  // lets the server skip this tab, it already shows the change
   const socketId = socketClient.isConnected() ? socketClient.getSocket().id : undefined;
   postNotify('notify', { ...body, socketId })?.catch(() => {});
 }

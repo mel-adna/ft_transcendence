@@ -43,7 +43,6 @@ export function useChat(roomId, currentUserId) {
           replace ? [...fetched].reverse() : [...fetched].reverse().concat(prev),
         );
       } catch {
-        // ignore, isLoading already reflects the failure
       } finally {
         if (requestId === requestRef.current) {
           loadingRef.current = false;
